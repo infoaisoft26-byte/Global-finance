@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GLOBAL FINANCE — USDT Shasta Test Deposit</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#070b19;color:#e5eefc;font-family:Arial,sans-serif;min-height:100vh;padding:24px}.wrap{max-width:760px;margin:0 auto}.card{background:#091129;border:1px solid #1d4ed866;border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 18px 50px #0005}.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#f59e0b22;border:1px solid #f59e0b66;color:#fbbf24;font-size:12px;font-weight:700}.title{font-size:26px;margin:12px 0 4px}.muted{color:#94a3b8;font-size:13px;line-height:1.5}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-top:14px}.field label{display:block;color:#cbd5e1;font-size:12px;margin-bottom:6px}.input,.value{width:100%;padding:12px;border-radius:12px;border:1px solid #2563eb66;background:#050a18;color:white;font-family:monospace}.btn{cursor:pointer;border:0;border-radius:12px;padding:12px 16px;font-weight:700;background:linear-gradient(90deg,#2563eb,#06b6d4);color:white}.btn.secondary{background:#101936;border:1px solid #2563eb66}.btn:disabled{opacity:.55;cursor:not-allowed}.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.status{margin-top:14px;padding:12px;border-radius:12px;background:#0b1535;border:1px solid #334155;color:#cbd5e1;font-size:13px}.ok{border-color:#10b98188;color:#6ee7b7;background:#052e2b88}.err{border-color:#ef444488;color:#fca5a5;background:#3f0b1288}.warn{border-color:#f59e0b88;color:#fde68a;background:#3a250688}.amount{font-size:28px;font-weight:800;color:#67e8f9;font-family:monospace}.address{word-break:break-all;font-family:monospace;color:#bfdbfe}.small{font-size:11px;color:#64748b}.back{color:#67e8f9;text-decoration:none;font-size:13px}@media(max-width:650px){.grid{grid-template-columns:1fr}.title{font-size:22px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Back to GLOBAL FINANCE</a>
+    <div class="card" style="margin-top:14px">
+      <span class="badge">SHASTA TESTNET — NO REAL MONEY</span>
+      <h1 class="title">USDT Test Deposit</h1>
+      <p class="muted">This screen is only for TRON Shasta testing. It never enables Mainnet payments. You must already be logged in to GLOBAL FINANCE in this browser.</p>
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <div class="field">
+          <label>Test credit amount (INR)</label>
+          <input id="amountInr" class="input" type="number" min="100" max="500000" value="1000" />
+        </div>
+        <div class="field">
+          <label>Action</label>
+          <button id="createBtn" class="btn" style="width:100%">Create Shasta Deposit</button>
+        </div>
+      </div>
+      <div id="message" class="status warn">Create a test deposit intent first.</div>
+    </div>
+
+    <div id="intentCard" class="card" style="display:none">
+      <div class="field">
+        <label>Send exactly this test USDT amount</label>
+        <div id="usdtAmount" class="amount">—</div>
+      </div>
+      <div class="field">
+        <label>Shasta deposit address</label>
+        <div id="depositAddress" class="value address">—</div>
+      </div>
+      <div class="row">
+        <button id="copyAmount" class="btn secondary">Copy Amount</button>
+        <button id="copyAddress" class="btn secondary">Copy Address</button>
+        <button id="checkBtn" class="btn">Check Confirmation</button>
+      </div>
+      <p class="small">The amount contains a tiny unique decimal suffix so the shared test address can safely match this deposit to your account. Send the exact displayed amount.</p>
+      <div id="intentStatus" class="status warn">Waiting for a confirmed Shasta TRC20 transfer…</div>
+    </div>
+
+    <div class="card">
+      <strong>Test flow</strong>
+      <p class="muted">1) Create intent. 2) From a Shasta wallet, send the exact displayed test USDT amount to the displayed address. 3) This page checks the confirmed TRC20 history every 10 seconds. 4) After a match, Neon updates the existing Fund Wallet once and records a ledger entry. Duplicate TXIDs cannot be credited twice.</p>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  let activeIntent = null;
+  let pollTimer = null;
+
+  function setMessage(text, type='warn') {
+    const el = $('message'); el.textContent = text; el.className = 'status ' + type;
+  }
+  function setIntentStatus(text, type='warn') {
+    const el = $('intentStatus'); el.textContent = text; el.className = 'status ' + type;
+  }
+  async function api(path, options={}) {
+    const res = await fetch(path, { credentials:'include', headers:{'Content-Type':'application/json', ...(options.headers||{})}, ...options });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || ('Request failed: ' + res.status));
+    return body;
+  }
+  function renderIntent(intent) {
+    activeIntent = intent;
+    $('intentCard').style.display = 'block';
+    $('usdtAmount').textContent = Number(intent.expectedAmountUsdt).toFixed(6) + ' USDT-TEST';
+    $('depositAddress').textContent = intent.depositAddress;
+    setIntentStatus('Waiting for confirmed Shasta transfer. Intent expires at ' + new Date(intent.expiresAt).toLocaleString() + '.', 'warn');
+    startPolling();
+  }
+  async function createIntent() {
+    $('createBtn').disabled = true;
+    try {
+      const amountInr = Number($('amountInr').value);
+      const data = await api('/api/crypto-deposit-intent', { method:'POST', body:JSON.stringify({amountInr}) });
+      renderIntent(data.intent);
+      setMessage('Test deposit intent is ready. Send only Shasta test tokens.', 'ok');
+    } catch (e) {
+      setMessage(e.message + (e.message.includes('Authentication') ? ' Open / and log in first.' : ''), 'err');
+    } finally { $('createBtn').disabled = false; }
+  }
+  async function check() {
+    if (!activeIntent) return;
+    $('checkBtn').disabled = true;
+    try {
+      const data = await api('/api/crypto-deposit-sync', { method:'POST', body:'{}' });
+      if (data.credited) {
+        clearInterval(pollTimer); pollTimer = null;
+        setIntentStatus('Confirmed and credited. Updated Fund Wallet: ₹' + Number(data.fundWallet||0).toLocaleString('en-IN',{minimumFractionDigits:2}) + ' | TXID: ' + data.txid, 'ok');
+        setMessage('Shasta test deposit credited successfully. Return to dashboard to see the updated wallet.', 'ok');
+      } else {
+        setIntentStatus(data.message || 'Still waiting for confirmation…', 'warn');
+      }
+    } catch (e) { setIntentStatus(e.message, 'err'); }
+    finally { $('checkBtn').disabled = false; }
+  }
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(check, 10000);
+  }
+  async function loadExisting() {
+    try {
+      const data = await api('/api/crypto-deposit-intent');
+      const pending = (data.intents||[]).find(i => i.status === 'pending' && new Date(i.expiresAt) > new Date());
+      if (pending) renderIntent(pending);
+    } catch (e) {
+      if (!String(e.message).includes('disabled')) setMessage('Log in first, then reopen this test page.', 'warn');
+    }
+  }
+  $('createBtn').addEventListener('click', createIntent);
+  $('checkBtn').addEventListener('click', check);
+  $('copyAmount').addEventListener('click', () => activeIntent && navigator.clipboard.writeText(Number(activeIntent.expectedAmountUsdt).toFixed(6)));
+  $('copyAddress').addEventListener('click', () => activeIntent && navigator.clipboard.writeText(activeIntent.depositAddress));
+  loadExisting();
+})();
+</script>
+</body>
+</html>
