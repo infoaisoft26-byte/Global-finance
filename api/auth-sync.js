@@ -3,6 +3,8 @@ import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { withTransaction } from './_lib/db.js';
 import { createSessionToken, sessionCookie } from './_lib/session.js';
 
+const REFERRAL_SIGNUP_BONUS = 50;
+
 function json(res, status, body) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
@@ -73,9 +75,21 @@ export default async function handler(req, res) {
 
       if (!existing.rowCount) {
         let sponsorId = null;
+        let sponsorUserId = null;
+        let sponsorEmail = null;
+
         if (sponsorCode) {
-          const sponsor = await client.query('SELECT referral_code FROM users WHERE referral_code=$1 LIMIT 1', [sponsorCode]);
-          if (sponsor.rowCount) sponsorId = sponsorCode;
+          const sponsor = await client.query(
+            `SELECT id,email,referral_code FROM users
+             WHERE referral_code=$1 AND status='active'
+             LIMIT 1 FOR UPDATE`,
+            [sponsorCode]
+          );
+          if (sponsor.rowCount) {
+            sponsorId = sponsorCode;
+            sponsorUserId = sponsor.rows[0].id;
+            sponsorEmail = sponsor.rows[0].email;
+          }
         }
 
         let code = '';
@@ -98,12 +112,84 @@ export default async function handler(req, res) {
            RETURNING *`,
           [uid, email, requestedName, code, sponsorId, role, role === 'admin' ? 'verified' : 'unverified']
         );
+
         await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [uid]);
+
         await client.query(
           `INSERT INTO audit_logs (id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
            VALUES ($1,$2,$3,'USER_REGISTERED','user',$2,$4::jsonb)`,
           [crypto.randomUUID(), uid, email, JSON.stringify({ referralCode: code, sponsorId, role })]
         );
+
+        // A valid referral creates exactly one sponsor reward because this block only runs on first registration.
+        // This is internal referral income only; external payouts remain governed by payout settings.
+        if (sponsorUserId && role === 'user') {
+          await client.query(
+            `UPDATE wallets
+             SET income_wallet = income_wallet + $2,
+                 total_income = total_income + $2,
+                 direct_team_count = direct_team_count + 1,
+                 total_team_count = total_team_count + 1,
+                 updated_at = NOW()
+             WHERE user_id=$1`,
+            [sponsorUserId, REFERRAL_SIGNUP_BONUS]
+          );
+
+          // Keep ancestor total-team counters synchronized for the complete referral chain.
+          await client.query(
+            `WITH RECURSIVE uplines AS (
+               SELECT sponsor_id FROM users WHERE id=$1 AND sponsor_id IS NOT NULL
+               UNION ALL
+               SELECT u.sponsor_id
+               FROM users u
+               JOIN uplines x ON u.referral_code=x.sponsor_id
+               WHERE u.sponsor_id IS NOT NULL
+             )
+             UPDATE wallets w
+             SET total_team_count = total_team_count + 1,
+                 updated_at = NOW()
+             FROM users u
+             WHERE w.user_id=u.id
+               AND u.referral_code IN (SELECT sponsor_id FROM uplines)
+               AND u.id <> $2`,
+            [sponsorUserId, sponsorUserId]
+          );
+
+          const bonusTxnId = `REF-${crypto.randomUUID()}`;
+          await client.query(
+            `INSERT INTO ledger_transactions
+             (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,sender_user_id,recipient_user_id,status,metadata)
+             VALUES ($1,$2,'referral_bonus','income_wallet','credit',$3,0,$3,$4,$5,$6,$2,'completed',$7::jsonb)`,
+            [
+              bonusTxnId,
+              sponsorUserId,
+              REFERRAL_SIGNUP_BONUS,
+              `Referral signup bonus for ${code}`,
+              code,
+              uid,
+              JSON.stringify({
+                bonusType: 'new_user_referral_signup',
+                referredUserId: uid,
+                referredUserCode: code,
+                sponsorCode,
+                sponsorEmail,
+                amount: REFERRAL_SIGNUP_BONUS,
+              }),
+            ]
+          );
+
+          await client.query(
+            `INSERT INTO audit_logs (id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+             VALUES ($1,$2,$3,'REFERRAL_SIGNUP_BONUS_CREDITED','ledger',$4,$5::jsonb)`,
+            [
+              crypto.randomUUID(),
+              sponsorUserId,
+              sponsorEmail,
+              bonusTxnId,
+              JSON.stringify({ referredUserId: uid, referredUserCode: code, amount: REFERRAL_SIGNUP_BONUS })
+            ]
+          );
+        }
       } else {
         const current = existing.rows[0];
         const promotedRole = email === configuredAdminEmail ? 'admin' : current.role;
