@@ -66,7 +66,7 @@ export default async function handler(req, res) {
 
     const requestedName = String(body.name || decoded.name || email.split('@')[0]).trim().slice(0, 255) || 'Global Finance Member';
     const sponsorCode = safeSponsor(body.sponsorCode);
-    const configuredAdminEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const configuredAdminEmail = String(process.env.ADMIN_EMAIL || 'admin@gf.app').trim().toLowerCase();
 
     const result = await withTransaction(async (client) => {
       let existing = await client.query('SELECT * FROM users WHERE id=$1 FOR UPDATE', [uid]);
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
         }
         if (!code) throw new Error('Unable to allocate referral code');
 
-        const role = configuredAdminEmail && email === configuredAdminEmail ? 'admin' : 'user';
+        const role = email === configuredAdminEmail ? 'admin' : 'user';
         existing = await client.query(
           `INSERT INTO users (id,email,name,referral_code,sponsor_id,role,status,kyc_status)
            VALUES ($1,$2,$3,$4,$5,$6,'active',$7) RETURNING *`,
@@ -100,7 +100,7 @@ export default async function handler(req, res) {
         );
       } else {
         const current = existing.rows[0];
-        const promotedRole = configuredAdminEmail && email === configuredAdminEmail ? 'admin' : current.role;
+        const promotedRole = email === configuredAdminEmail ? 'admin' : current.role;
         existing = await client.query(
           `UPDATE users SET email=$2,name=$3,role=$4,updated_at=NOW() WHERE id=$1 RETURNING *`,
           [uid, email, requestedName, promotedRole]
@@ -126,7 +126,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('auth-sync failed:', error instanceof Error ? error.message : error);
     const message = error instanceof Error ? error.message : '';
-    if (message.includes('DATABASE_URL') || message.includes('Firebase Admin credentials') || message.includes('AUTH_SECRET')) {
+    if (message.includes('DATABASE_URL') || message.includes('AUTH_SECRET')) {
       return json(res, 503, { error: 'Login service is not fully configured yet.' });
     }
     return json(res, 500, { error: 'Unable to complete secure login.' });
