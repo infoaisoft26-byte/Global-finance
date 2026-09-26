@@ -4,9 +4,24 @@ const { Pool } = pg;
 
 let pool;
 
+function resolveConnectionString() {
+  return (
+    process.env.DATABASE_URL ||
+    process.env.DATABASE_URL_UNPOOLED ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.NEON_DATABASE_URL ||
+    ''
+  );
+}
+
 export function getPool() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error('DATABASE_URL is not configured');
+  const connectionString = resolveConnectionString();
+  if (!connectionString) {
+    throw new Error('Database connection URL is not configured');
+  }
+
   if (!pool) {
     pool = new Pool({
       connectionString,
@@ -16,6 +31,7 @@ export function getPool() {
       ssl: connectionString.includes('neon.tech') ? { rejectUnauthorized: false } : undefined,
     });
   }
+
   return pool;
 }
 
