@@ -1,23 +1,32 @@
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-function getAdminApp() {
-  if (getApps().length) return getApps()[0];
-
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error('Firebase Admin credentials are not configured');
-  }
-
-  return initializeApp({
-    credential: cert({ projectId, clientEmail, privateKey }),
-  });
-}
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'global-finance-72e35';
+const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
+const GOOGLE_JWKS = createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+);
 
 export async function verifyFirebaseIdToken(idToken) {
   if (!idToken) throw new Error('Firebase ID token is required');
-  return getAuth(getAdminApp()).verifyIdToken(idToken, true);
+
+  const { payload, protectedHeader } = await jwtVerify(idToken, GOOGLE_JWKS, {
+    issuer: FIREBASE_ISSUER,
+    audience: FIREBASE_PROJECT_ID,
+    algorithms: ['RS256'],
+  });
+
+  if (!payload.sub || typeof payload.sub !== 'string') {
+    throw new Error('Firebase token subject is missing');
+  }
+
+  if (!protectedHeader.kid) {
+    throw new Error('Firebase token key id is missing');
+  }
+
+  return {
+    ...payload,
+    uid: payload.sub,
+    email: typeof payload.email === 'string' ? payload.email : '',
+    name: typeof payload.name === 'string' ? payload.name : '',
+  };
 }
