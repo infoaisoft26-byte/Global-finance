@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { Header } from './components/layout/Header.tsx';
 import { Sidebar } from './components/layout/Sidebar.tsx';
+import { AdminSidebar } from './components/layout/AdminSidebar.tsx';
 import { Footer } from './components/layout/Footer.tsx';
 import { AuthScreen } from './components/auth/AuthScreen.tsx';
 import { AdminLoginScreen } from './components/auth/AdminLoginScreen.tsx';
@@ -56,7 +57,13 @@ const MainLayout: React.FC = () => {
     if (isAdminEntry && isAdmin) setActivePage('admin-dashboard');
   }, [isAdminEntry, isAdmin]);
 
-  // Poll system settings for real-time maintenance mode & safety parameters
+  // Admin accounts always enter the dedicated admin portal, never the member workspace.
+  useEffect(() => {
+    if (!loading && user && isAdmin && !isAdminEntry) {
+      window.location.replace('/admin');
+    }
+  }, [loading, user, isAdmin, isAdminEntry]);
+
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -81,7 +88,7 @@ const MainLayout: React.FC = () => {
         <p className="text-xs text-cyan-400/80 mt-1 mb-4">Secure • Transparent • Digital Finance Platform</p>
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
-          <span>Synchronizing cryptographic ledger...</span>
+          <span>Synchronizing secure account data...</span>
         </div>
       </div>
     );
@@ -104,13 +111,12 @@ const MainLayout: React.FC = () => {
           >
             Sign Out
           </button>
-          <a href="/" className="block text-xs text-cyan-400 hover:text-cyan-300">Go to Member Dashboard</a>
+          <a href="/" className="block text-xs text-cyan-400 hover:text-cyan-300">Go to Member Login</a>
         </div>
       </div>
     );
   }
 
-  // Account suspension gate
   if (isSuspended) {
     return (
       <div className="min-h-screen bg-[#070b19] flex flex-col items-center justify-center p-4 text-center">
@@ -120,23 +126,20 @@ const MainLayout: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-white">Account Access Suspended</h2>
           <p className="text-xs text-slate-300 leading-relaxed">
-            Your GLOBAL FINANCE member account has been suspended by the platform compliance officers. Please reach out to <strong className="text-cyan-400">support@globalfinance.digital</strong> for identity verification and reinstatement.
+            Your GLOBAL FINANCE member account has been suspended. Please reach out to <strong className="text-cyan-400">support@globalfinance.digital</strong> for assistance.
           </p>
-          <div className="pt-2">
-            <button
-              onClick={logout}
-              className="px-5 py-2.5 rounded-xl bg-[#121c44] hover:bg-[#1a2860] border border-blue-500/30 text-white font-semibold text-xs flex items-center justify-center gap-2 mx-auto"
-            >
-              <LogOut className="w-4 h-4 text-rose-400" />
-              <span>Log Out of Account</span>
-            </button>
-          </div>
+          <button
+            onClick={logout}
+            className="px-5 py-2.5 rounded-xl bg-[#121c44] hover:bg-[#1a2860] border border-blue-500/30 text-white font-semibold text-xs flex items-center justify-center gap-2 mx-auto"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span>Log Out</span>
+          </button>
         </div>
       </div>
     );
   }
 
-  // Maintenance Mode gate: non-admins are shown maintenance screen; admins retain access
   if (systemSettings?.maintenanceMode && !isAdmin) {
     return (
       <div className="min-h-screen bg-[#070b19] flex flex-col items-center justify-center p-4 text-center">
@@ -150,12 +153,7 @@ const MainLayout: React.FC = () => {
           </div>
           <div className="p-4 rounded-xl bg-[#060b1c] border border-blue-500/20 text-xs text-slate-300 space-y-2">
             <strong className="text-amber-300 font-semibold block text-sm">Scheduled Maintenance in Progress</strong>
-            <p className="leading-relaxed text-slate-400">
-              GLOBAL FINANCE is currently undergoing scheduled cryptographic ledger synchronization and compliance system upgrades. Normal member operations are temporarily paused and will resume shortly.
-            </p>
-            <div className="pt-2 text-[11px] text-slate-500 font-mono">
-              Direct Inquiries: <span className="text-cyan-400">support@globalfinance.digital</span>
-            </div>
+            <p className="leading-relaxed text-slate-400">Member operations are temporarily paused and will resume shortly.</p>
           </div>
           <button
             onClick={logout}
@@ -170,22 +168,13 @@ const MainLayout: React.FC = () => {
   }
 
   const renderContent = () => {
-    // Admin route protection: only users with admin role can access admin modules
     const isAdminRoute = activePage.startsWith('admin-');
     if (isAdminRoute && !isAdmin) {
       return (
         <div className="p-8 rounded-2xl bg-[#091129] border border-rose-500/30 text-center space-y-3">
           <ShieldAlert className="w-10 h-10 text-rose-400 mx-auto" />
-          <h3 className="text-base font-bold text-white">Access Denied: Staff Authorization Required</h3>
-          <p className="text-xs text-slate-400">
-            You do not possess administrative clearance to access the GLOBAL FINANCE control desk.
-          </p>
-          <button
-            onClick={() => setActivePage('dashboard')}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
-          >
-            Return to Member Dashboard
-          </button>
+          <h3 className="text-base font-bold text-white">Access Denied</h3>
+          <p className="text-xs text-slate-400">Administrator authorization is required.</p>
         </div>
       );
     }
@@ -237,8 +226,6 @@ const MainLayout: React.FC = () => {
         return <IncomeWalletSummary />;
       case 'support-tickets':
         return <SupportTickets />;
-
-      // Admin Panels
       case 'admin-dashboard':
         return <AdminDashboard onNavigate={setActivePage} />;
       case 'admin-transactions':
@@ -255,12 +242,7 @@ const MainLayout: React.FC = () => {
           />
         );
       case 'admin-user-detail':
-        return (
-          <AdminUserDetail
-            userId={selectedAdminUserId}
-            onBack={() => setActivePage('admin-users')}
-          />
-        );
+        return <AdminUserDetail userId={selectedAdminUserId} onBack={() => setActivePage('admin-users')} />;
       case 'admin-kyc':
         return <AdminKyc />;
       case 'admin-tickets':
@@ -273,9 +255,10 @@ const MainLayout: React.FC = () => {
         return <AdminAudit />;
       case 'admin-settings':
         return <AdminSettingsPage />;
-
       default:
-        return <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
+        return isAdminEntry
+          ? <AdminDashboard onNavigate={setActivePage} />
+          : <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
     }
   };
 
@@ -288,18 +271,27 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
-      <Sidebar
-        activePage={activePage}
-        onSelectPage={setActivePage}
-        isOpenMobile={isSidebarOpenMobile}
-        onCloseMobile={() => setIsSidebarOpenMobile(false)}
-      />
+      {isAdminEntry ? (
+        <AdminSidebar
+          activePage={activePage}
+          onSelectPage={setActivePage}
+          isOpenMobile={isSidebarOpenMobile}
+          onCloseMobile={() => setIsSidebarOpenMobile(false)}
+        />
+      ) : (
+        <Sidebar
+          activePage={activePage}
+          onSelectPage={setActivePage}
+          isOpenMobile={isSidebarOpenMobile}
+          onCloseMobile={() => setIsSidebarOpenMobile(false)}
+        />
+      )}
 
       <div className="lg:pl-72 flex-1 flex flex-col min-w-0 transition-all">
         <Header
           activePage={activePage}
           onToggleSidebar={() => setIsSidebarOpenMobile(prev => !prev)}
-          onOpenProfile={() => setShowProfileModal(true)}
+          onOpenProfile={() => !isAdminEntry && setShowProfileModal(true)}
           onNavigate={setActivePage}
         />
 
@@ -310,14 +302,16 @@ const MainLayout: React.FC = () => {
         <Footer />
       </div>
 
-      <ProfileKycModal
-        isOpen={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-        onNavigateToKyc={() => {
-          setShowProfileModal(false);
-          setActivePage('kyc');
-        }}
-      />
+      {!isAdminEntry && (
+        <ProfileKycModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          onNavigateToKyc={() => {
+            setShowProfileModal(false);
+            setActivePage('kyc');
+          }}
+        />
+      )}
     </div>
   );
 };
