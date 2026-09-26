@@ -4,6 +4,7 @@ import { Header } from './components/layout/Header.tsx';
 import { Sidebar } from './components/layout/Sidebar.tsx';
 import { Footer } from './components/layout/Footer.tsx';
 import { AuthScreen } from './components/auth/AuthScreen.tsx';
+import { AdminLoginScreen } from './components/auth/AdminLoginScreen.tsx';
 import { Dashboard } from './components/pages/Dashboard.tsx';
 import { Recharge } from './components/pages/Recharge.tsx';
 import { BasicPackage } from './components/pages/BasicPackage.tsx';
@@ -44,11 +45,16 @@ import { ShieldCheck, RefreshCw, ShieldAlert, LogOut, AlertTriangle, Wrench } fr
 
 const MainLayout: React.FC = () => {
   const { user, loading, isAdmin, isSuspended, logout } = useAuth();
-  const [activePage, setActivePage] = useState<ActivePage>('dashboard');
+  const isAdminEntry = typeof window !== 'undefined' && (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/'));
+  const [activePage, setActivePage] = useState<ActivePage>(() => isAdminEntry ? 'admin-dashboard' : 'dashboard');
   const [selectedAdminUserId, setSelectedAdminUserId] = useState<string>('');
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
+
+  useEffect(() => {
+    if (isAdminEntry && isAdmin) setActivePage('admin-dashboard');
+  }, [isAdminEntry, isAdmin]);
 
   // Poll system settings for real-time maintenance mode & safety parameters
   useEffect(() => {
@@ -82,7 +88,26 @@ const MainLayout: React.FC = () => {
   }
 
   if (!user) {
-    return <AuthScreen />;
+    return isAdminEntry ? <AdminLoginScreen /> : <AuthScreen />;
+  }
+
+  if (isAdminEntry && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-[#070b19] flex items-center justify-center p-4 text-center">
+        <div className="max-w-md w-full p-7 rounded-2xl bg-[#091129] border border-rose-500/40 shadow-2xl space-y-4">
+          <ShieldAlert className="w-12 h-12 text-rose-400 mx-auto" />
+          <h2 className="text-xl font-bold text-white">Admin Access Denied</h2>
+          <p className="text-xs text-slate-400 leading-relaxed">This account is valid, but it does not have an administrator role. Admin access is verified server-side.</p>
+          <button
+            onClick={logout}
+            className="w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
+          >
+            Sign Out
+          </button>
+          <a href="/" className="block text-xs text-cyan-400 hover:text-cyan-300">Go to Member Dashboard</a>
+        </div>
+      </div>
+    );
   }
 
   // Account suspension gate
@@ -256,7 +281,6 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#070b19] text-slate-200 flex flex-col antialiased selection:bg-cyan-500 selection:text-slate-900">
-      {/* Admin Maintenance Mode Notice */}
       {systemSettings?.maintenanceMode && isAdmin && (
         <div className="bg-amber-500/20 border-b border-amber-500/40 px-4 py-2 text-center text-xs font-bold text-amber-300 flex items-center justify-center gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-400" />
@@ -264,7 +288,6 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Sidebar Navigation */}
       <Sidebar
         activePage={activePage}
         onSelectPage={setActivePage}
@@ -272,9 +295,7 @@ const MainLayout: React.FC = () => {
         onCloseMobile={() => setIsSidebarOpenMobile(false)}
       />
 
-      {/* Main Content Area */}
       <div className="lg:pl-72 flex-1 flex flex-col min-w-0 transition-all">
-        {/* Top Header */}
         <Header
           activePage={activePage}
           onToggleSidebar={() => setIsSidebarOpenMobile(prev => !prev)}
@@ -282,16 +303,13 @@ const MainLayout: React.FC = () => {
           onNavigate={setActivePage}
         />
 
-        {/* Page Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {renderContent()}
         </main>
 
-        {/* Global Finance Footer */}
         <Footer />
       </div>
 
-      {/* KYC & Profile Modal */}
       <ProfileKycModal
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
