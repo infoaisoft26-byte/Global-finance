@@ -1,12 +1,12 @@
 {
-  "projectId": "planning-with-ai-1ea1c",
-  "appId": "1:1011372734924:web:cdad468ff04b8132fe8569",
-  "apiKey": "AIzaSyBOMEbENIjuyau0xviOOo05CWGTkAxOxNQ",
-  "authDomain": "planning-with-ai-1ea1c.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-b573b883-3b13-46dd-88fc-9589bb7b715c",
-  "storageBucket": "planning-with-ai-1ea1c.firebasestorage.app",
-  "messagingSenderId": "1011372734924",
-  "measurementId": "G-PS6L60MPHC",
-  "oAuthClientId": "1011372734924-gsdn1hqknr2sjtr84mad0qd92hpmqmnk.apps.googleusercontent.com",
+  "projectId": "global-finance-72e35",
+  "appId": "1:626591748741:web:81598d59dd60b88bc9cfec",
+  "apiKey": "AIzaSyC3uxTaSyKOkVIpL9S3UKjFMBWoktohUJs",
+  "authDomain": "global-finance-72e35.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "global-finance-72e35.firebasestorage.app",
+  "messagingSenderId": "626591748741",
+  "measurementId": "G-3G8GLLC179",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }
