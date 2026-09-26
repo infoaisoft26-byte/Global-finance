@@ -89,7 +89,13 @@ export default async function handler(req, res) {
         const role = email === configuredAdminEmail ? 'admin' : 'user';
         existing = await client.query(
           `INSERT INTO users (id,email,name,referral_code,sponsor_id,role,status,kyc_status)
-           VALUES ($1,$2,$3,$4,$5,$6,'active',$7) RETURNING *`,
+           VALUES ($1,$2,$3,$4,$5,$6,'active',$7)
+           ON CONFLICT (id) DO UPDATE SET
+             email=EXCLUDED.email,
+             name=EXCLUDED.name,
+             role=CASE WHEN EXCLUDED.role='admin' THEN 'admin' ELSE users.role END,
+             updated_at=NOW()
+           RETURNING *`,
           [uid, email, requestedName, code, sponsorId, role, role === 'admin' ? 'verified' : 'unverified']
         );
         await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [uid]);
@@ -116,7 +122,7 @@ export default async function handler(req, res) {
 
     if (result.suspended) return json(res, 403, { error: 'Account is suspended. Please contact support.' });
 
-    const token = await createSessionToken({ uid, role: result.profile.role, email });
+    const token = await createSessionToken({ idToken: body.idToken });
     res.setHeader('Set-Cookie', sessionCookie(token));
     return json(res, 200, {
       ok: true,
@@ -126,8 +132,8 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('auth-sync failed:', error instanceof Error ? error.message : error);
     const message = error instanceof Error ? error.message : '';
-    if (message.includes('DATABASE_URL') || message.includes('AUTH_SECRET')) {
-      return json(res, 503, { error: 'Login service is not fully configured yet.' });
+    if (message.includes('Database connection URL') || message.includes('DATABASE_URL')) {
+      return json(res, 503, { error: 'Login service database is not configured.' });
     }
     return json(res, 500, { error: 'Unable to complete secure login.' });
   }
