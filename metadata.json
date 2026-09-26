@@ -1,0 +1,6 @@
+{
+  "name": "Global Finance",
+  "description": "Secure • Transparent • Digital Finance Platform. Real-time financial balances, package activation, downline team tracking, transactional ledgers, and comprehensive income reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

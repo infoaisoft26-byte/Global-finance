@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with referral details, role, account status, and KYC info",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "referralCode": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "sponsorId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "kycStatus": { "type": "string", "enum": ["unverified", "pending", "in_review", "verified", "rejected"] },
+        "panNumber": { "type": "string" },
+        "bankAccount": { "type": "string" },
+        "bankName": { "type": "string" },
+        "ifscCode": { "type": "string" },
+        "upiId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "referralCode", "email"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "User balance summary derived from immutable server ledger entries",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "fundWallet": { "type": "number" },
+        "incomeWallet": { "type": "number" },
+        "totalIncome": { "type": "number" },
+        "totalWithdrawal": { "type": "number" },
+        "basicPackageActive": { "type": "number" },
+        "fdPackageActive": { "type": "number" },
+        "directTeamCount": { "type": "number" },
+        "totalTeamCount": { "type": "number" },
+        "joiningBonus": { "type": "number" },
+        "referralIncome": { "type": "number" },
+        "todayRoiIncome": { "type": "number" },
+        "todayLevelIncome": { "type": "number" },
+        "totalRoiIncome": { "type": "number" },
+        "totalLevelIncome": { "type": "number" },
+        "fdTodayRoiIncome": { "type": "number" },
+        "fdTodayLevelIncome": { "type": "number" },
+        "fdTotalRoiIncome": { "type": "number" },
+        "fdTotalLevelIncome": { "type": "number" },
+        "fdReferralIncome": { "type": "number" },
+        "fdReleased": { "type": "number" },
+        "totalSalary": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Append-only immutable transaction record in the ledger",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "category": { "type": "string" },
+        "flow": { "type": "string", "enum": ["credit", "debit"] },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "netAmount": { "type": "number" },
+        "description": { "type": "string" },
+        "referenceId": { "type": "string" },
+        "senderUserId": { "type": "string" },
+        "recipientUserId": { "type": "string" },
+        "status": { "type": "string", "enum": ["completed", "pending", "rejected", "failed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "type", "amount", "createdAt"]
+    },
+    "KycSubmission": {
+      "title": "KycSubmission",
+      "description": "Official KYC document submissions stored securely",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "legalName": { "type": "string" },
+        "documentType": { "type": "string" },
+        "documentLast4": { "type": "string" },
+        "idDocName": { "type": "string" },
+        "addressDocName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in_review", "verified", "rejected"] },
+        "adminNotes": { "type": "string" },
+        "reviewedBy": { "type": "string" },
+        "reviewedAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "legalName", "documentType", "documentLast4", "status"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Customer support inquiries, admin assignments, and communication threads",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "subject": { "type": "string" },
+        "category": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved", "closed"] },
+        "priority": { "type": "string", "enum": ["low", "normal", "high", "urgent"] },
+        "adminReply": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "subject", "message"]
+    },
+    "Package": {
+      "title": "Package",
+      "description": "Database-driven configuration for financial packages",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "type": { "type": "string", "enum": ["basic", "fd"] },
+        "minAmount": { "type": "number" },
+        "maxAmount": { "type": "number" },
+        "roiRate": { "type": "number" },
+        "durationDays": { "type": "number" },
+        "description": { "type": "string" },
+        "terms": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "code", "type", "minAmount", "maxAmount", "active"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable audit log of all sensitive user, admin, and financial actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "actorUserId": { "type": "string" },
+        "actorEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "metadata": { "type": "object" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "actorUserId", "action", "entityType", "entityId", "timestamp"]
+    },
+    "AdminSettings": {
+      "title": "AdminSettings",
+      "description": "Platform global configuration and execution safety flags",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "platformName": { "type": "string" },
+        "paymentsEnabled": { "type": "boolean" },
+        "payoutsEnabled": { "type": "boolean" },
+        "maintenanceMode": { "type": "boolean" },
+        "minWithdrawal": { "type": "number" },
+        "withdrawalFeePercent": { "type": "number" },
+        "supportEmail": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "paymentsEnabled", "payoutsEnabled"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile documents"
+    },
+    "/wallets/{userId}": {
+      "schema": { "$ref": "#/entities/Wallet" },
+      "description": "Wallet and breakdown totals"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Immutable ledger entries"
+    },
+    "/kyc_submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/KycSubmission" },
+      "description": "KYC document uploads and verification decisions"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "Customer support requests"
+    },
+    "/package_definitions/{packageId}": {
+      "schema": { "$ref": "#/entities/Package" },
+      "description": "Admin-configured packages"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable security and administrative audit trail"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AdminSettings" },
+      "description": "Platform global settings and runtime flags"
+    }
+  }
+}
