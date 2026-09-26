@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { Header } from './components/layout/Header.tsx';
 import { Sidebar } from './components/layout/Sidebar.tsx';
@@ -326,6 +327,7 @@ export default function App() {
   return (
     <AuthProvider>
       <MainLayout />
+      <Analytics />
     </AuthProvider>
   );
 }
