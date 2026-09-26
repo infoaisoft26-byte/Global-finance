@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { getPool } from './_lib/db.js';
 import { readCookie, verifySessionToken } from './_lib/session.js';
+import { ensureCryptoTestnetSchema } from './_lib/cryptoTestnetSchema.js';
 import { getTronTestnetConfig } from './_lib/tronTestnet.js';
 
 function json(res, status, body) {
@@ -37,6 +38,7 @@ export default async function handler(req, res) {
   try {
     const session = await requireUser(req);
     const config = getTronTestnetConfig();
+    await ensureCryptoTestnetSchema();
     const pool = getPool();
 
     if (req.method === 'GET') {
