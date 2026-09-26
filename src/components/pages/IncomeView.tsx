@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
-  Calendar, 
   DollarSign, 
-  Sparkles, 
   Award, 
   Layers, 
-  RefreshCw 
+  RefreshCw,
+  Scale,
+  Wallet,
+  Percent
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getTransactions } from '../../services/financeService.ts';
@@ -26,64 +27,64 @@ const incomeConfigs: Partial<Record<ActivePage, IncomeConfig>> = {
   'basic-roi': {
     title: 'Basic ROI Income',
     badge: 'DAILY ROI',
-    description: 'Daily percentage return on active Basic Packages.',
-    txnType: 'basic_roi',
+    description: 'Recorded income credited against active Basic Packages.',
+    txnType: 'basic_roi' as TransactionType,
     getTodayAmount: (w) => w?.todayRoiIncome || 0,
     getTotalAmount: (w) => w?.totalRoiIncome || 0
   },
   'basic-referral': {
     title: 'Basic Referral Income',
     badge: 'DIRECT BONUS',
-    description: 'Instant 5% sponsor bonus earned when direct downline activates Basic Packages.',
-    txnType: 'basic_referral',
+    description: 'Recorded sponsor/referral rewards from valid referral activity.',
+    txnType: 'basic_referral' as TransactionType,
     getTodayAmount: (w) => 0,
     getTotalAmount: (w) => w?.referralIncome || 0
   },
   'basic-level': {
     title: 'Basic Level Income',
     badge: 'LEVEL BONUS',
-    description: 'Generational team level commissions earned across downline tiers.',
-    txnType: 'basic_level',
+    description: 'Recorded team level income across eligible downline activity.',
+    txnType: 'basic_level' as TransactionType,
     getTodayAmount: (w) => w?.todayLevelIncome || 0,
     getTotalAmount: (w) => w?.totalLevelIncome || 0
   },
   'fd-roi': {
     title: 'FD ROI Income',
-    badge: 'FD DAILY RETURN',
-    description: 'Daily returns accumulated on active Fixed Deposit contracts.',
-    txnType: 'fd_roi',
+    badge: 'FD RECORDED RETURN',
+    description: 'Recorded income entries associated with active FD packages.',
+    txnType: 'fd_roi' as TransactionType,
     getTodayAmount: (w) => w?.fdTodayRoiIncome || 0,
     getTotalAmount: (w) => w?.fdTotalRoiIncome || 0
   },
   'fd-referral': {
     title: 'FD Referral Income',
     badge: 'FD DIRECT BONUS',
-    description: 'Direct referral commissions earned from Fixed Deposit package activations.',
-    txnType: 'fd_referral',
+    description: 'Recorded referral income associated with eligible FD activity.',
+    txnType: 'fd_referral' as TransactionType,
     getTodayAmount: (w) => 0,
     getTotalAmount: (w) => w?.fdReferralIncome || 0
   },
   'fd-level': {
     title: 'FD Level Income',
     badge: 'FD LEVEL BONUS',
-    description: 'Multi-level generational commissions generated through downline FD investments.',
-    txnType: 'fd_level',
+    description: 'Recorded multi-level income associated with downline FD activity.',
+    txnType: 'fd_level' as TransactionType,
     getTodayAmount: (w) => w?.fdTodayLevelIncome || 0,
     getTotalAmount: (w) => w?.fdTotalLevelIncome || 0
   },
   'rd-level': {
     title: 'RD Level Income',
     badge: 'RD BONUS',
-    description: 'Recurring deposit downline generation income payouts.',
-    txnType: 'rd_level',
+    description: 'Recorded recurring-deposit downline income entries.',
+    txnType: 'rd_level' as TransactionType,
     getTodayAmount: (w) => 0,
     getTotalAmount: (w) => 0
   },
   'salary-income': {
     title: 'Salary Income',
-    badge: 'EXECUTIVE SALARY',
-    description: 'Monthly leadership salary income for achieving team milestone targets.',
-    txnType: 'salary',
+    badge: 'SALARY',
+    description: 'Recorded salary income entries credited by the platform.',
+    txnType: 'salary' as TransactionType,
     getTodayAmount: (w) => 0,
     getTotalAmount: (w) => w?.totalSalary || 0
   }
@@ -92,6 +93,7 @@ const incomeConfigs: Partial<Record<ActivePage, IncomeConfig>> = {
 export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
   const { profile, wallet, refreshWallet } = useAuth();
   const [records, setRecords] = useState<TransactionLedger[]>([]);
+  const [allIncomeRecords, setAllIncomeRecords] = useState<TransactionLedger[]>([]);
   const [loading, setLoading] = useState(false);
 
   const config = incomeConfigs[page] || incomeConfigs['basic-roi']!;
@@ -100,8 +102,9 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     if (!profile) return;
     setLoading(true);
     try {
-      const allTxns = await getTransactions(profile.uid, 'income_wallet', config.txnType);
-      setRecords(allTxns);
+      const allTxns = await getTransactions(profile.uid, 'income_wallet');
+      setAllIncomeRecords(allTxns);
+      setRecords(allTxns.filter((t) => String(t.type) === String(config.txnType)));
     } catch (err) {
       console.error(err);
     } finally {
@@ -142,7 +145,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     },
     {
       key: 'description',
-      header: 'Commission Description',
+      header: 'Income Description',
       render: (item) => (
         <span className="text-xs text-slate-200">
           {item.description}
@@ -161,7 +164,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     {
       key: 'status',
       header: 'Status',
-      render: (item) => (
+      render: () => (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
           CREDITED
         </span>
@@ -171,6 +174,21 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
 
   const todayAmount = config.getTodayAmount(wallet);
   const totalAmount = config.getTotalAmount(wallet);
+
+  const investedCapital = Number(wallet?.basicPackageActive || 0) + Number(wallet?.fdPackageActive || 0);
+  const ledgerIncome = allIncomeRecords
+    .filter((t) => t.status === 'completed' && t.flow === 'credit')
+    .reduce((sum, t) => sum + Number(t.netAmount || t.amount || 0), 0);
+  const recordedIncome = Math.max(Number(wallet?.totalIncome || 0), ledgerIncome);
+  const recordedCharges = allIncomeRecords
+    .filter((t) => t.status === 'completed')
+    .reduce((sum, t) => sum + Number(t.fee || 0), 0);
+  const realizedProfitLoss = Number((recordedIncome - recordedCharges).toFixed(2));
+  const performancePercent = investedCapital > 0
+    ? Number(((realizedProfitLoss / investedCapital) * 100).toFixed(2))
+    : 0;
+
+  const money = (value: number) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-6">
@@ -190,16 +208,55 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
 
         <div className="flex items-center gap-4">
           <div className="p-4 rounded-xl bg-[#0e173a] border border-blue-500/30 text-right">
-            <span className="text-xs text-slate-400">Today Payout</span>
+            <span className="text-xs text-slate-400">Today Recorded</span>
             <div className="text-xl sm:text-2xl font-extrabold text-cyan-300 font-mono tabular-nums">
-              ₹{todayAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {money(todayAmount)}
             </div>
           </div>
           <div className="p-4 rounded-xl bg-[#0e173a] border border-emerald-500/30 text-right">
-            <span className="text-xs text-slate-400">Total Accumulated</span>
+            <span className="text-xs text-slate-400">Total Recorded</span>
             <div className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono tabular-nums">
-              ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {money(totalAmount)}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Automatic Profit / Loss Snapshot */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">Automatic Performance Snapshot</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">Calculated from recorded wallet and completed ledger values; no projected or guaranteed return is included.</p>
+          </div>
+          <button onClick={handleRefresh} disabled={loading} className="p-2 rounded-lg bg-[#0e173a] border border-blue-500/25 text-cyan-400">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="p-4 rounded-xl bg-[#091129] border border-blue-500/25">
+            <div className="flex items-center justify-between text-xs text-slate-400"><span>Invested Capital</span><Wallet className="w-4 h-4 text-cyan-400" /></div>
+            <div className="mt-2 text-xl font-bold font-mono text-white">{money(investedCapital)}</div>
+            <div className="text-[10px] text-slate-500 mt-1">Basic + FD active principal</div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#091129] border border-emerald-500/25">
+            <div className="flex items-center justify-between text-xs text-slate-400"><span>Recorded Earnings</span><TrendingUp className="w-4 h-4 text-emerald-400" /></div>
+            <div className="mt-2 text-xl font-bold font-mono text-emerald-400">{money(recordedIncome)}</div>
+            <div className="text-[10px] text-slate-500 mt-1">ROI + referral + level + other credited income</div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#091129] border border-amber-500/25">
+            <div className="flex items-center justify-between text-xs text-slate-400"><span>Recorded Charges</span><Scale className="w-4 h-4 text-amber-400" /></div>
+            <div className="mt-2 text-xl font-bold font-mono text-amber-300">{money(recordedCharges)}</div>
+            <div className="text-[10px] text-slate-500 mt-1">Only fees actually recorded in the ledger</div>
+          </div>
+
+          <div className={`p-4 rounded-xl bg-[#091129] border ${realizedProfitLoss >= 0 ? 'border-emerald-500/30' : 'border-rose-500/30'}`}>
+            <div className="flex items-center justify-between text-xs text-slate-400"><span>Realized Profit / Loss</span><Percent className={`w-4 h-4 ${realizedProfitLoss >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} /></div>
+            <div className={`mt-2 text-xl font-bold font-mono ${realizedProfitLoss >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{money(realizedProfitLoss)}</div>
+            <div className="text-[10px] text-slate-500 mt-1">{investedCapital > 0 ? `${performancePercent}% of active capital` : 'Activates automatically after capital is recorded'}</div>
           </div>
         </div>
       </div>
@@ -210,7 +267,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
           <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
             {config.title} Ledger History
           </h3>
-          <span className="text-xs text-slate-500">Credited to Available Balance</span>
+          <span className="text-xs text-slate-500">Recorded credits only</span>
         </div>
 
         <DataTable
