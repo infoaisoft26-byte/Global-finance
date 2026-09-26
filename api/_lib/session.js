@@ -1,32 +1,23 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { verifyFirebaseIdToken } from './firebaseAdmin.js';
 
-function secret() {
-  const value = process.env.AUTH_SECRET;
-  if (!value || value.length < 32) throw new Error('AUTH_SECRET must be at least 32 characters');
-  return new TextEncoder().encode(value);
-}
-
-export async function createSessionToken({ uid, role, email }) {
-  return new SignJWT({ role, email })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(uid)
-    .setIssuedAt()
-    .setExpirationTime('12h')
-    .sign(secret());
+export async function createSessionToken({ idToken }) {
+  if (!idToken) throw new Error('Firebase ID token is required');
+  await verifyFirebaseIdToken(idToken);
+  return idToken;
 }
 
 export async function verifySessionToken(token) {
-  const { payload } = await jwtVerify(token, secret());
+  const decoded = await verifyFirebaseIdToken(token);
   return {
-    uid: String(payload.sub || ''),
-    role: String(payload.role || 'user'),
-    email: String(payload.email || ''),
+    uid: String(decoded.uid || ''),
+    role: 'user',
+    email: String(decoded.email || ''),
   };
 }
 
 export function sessionCookie(token) {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  return `gf_session=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=43200${secure}`;
+  return `gf_session=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=3300${secure}`;
 }
 
 export function clearSessionCookie() {
