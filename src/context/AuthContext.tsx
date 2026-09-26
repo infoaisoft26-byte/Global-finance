@@ -32,7 +32,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string) {
-  const idToken = await currentUser.getIdToken();
+  // Force-refresh the Firebase ID token before creating the server session.
+  // This prevents a cached near-expiry token from being stored in gf_session.
+  const idToken = await currentUser.getIdToken(true);
   const response = await fetch('/api/auth-sync', {
     method: 'POST',
     credentials: 'include',
