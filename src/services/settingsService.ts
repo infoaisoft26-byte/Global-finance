@@ -4,9 +4,12 @@ import type { SystemSettings } from '../types/index.ts';
 import { recordAuditLog } from './financeService.ts';
 
 const SETTINGS_DOC_ID = 'global_finance_system_settings';
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 5 * 60_000;
+const READ_TIMEOUT_MS = 3000;
+const WRITE_TIMEOUT_MS = 5000;
 let cachedSettings: SystemSettings | null = null;
 let cachedAt = 0;
+let inFlightRead: Promise<SystemSettings> | null = null;
 
 const DEFAULT_BEP20_ADDRESS = '0x062D87BE020291b34D08fdCfa7E432248680910E';
 const DEFAULT_BEP20_QR = '/usdt-bep20-qr.svg';
@@ -45,34 +48,69 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   updatedAt: new Date().toISOString()
 } as SystemSettings;
 
+const withTimeout = async <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => { timer = setTimeout(() => resolve(fallback), ms); })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+const normalizeSettings = (stored: Partial<SystemSettings> & Record<string, any> = {}): SystemSettings => ({
+  ...DEFAULT_SYSTEM_SETTINGS,
+  ...stored,
+  usdtBep20DepositAddress: String((stored as any).usdtBep20DepositAddress || DEFAULT_BEP20_ADDRESS),
+  depositQrImageUrl: String((stored as any).depositQrImageUrl || DEFAULT_BEP20_QR),
+  depositNetworkLabel: 'BNB Smart Chain (BEP20)',
+  basicPackageEnabled: true,
+  fdPackageEnabled: true,
+  rechargeEnabled: false,
+  withdrawalEnabled: false
+} as SystemSettings);
+
 export async function getSystemSettings(force = false): Promise<SystemSettings> {
   const now = Date.now();
   if (!force && cachedSettings && now - cachedAt < CACHE_TTL_MS) return cachedSettings;
-  try {
-    const ref = doc(db, 'system_settings', SETTINGS_DOC_ID);
-    const snap = await getDoc(ref);
-    const stored = snap.exists() ? (snap.data() as Partial<SystemSettings> & Record<string, any>) : {};
-    const merged = {
-      ...DEFAULT_SYSTEM_SETTINGS,
-      ...stored,
-      // Keep the member/admin deposit experience BEP20-only and make sure
-      // legacy blank values do not hide the configured production display.
-      usdtBep20DepositAddress: String((stored as any).usdtBep20DepositAddress || DEFAULT_BEP20_ADDRESS),
-      depositQrImageUrl: String((stored as any).depositQrImageUrl || DEFAULT_BEP20_QR),
-      depositNetworkLabel: 'BNB Smart Chain (BEP20)',
-      basicPackageEnabled: true,
-      fdPackageEnabled: true,
-      rechargeEnabled: false,
-      withdrawalEnabled: false
-    } as SystemSettings;
-    if (!snap.exists()) await setDoc(ref, DEFAULT_SYSTEM_SETTINGS);
-    cachedSettings = merged;
-    cachedAt = now;
-    return merged;
-  } catch (err) {
-    console.warn('Failed to fetch system settings, using cached/default configuration:', err);
-    return cachedSettings || DEFAULT_SYSTEM_SETTINGS;
-  }
+  if (inFlightRead && !force) return inFlightRead;
+
+  const fetchSettings = async (): Promise<SystemSettings> => {
+    try {
+      const ref = doc(db, 'system_settings', SETTINGS_DOC_ID);
+      const fallback = cachedSettings || DEFAULT_SYSTEM_SETTINGS;
+      const snap = await withTimeout(getDoc(ref), READ_TIMEOUT_MS, null as any);
+      if (!snap) return fallback;
+
+      const stored = snap.exists() ? (snap.data() as Partial<SystemSettings> & Record<string, any>) : {};
+      const merged = normalizeSettings(stored);
+      cachedSettings = merged;
+      cachedAt = Date.now();
+
+      if (!snap.exists()) {
+        void setDoc(ref, DEFAULT_SYSTEM_SETTINGS).catch((err) => console.warn('Unable to initialize settings document:', err));
+      }
+      return merged;
+    } catch (err) {
+      console.warn('Failed to fetch system settings, using cached/default configuration:', err);
+      return cachedSettings || DEFAULT_SYSTEM_SETTINGS;
+    }
+  };
+
+  const request = fetchSettings();
+  if (!force) inFlightRead = request;
+  try { return await request; }
+  finally { if (!force && inFlightRead === request) inFlightRead = null; }
+}
+
+export function getCachedSystemSettings(): SystemSettings {
+  return cachedSettings || DEFAULT_SYSTEM_SETTINGS;
+}
+
+export async function refreshSystemSettings(): Promise<SystemSettings> {
+  return getSystemSettings(true);
 }
 
 export async function updateSystemSettings(
@@ -80,11 +118,10 @@ export async function updateSystemSettings(
   adminEmail: string | undefined,
   updates: Partial<SystemSettings> & Record<string, any>
 ): Promise<SystemSettings> {
-  const current = await getSystemSettings();
+  const current = cachedSettings || await getSystemSettings();
   const updated = {
     ...current,
     ...updates,
-    // Keep network locked so all users always see the same BEP20 rail.
     depositNetworkLabel: 'BNB Smart Chain (BEP20)',
     basicPackageEnabled: true,
     fdPackageEnabled: true,
@@ -94,12 +131,20 @@ export async function updateSystemSettings(
     updatedBy: adminUserId
   } as SystemSettings;
 
-  const ref = doc(db, 'system_settings', SETTINGS_DOC_ID);
-  await setDoc(ref, updated, { merge: true });
+  // Optimistic cache update keeps admin UI responsive while Firestore persists.
   cachedSettings = updated;
   cachedAt = Date.now();
 
-  await recordAuditLog(adminUserId, adminEmail, 'System Settings Updated', 'settings', SETTINGS_DOC_ID, {
+  const ref = doc(db, 'system_settings', SETTINGS_DOC_ID);
+  const writeResult = await withTimeout(
+    setDoc(ref, updated, { merge: true }).then(() => true),
+    WRITE_TIMEOUT_MS,
+    false
+  );
+  if (!writeResult) throw new Error('Settings save timed out. Please retry.');
+
+  // Audit logging should never hold the settings screen open.
+  void recordAuditLog(adminUserId, adminEmail, 'System Settings Updated', 'settings', SETTINGS_DOC_ID, {
     changedFields: Object.keys(updates),
     maintenanceMode: updated.maintenanceMode,
     rechargeEnabled: false,
@@ -113,7 +158,7 @@ export async function updateSystemSettings(
       'depositDisplayEnabled'
     ].some((key) => Object.prototype.hasOwnProperty.call(updates, key)),
     depositNetwork: 'BEP20'
-  });
+  }).catch((err) => console.warn('Settings audit log delayed:', err));
 
   return updated;
 }
