@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet, Coins } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { adminGetPackages } from '../../services/financeService.ts';
 import { createPackageActivationRequest, getUserPackageActivationRequests } from '../../services/packageActivationService.ts';
@@ -8,19 +8,37 @@ import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { PackageActivationRequest, PackageDefinition } from '../../types/index.ts';
 
 const FAST_READ_TIMEOUT = 3500;
+const PURCHASE_TIMEOUT = 12000;
 const withTimeout = async <T,>(promise: Promise<T>, fallback: T): Promise<T> => Promise.race([
   promise,
   new Promise<T>(resolve => setTimeout(() => resolve(fallback), FAST_READ_TIMEOUT))
 ]);
 
 export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNavigateToRecharge }) => {
-  const { profile, wallet, refreshWallet } = useAuth();
+  const { profile, wallet, refreshWallet, user } = useAuth();
   const [packages, setPackages] = useState<PackageDefinition[]>(BASIC_PACKAGE_TEMPLATES);
   const [requests, setRequests] = useState<PackageActivationRequest[]>([]);
   const [submittingId, setSubmittingId] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [tokenBalance, setTokenBalance] = useState(0);
+  const [tokenLoading, setTokenLoading] = useState(false);
+
+  const loadTokenBalance = async () => {
+    if (!user) return;
+    setTokenLoading(true);
+    try {
+      const idToken = await user.getIdToken(true);
+      const res = await fetch('/api/member-token', { headers: { Authorization: `Bearer ${idToken}` }, cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setTokenBalance(Number(data.tokenBalance || 0));
+    } catch (err) {
+      console.warn('GF Token balance refresh failed:', err);
+    } finally {
+      setTokenLoading(false);
+    }
+  };
 
   const loadData = async (showRefresh = false) => {
     if (!profile) return;
@@ -46,27 +64,56 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
   };
 
   useEffect(() => { void loadData(false); }, [profile?.uid]);
+  useEffect(() => {
+    if (!user) return;
+    void loadTokenBalance();
+    const timer = window.setInterval(() => { void loadTokenBalance(); }, 15000);
+    const onFocus = () => { void loadTokenBalance(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [user?.uid]);
 
   const purchase = async (pkg: PackageDefinition) => {
     if (!profile) return;
     const amount = pkg.minAmount;
-    setSubmittingId(pkg.id);
     setError('');
     setMessage('');
+
+    const availableFund = Number(wallet?.fundWallet || 0);
+    if (availableFund < amount) {
+      setMessage(`Required fund: ₹${amount.toLocaleString('en-IN')}. Opening payment/recharge page…`);
+      onNavigateToRecharge();
+      return;
+    }
+
+    setSubmittingId(pkg.id);
     try {
-      const result = await createPackageActivationRequest({
-        userId: profile.uid,
-        userEmail: profile.email,
-        userName: profile.name,
-        userReferralCode: profile.referralCode,
-        packageId: pkg.id,
-        amountRupees: amount
-      });
+      const result = await Promise.race([
+        createPackageActivationRequest({
+          userId: profile.uid,
+          userEmail: profile.email,
+          userName: profile.name,
+          userReferralCode: profile.referralCode,
+          packageId: pkg.id,
+          amountRupees: amount
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Package request timed out. Please retry; no duplicate payment was created by this screen.')), PURCHASE_TIMEOUT))
+      ]);
       setMessage(result.message);
-      void refreshWallet();
+      await refreshWallet();
       void loadData(false);
+      void loadTokenBalance();
     } catch (err: any) {
-      setError(err?.message || 'Package activation request failed.');
+      const text = err?.message || 'Package activation request failed.';
+      if (/insufficient|available fund|add funds/i.test(text)) {
+        setMessage('Fund balance is insufficient. Opening payment/recharge page…');
+        onNavigateToRecharge();
+      } else {
+        setError(text);
+      }
     } finally {
       setSubmittingId('');
     }
@@ -86,10 +133,13 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
           <h2 className="text-xl font-bold text-white">Basic Package</h2>
           <p className="text-xs text-slate-400 mt-1">Plans appear instantly; live records sync in the background.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="px-4 py-2.5 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-2">
             <Wallet className="w-4 h-4 text-cyan-400"/><div><div className="text-[9px] uppercase text-slate-500">Available Fund</div><div className="font-mono text-sm font-bold text-white">{(wallet?.fundWallet || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div></div>
           </div>
+          <button type="button" onClick={() => void loadTokenBalance()} className="px-4 py-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30 flex items-center gap-2 text-left">
+            <Coins className="w-4 h-4 text-amber-300"/><div><div className="text-[9px] uppercase text-slate-500">GF Token</div><div className="font-mono text-sm font-bold text-amber-300">{tokenLoading ? '...' : tokenBalance.toLocaleString('en-IN')} GF</div></div>
+          </button>
           <button onClick={onNavigateToRecharge} className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold">Add TRX / USDT</button>
         </div>
       </div>
