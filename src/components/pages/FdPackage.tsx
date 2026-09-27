@@ -1,351 +1,132 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Layers, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowRight, 
-  ShieldCheck, 
-  Lock, 
-  Calendar,
-  Sparkles,
-  RefreshCw,
-  Wallet,
-  Clock
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { adminGetPackages } from '../../services/financeService.ts';
-import { 
-  createPackageActivationRequest, 
-  getUserPackageActivationRequests 
-} from '../../services/packageActivationService.ts';
+import { createPackageActivationRequest, getUserPackageActivationRequests } from '../../services/packageActivationService.ts';
+import { FD_PACKAGE_TEMPLATES, getFdPlanDailyReturn, getFdPlanScheduledReturn } from '../../data/fdPackageTemplates.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
-import type { PackageDefinition, PackageActivationRequest } from '../../types/index.ts';
+import type { PackageActivationRequest, PackageDefinition } from '../../types/index.ts';
+
+const FAST_READ_TIMEOUT = 3500;
+const withTimeout = async <T,>(promise: Promise<T>, fallback: T): Promise<T> => Promise.race([
+  promise,
+  new Promise<T>(resolve => setTimeout(() => resolve(fallback), FAST_READ_TIMEOUT))
+]);
 
 export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNavigateToRecharge }) => {
   const { profile, wallet, refreshWallet } = useAuth();
-  const [dbPackages, setDbPackages] = useState<PackageDefinition[]>([]);
-  const [selectedPkg, setSelectedPkg] = useState<PackageDefinition | null>(null);
-  const [amount, setAmount] = useState<number>(10000);
-  const [userRequests, setUserRequests] = useState<PackageActivationRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [packages, setPackages] = useState<PackageDefinition[]>(FD_PACKAGE_TEMPLATES);
+  const [requests, setRequests] = useState<PackageActivationRequest[]>([]);
+  const [submittingId, setSubmittingId] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  const loadData = async () => {
+  const mergePackages = (saved: PackageDefinition[]) => {
+    const savedFd = saved.filter(p => p.type === 'fd');
+    const byCode = new Map(savedFd.map(p => [p.code, p]));
+    const reference = FD_PACKAGE_TEMPLATES.map(t => byCode.get(t.code) || t).filter(p => p.active);
+    const custom = savedFd.filter(p => p.active && !FD_PACKAGE_TEMPLATES.some(t => t.code === p.code));
+    return [...reference, ...custom];
+  };
+
+  const loadData = async (showRefresh = false) => {
     if (!profile) return;
-    setLoading(true);
+    if (showRefresh) setRefreshing(true);
     try {
-      const [allPkgs, reqs] = await Promise.all([
-        adminGetPackages(),
-        getUserPackageActivationRequests(profile.uid)
+      const [saved, reqs] = await Promise.all([
+        withTimeout(adminGetPackages(), [] as PackageDefinition[]),
+        withTimeout(getUserPackageActivationRequests(profile.uid), [] as PackageActivationRequest[])
       ]);
-      const fdOnly = allPkgs.filter(p => p.type === 'fd' && p.active);
-      setDbPackages(fdOnly);
-      if (fdOnly.length > 0 && !selectedPkg) {
-        setSelectedPkg(fdOnly[0]);
-        setAmount(fdOnly[0].minAmount);
-      }
-      setUserRequests(reqs.filter(r => r.packageType === 'fd'));
-    } catch (err) {
-      console.error(err);
+      if (saved.length) setPackages(mergePackages(saved));
+      setRequests(reqs.filter(r => r.packageType === 'fd'));
+    } catch (err:any) {
+      console.warn('FD package background sync failed:', err);
+      setError(err?.message || 'Unable to refresh FD package data.');
     } finally {
-      setLoading(false);
+      if (showRefresh) setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [profile?.uid]);
+  useEffect(() => { void loadData(false); }, [profile?.uid]);
 
-  const handleSelectPackage = (pkg: PackageDefinition) => {
-    setSelectedPkg(pkg);
-    setAmount(pkg.minAmount);
-    setErrorMsg('');
-  };
-
-  const handleActivate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!profile || !wallet || !selectedPkg) return;
-
-    if ((wallet.fundWallet || 0) < amount) {
-      setErrorMsg(
-        `Insufficient Available Fund! You have ₹${(wallet.fundWallet || 0).toFixed(2)}, but ₹${amount.toFixed(2)} is required.`
-      );
-      return;
-    }
-
-    if (amount < selectedPkg.minAmount) {
-      setErrorMsg(`Minimum activation amount is ₹${selectedPkg.minAmount.toFixed(2)}.`);
-      return;
-    }
-    if (amount > selectedPkg.maxAmount) {
-      setErrorMsg(`Maximum activation amount is ₹${selectedPkg.maxAmount.toFixed(2)}.`);
-      return;
-    }
-
-    setSubmitting(true);
-    setErrorMsg('');
-    setSuccessMsg('');
-
+  const purchase = async (pkg: PackageDefinition) => {
+    if (!profile) return;
+    setSubmittingId(pkg.id);
+    setError('');
+    setMessage('');
     try {
-      const res = await createPackageActivationRequest({
+      const result = await createPackageActivationRequest({
         userId: profile.uid,
         userEmail: profile.email,
         userName: profile.name,
         userReferralCode: profile.referralCode,
-        packageId: selectedPkg.id,
-        amountRupees: amount
+        packageId: pkg.id,
+        amountRupees: pkg.minAmount
       });
-
-      if (res.success) {
-        setSuccessMsg(res.message);
-        await refreshWallet();
-        await loadData();
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Fixed Deposit package activation request failed.');
+      setMessage(result.message);
+      await refreshWallet();
+      void loadData(false);
+    } catch (err:any) {
+      setError(err?.message || 'FD package activation request failed.');
     } finally {
-      setSubmitting(false);
+      setSubmittingId('');
     }
   };
 
-  const columns: Column<PackageActivationRequest>[] = [
-    {
-      key: 'createdAt',
-      header: 'Request Date',
-      render: (item) => (
-        <span className="text-xs text-slate-300 font-mono">
-          {new Date(item.createdAt).toLocaleString('en-IN', {
-            dateStyle: 'medium',
-            timeStyle: 'short'
-          })}
-        </span>
-      )
-    },
-    {
-      key: 'reference',
-      header: 'Reference ID',
-      render: (item) => (
-        <span className="font-mono text-cyan-400 text-xs font-bold">
-          {item.reference}
-        </span>
-      )
-    },
-    {
-      key: 'packageName',
-      header: 'Package Title',
-      render: (item) => (
-        <span className="text-xs font-semibold text-white">
-          {item.packageName}
-        </span>
-      )
-    },
-    {
-      key: 'amountRupees',
-      header: 'Deposit Capital',
-      render: (item) => (
-        <span className="font-mono text-xs font-bold text-cyan-300">
-          ₹{item.amountRupees.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-        </span>
-      )
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (item) => {
-        if (item.status === 'active') {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-              <CheckCircle2 className="w-3 h-3" />
-              <span>Active</span>
-            </span>
-          );
-        }
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            <Clock className="w-3 h-3 animate-pulse" />
-            <span className="capitalize">{item.status.replace('_', ' ')}</span>
-          </span>
-        );
-      }
-    }
-  ];
+  const columns: Column<PackageActivationRequest>[] = useMemo(() => [
+    { key:'createdAt', header:'Date', render:item => <span className="text-xs text-slate-300">{new Date(item.createdAt).toLocaleString('en-IN')}</span> },
+    { key:'packageName', header:'FD Plan', render:item => <span className="text-xs font-semibold text-white">{item.packageName}</span> },
+    { key:'amountRupees', header:'Amount', render:item => <span className="text-xs font-mono text-cyan-300">{item.amountRupees.toLocaleString('en-IN',{minimumFractionDigits:2})}</span> },
+    { key:'status', header:'Status', render:item => <span className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold ${item.status==='active'?'bg-emerald-500/15 text-emerald-400':'bg-amber-500/15 text-amber-400'}`}>{item.status.replace('_',' ').toUpperCase()}</span> }
+  ], []);
 
-  return (
-    <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-blue-500/20">
-        <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">Fixed Deposit (FD) Growth Packages</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Lock in guaranteed term returns with institutional capital preservation protocols.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-cyan-400/40 flex items-center justify-center text-cyan-400">
-              <Wallet className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Available Fund</span>
-              <div className="text-sm font-bold font-mono text-cyan-300">
-                ₹{(wallet?.fundWallet || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={onNavigateToRecharge}
-            className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors"
-          >
-            + Add Funds
-          </button>
-        </div>
+  return <div className="space-y-6">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h2 className="text-xl font-bold text-white">FD Package</h2>
+        <p className="text-xs text-slate-400 mt-1">Base and Prime FD plans from the supplied reference. Funding display is TRX / USDT only.</p>
       </div>
-
-      {/* Package Selection Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {dbPackages.map((pkg) => (
-          <div
-            key={pkg.id}
-            onClick={() => handleSelectPackage(pkg)}
-            className={`p-5 rounded-2xl border cursor-pointer transition-all ${
-              selectedPkg?.id === pkg.id
-                ? 'bg-[#0f1d48] border-cyan-400 shadow-xl ring-2 ring-cyan-400/30'
-                : 'bg-[#091129] border-blue-500/25 hover:border-blue-500/50'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono">
-                {pkg.code}
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                {pkg.durationDays} Days Lock-in
-              </span>
-            </div>
-
-            <h3 className="text-base font-bold text-white mb-1">{pkg.name}</h3>
-            <p className="text-xs text-slate-400 mb-4 line-clamp-2">{pkg.description}</p>
-
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 space-y-1.5 text-xs font-mono">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Min Capital:</span>
-                <span className="text-white font-bold">₹{pkg.minAmount.toLocaleString('en-IN')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Max Capital:</span>
-                <span className="text-white font-bold">₹{pkg.maxAmount.toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Activation Request Form */}
-      {selectedPkg && (
-        <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5 sm:p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-emerald-400" />
-              <span>Submit FD Subscription for: {selectedPkg.name}</span>
-            </h3>
-            <span className="text-xs text-slate-400 font-mono">
-              Lock-in: {selectedPkg.durationDays} Days
-            </span>
-          </div>
-
-          {errorMsg && (
-            <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleActivate} className="space-y-4 max-w-xl">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Enter FD Capital (₹{selectedPkg.minAmount} – ₹{selectedPkg.maxAmount})
-              </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 font-bold text-sm">
-                  ₹
-                </span>
-                <input
-                  type="number"
-                  min={selectedPkg.minAmount}
-                  max={selectedPkg.maxAmount}
-                  step="500"
-                  value={amount}
-                  onChange={(e) => setAmount(Number(e.target.value))}
-                  required
-                  className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
-                />
-              </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 text-xs space-y-1">
-              <div className="flex justify-between text-slate-400">
-                <span>Terms & Lock-in:</span>
-                <span className="text-slate-200">{selectedPkg.terms}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Fund Source:</span>
-                <span className="text-cyan-400 font-semibold">Available Fund Wallet</span>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/40 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {submitting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Submitting FD Subscription...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Submit Fixed Deposit Application</span>
-                </>
-              )}
-            </button>
-          </form>
+      <div className="flex items-center gap-2">
+        <div className="px-4 py-2.5 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-2">
+          <Wallet className="w-4 h-4 text-cyan-400"/>
+          <div><div className="text-[9px] uppercase text-slate-500">Available Fund</div><div className="font-mono text-sm font-bold text-white">{(wallet?.fundWallet || 0).toLocaleString('en-IN',{minimumFractionDigits:2})}</div></div>
         </div>
-      )}
-
-      {/* User Package Requests History */}
-      <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5 shadow-xl space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-blue-500/20">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            Your Fixed Deposit (FD) Subscriptions
-          </h3>
-          <button
-            onClick={loadData}
-            disabled={loading}
-            className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
-
-        <DataTable
-          columns={columns}
-          data={userRequests}
-          emptyMessage="No Fixed Deposit subscriptions yet."
-        />
+        <button onClick={onNavigateToRecharge} className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold">Add TRX / USDT</button>
       </div>
     </div>
-  );
+
+    {message && <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/>{message}</div>}
+    {error && <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4"/>{error}</div>}
+
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {packages.map(pkg => {
+        const daily = getFdPlanDailyReturn(pkg);
+        const scheduled = getFdPlanScheduledReturn(pkg);
+        const waiting = submittingId === pkg.id;
+        const prime = pkg.name.toLowerCase().includes('prime');
+        return <div key={pkg.id} className={`rounded-2xl bg-[#091129] border overflow-hidden shadow-lg transition-colors ${prime?'border-violet-500/30 hover:border-violet-400/60':'border-blue-500/25 hover:border-cyan-400/50'}`}>
+          <div className="p-4 border-b border-blue-500/15 flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${prime?'bg-gradient-to-br from-violet-600 to-fuchsia-500':'bg-gradient-to-br from-blue-600 to-cyan-500'}`}><Package className="w-5 h-5 text-white"/></div>
+            <div><h3 className="font-bold text-white">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-400">{pkg.code}</span></div>
+          </div>
+          <div className="p-4 space-y-2 text-xs">
+            <div className="flex justify-between"><span className="text-slate-400">Amount</span><b className="text-white font-mono">{pkg.minAmount.toLocaleString('en-IN',{minimumFractionDigits:2})}</b></div>
+            <div className="flex justify-between"><span className="text-slate-400">Configured Daily</span><b className="text-emerald-400 font-mono">{daily.toLocaleString('en-IN',{minimumFractionDigits:2})}</b></div>
+            <div className="flex justify-between"><span className="text-slate-400">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
+            <div className="flex justify-between pt-2 border-t border-blue-500/15"><span className="text-slate-300 font-semibold">Scheduled Return</span><b className="text-white font-mono">{scheduled.toLocaleString('en-IN',{minimumFractionDigits:2})}</b></div>
+            <p className="text-[10px] text-slate-500 pt-1">Configured plan terms; actual credits depend on recorded platform transactions and admin controls.</p>
+          </div>
+          <button onClick={()=>purchase(pkg)} disabled={waiting} className={`w-full py-3 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2 ${prime?'bg-violet-600 hover:bg-violet-500':'bg-blue-600 hover:bg-blue-500'}`}>
+            {waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing...</> : 'Purchase'}
+          </button>
+        </div>;
+      })}
+    </div>
+
+    <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5">
+      <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold text-white flex items-center gap-2"><Clock className="w-4 h-4 text-cyan-400"/>FD Package History</h3><button onClick={()=>loadData(true)} disabled={refreshing} className="text-xs text-cyan-400 flex items-center gap-1"><RefreshCw className={`w-3.5 h-3.5 ${refreshing?'animate-spin':''}`}/>Refresh</button></div>
+      <DataTable columns={columns} data={requests} emptyMessage="No FD package activations yet." />
+    </div>
+  </div>;
 };
