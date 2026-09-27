@@ -12,6 +12,8 @@ Set server-only variables in Vercel Preview first:
 - `TRON_TESTNET_INR_PER_USDT=100` (fixed test-credit quote, not a real exchange rate)
 - `TRONGRID_API_KEY=<optional Nile TronGrid key>`
 
+The public Nile treasury address `TXxyz7QYryFMKqTCyt5KpLijx9M6kxuVbt` and non-secret test settings are included in `vercel.json` for deployments from this branch. The holder of that account must obtain Nile test TRX and USDT-TEST separately before buy requests can be fulfilled. Vercel project settings can override these values when needed. Never use the member wallet `TGvi8RYS4JDWFn3TPrcK6fE3wXtJncvbkF` as the treasury for its own sell requests.
+
 Keep `PAYMENTS_ENABLED=false` and `PAYOUTS_ENABLED=false`. Never put a seed phrase or private key in the app or server configuration. The administrator controls the treasury in TronLink.
 
 ## Member workflow
