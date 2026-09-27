@@ -33,10 +33,9 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   requireKycForP2p: false,
   requireKycForPackageActivation: false,
   supportTicketsEnabled: true,
-  trxDepositAddress: '',
-  usdtTrc20DepositAddress: '',
-  depositNetworkLabel: 'Nile Testnet • TRC20',
-  depositNetworkNotice: 'TRON testnet only. Use only the selected asset and matching testnet network.',
+  usdtBep20DepositAddress: '',
+  depositNetworkLabel: 'BNB Smart Chain (BEP20)',
+  depositNetworkNotice: 'Send only USDT using the BNB Smart Chain (BEP20) network to this address. Sending any other asset or network may result in loss.',
   depositWalletLink: '',
   depositQrImageUrl: '',
   depositDisplayEnabled: true,
@@ -49,10 +48,12 @@ export async function getSystemSettings(force = false): Promise<SystemSettings> 
   try {
     const ref = doc(db, 'system_settings', SETTINGS_DOC_ID);
     const snap = await getDoc(ref);
-    const stored = snap.exists() ? (snap.data() as Partial<SystemSettings>) : {};
+    const stored = snap.exists() ? (snap.data() as Partial<SystemSettings> & Record<string, any>) : {};
     const merged = {
       ...DEFAULT_SYSTEM_SETTINGS,
       ...stored,
+      // The member/admin deposit experience is intentionally BEP20-only.
+      depositNetworkLabel: 'BNB Smart Chain (BEP20)',
       basicPackageEnabled: true,
       fdPackageEnabled: true,
       rechargeEnabled: false,
@@ -71,12 +72,14 @@ export async function getSystemSettings(force = false): Promise<SystemSettings> 
 export async function updateSystemSettings(
   adminUserId: string,
   adminEmail: string | undefined,
-  updates: Partial<SystemSettings>
+  updates: Partial<SystemSettings> & Record<string, any>
 ): Promise<SystemSettings> {
   const current = await getSystemSettings();
   const updated = {
     ...current,
     ...updates,
+    // Keep network locked so all users always see the same BEP20 rail.
+    depositNetworkLabel: 'BNB Smart Chain (BEP20)',
     basicPackageEnabled: true,
     fdPackageEnabled: true,
     rechargeEnabled: false,
@@ -97,14 +100,13 @@ export async function updateSystemSettings(
     withdrawalEnabled: false,
     p2pEnabled: updated.p2pEnabled,
     cryptoDepositConfigurationUpdated: [
-      'trxDepositAddress',
-      'usdtTrc20DepositAddress',
+      'usdtBep20DepositAddress',
       'depositWalletLink',
       'depositQrImageUrl',
-      'depositNetworkLabel',
       'depositNetworkNotice',
       'depositDisplayEnabled'
-    ].some((key) => Object.prototype.hasOwnProperty.call(updates, key))
+    ].some((key) => Object.prototype.hasOwnProperty.call(updates, key)),
+    depositNetwork: 'BEP20'
   });
 
   return updated;
