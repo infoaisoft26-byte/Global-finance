@@ -24,18 +24,7 @@ export default async function handler(req, res) {
     await requireAdmin(req);
     const pool = getPool();
     const { rows } = await pool.query(`
-      WITH RECURSIVE network AS (
-        SELECT u.id, u.email, u.name, u.phone, u.referral_code, u.sponsor_id, u.role, u.status, u.kyc_status,
-               u.created_at, 0::int AS level, NULL::varchar AS root_referral
-        FROM users u
-        UNION ALL
-        SELECT c.id, c.email, c.name, c.phone, c.referral_code, c.sponsor_id, c.role, c.status, c.kyc_status,
-               c.created_at, n.level + 1, COALESCE(n.root_referral, n.referral_code)
-        FROM users c
-        JOIN network n ON c.sponsor_id = n.referral_code
-        WHERE n.level < 20
-      ),
-      direct_counts AS (
+      WITH direct_counts AS (
         SELECT sponsor_id, COUNT(*)::int AS direct_count FROM users WHERE sponsor_id IS NOT NULL GROUP BY sponsor_id
       ),
       pkg AS (
@@ -47,9 +36,10 @@ export default async function handler(req, res) {
       ),
       inc AS (
         SELECT user_id,
-          COALESCE(SUM(net_amount) FILTER (WHERE flow='credit' AND status='completed' AND type IN ('referral_bonus','referral_income','direct_referral')),0)::numeric AS referral_income,
-          COALESCE(SUM(net_amount) FILTER (WHERE flow='credit' AND status='completed' AND type IN ('level_bonus','level_income')),0)::numeric AS level_income,
-          COALESCE(SUM(net_amount) FILTER (WHERE flow='credit' AND status='completed'),0)::numeric AS total_credited
+          COALESCE(SUM(net_amount) FILTER (WHERE flow='credit' AND status='completed' AND category<>'token' AND type IN ('referral_bonus','referral_income','direct_referral')),0)::numeric AS referral_income,
+          COALESCE(SUM(net_amount) FILTER (WHERE flow='credit' AND status='completed' AND category<>'token' AND type IN ('level_bonus','level_income')),0)::numeric AS level_income,
+          COALESCE(SUM(net_amount) FILTER (WHERE flow='credit' AND status='completed' AND category<>'token'),0)::numeric AS total_credited,
+          COALESCE(SUM(CASE WHEN category='token' AND status='completed' AND type IN ('token_credit','token_debit') THEN CASE WHEN flow='credit' THEN amount ELSE -amount END ELSE 0 END),0)::numeric AS token_balance
         FROM ledger_transactions GROUP BY user_id
       )
       SELECT u.id, u.email, u.name, u.phone, u.referral_code, u.sponsor_id, u.role, u.status, u.kyc_status, u.created_at,
@@ -60,7 +50,8 @@ export default async function handler(req, res) {
              COALESCE(pkg.latest_package_name,'') AS latest_package_name,
              COALESCE(inc.referral_income,0) AS referral_income,
              COALESCE(inc.level_income,0) AS level_income,
-             COALESCE(inc.total_credited,0) AS total_credited
+             COALESCE(inc.total_credited,0) AS total_credited,
+             COALESCE(inc.token_balance,0) AS token_balance
       FROM users u
       LEFT JOIN wallets w ON w.user_id=u.id
       LEFT JOIN direct_counts dc ON dc.sponsor_id=u.referral_code
@@ -95,7 +86,7 @@ export default async function handler(req, res) {
       fundWallet: Number(r.fund_wallet || 0), incomeWallet: Number(r.income_wallet || 0),
       activePackageAmount: Number(r.active_package_amount || 0), activePackageCount: Number(r.active_package_count || 0),
       latestPackageName: r.latest_package_name || '', referralIncome: Number(r.referral_income || 0),
-      levelIncome: Number(r.level_income || 0), totalCredited: Number(r.total_credited || 0)
+      levelIncome: Number(r.level_income || 0), totalCredited: Number(r.total_credited || 0), tokenBalance: Number(r.token_balance || 0)
     }));
 
     const summary = {
@@ -103,7 +94,8 @@ export default async function handler(req, res) {
       totalDirectLinks: members.filter(m => !!m.sponsorId).length,
       totalActivePackageAmount: members.reduce((s,m) => s + m.activePackageAmount, 0),
       totalReferralIncome: members.reduce((s,m) => s + m.referralIncome, 0),
-      totalLevelIncome: members.reduce((s,m) => s + m.levelIncome, 0)
+      totalLevelIncome: members.reduce((s,m) => s + m.levelIncome, 0),
+      totalTokens: members.reduce((s,m) => s + m.tokenBalance, 0)
     };
     return json(res, 200, { summary, members });
   } catch (error) {
