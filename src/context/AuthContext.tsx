@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   auth,
   googleAuthProvider,
@@ -30,24 +30,47 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const syncInFlight = new Map<string, Promise<{ profile: UserProfile; wallet: WalletData }>>();
+const AUTH_SYNC_TIMEOUT_MS = 15_000;
 
-async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string) {
-  // Force-refresh the Firebase ID token before creating the server session.
-  // This prevents a cached near-expiry token from being stored in gf_session.
-  const idToken = await currentUser.getIdToken(true);
-  const response = await fetch('/api/auth-sync', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      idToken,
-      name: currentUser.displayName || '',
-      sponsorCode: sponsorCode || undefined,
-    }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Unable to complete secure login.');
-  return data as { profile: UserProfile; wallet: WalletData };
+async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, forceToken = false) {
+  const key = `${currentUser.uid}:${sponsorCode || ''}`;
+  const existing = syncInFlight.get(key);
+  if (existing) return existing;
+
+  const task = (async () => {
+    const idToken = await currentUser.getIdToken(forceToken);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AUTH_SYNC_TIMEOUT_MS);
+    try {
+      const response = await fetch('/api/auth-sync', {
+        method: 'POST',
+        credentials: 'include',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          name: currentUser.displayName || '',
+          sponsorCode: sponsorCode || undefined,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to complete secure login.');
+      return data as { profile: UserProfile; wallet: WalletData };
+    } catch (err: any) {
+      if (err?.name === 'AbortError') throw new Error('Login sync timed out. Please retry.');
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
+
+  syncInFlight.set(key, task);
+  try {
+    return await task;
+  } finally {
+    syncInFlight.delete(key);
+  }
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -56,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [sponsorReferralParam, setSponsorReferralParam] = useState<string>('');
+  const pendingSponsorRef = useRef<string>('');
 
   useEffect(() => {
     try {
@@ -67,8 +91,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const loadUserData = async (currentUser: FirebaseUser, sponsorCode?: string) => {
-    const data = await syncWithServer(currentUser, sponsorCode || sponsorReferralParam);
+  const loadUserData = async (currentUser: FirebaseUser, sponsorCode?: string, forceToken = false) => {
+    const sponsor = sponsorCode || pendingSponsorRef.current || sponsorReferralParam;
+    const data = await syncWithServer(currentUser, sponsor, forceToken);
     setProfile(data.profile);
     setWallet(data.wallet);
     return data;
@@ -77,13 +102,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (!currentUser) {
+        setProfile(null);
+        setWallet(null);
+        setLoading(false);
+        return;
+      }
+
       try {
-        if (currentUser) {
-          await loadUserData(currentUser);
-        } else {
-          setProfile(null);
-          setWallet(null);
-        }
+        await loadUserData(currentUser);
       } catch (err) {
         console.error('Secure profile sync failed:', err);
         setProfile(null);
@@ -96,7 +123,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [sponsorReferralParam]);
 
   const refreshWallet = async () => {
-    if (user) await loadUserData(user);
+    if (!user) return;
+    try {
+      await loadUserData(user);
+    } catch (err) {
+      console.error('Wallet refresh failed:', err);
+    }
   };
 
   const loginWithGoogle = async () => {
@@ -105,7 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await signInWithPopup(auth, googleAuthProvider);
       if (res.user) {
         setUser(res.user);
-        await loadUserData(res.user);
+        await loadUserData(res.user, undefined, true);
       }
     } catch (err: any) {
       console.error('Google Sign-in failed:', err);
@@ -121,7 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await signInWithEmailAndPassword(auth, email, pass);
       if (res.user) {
         setUser(res.user);
-        await loadUserData(res.user);
+        await loadUserData(res.user, undefined, true);
       }
     } catch (err: any) {
       console.error('Email Sign-in failed:', err);
@@ -136,14 +168,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const registerWithEmail = async (name: string, email: string, pass: string, sponsorCode?: string) => {
     setLoading(true);
+    const sponsor = sponsorCode || sponsorReferralParam;
+    pendingSponsorRef.current = sponsor;
     try {
       const res = await createUserWithEmailAndPassword(auth, email, pass);
       if (res.user) {
         await updateProfile(res.user, { displayName: name });
         setUser(res.user);
-        const data = await loadUserData(res.user, sponsorCode || sponsorReferralParam);
-        setProfile(data.profile);
-        setWallet(data.wallet);
+        await loadUserData(res.user, sponsor, true);
       }
     } catch (err: any) {
       console.error('Email Registration failed:', err);
@@ -152,6 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       throw new Error(err?.message || 'Registration could not be completed.');
     } finally {
+      pendingSponsorRef.current = '';
       setLoading(false);
     }
   };
