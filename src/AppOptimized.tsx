@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Component, Suspense, lazy, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { Header } from './components/layout/Header.tsx';
 import { Sidebar } from './components/layout/Sidebar.tsx';
@@ -7,6 +7,8 @@ import { Footer } from './components/layout/Footer.tsx';
 import { AuthScreen } from './components/auth/AuthScreen.tsx';
 import { AdminLoginScreen } from './components/auth/AdminLoginScreen.tsx';
 import { ProfileKycModal } from './components/modals/ProfileKycModal.tsx';
+import { DirectTeam } from './components/pages/DirectTeam.tsx';
+import { TeamList } from './components/pages/TeamList.tsx';
 import { getSystemSettings } from './services/settingsService.ts';
 import type { ActivePage, SystemSettings } from './types/index.ts';
 import { ShieldCheck, RefreshCw, ShieldAlert, LogOut, AlertTriangle, Wrench } from 'lucide-react';
@@ -15,8 +17,6 @@ const Dashboard = lazy(() => import('./components/pages/Dashboard.tsx').then(m =
 const Recharge = lazy(() => import('./components/pages/Recharge.tsx').then(m => ({ default: m.Recharge })));
 const BasicPackage = lazy(() => import('./components/pages/BasicPackage.tsx').then(m => ({ default: m.BasicPackage })));
 const FdPackage = lazy(() => import('./components/pages/FdPackage.tsx').then(m => ({ default: m.FdPackage })));
-const DirectTeam = lazy(() => import('./components/pages/DirectTeam.tsx').then(m => ({ default: m.DirectTeam })));
-const TeamList = lazy(() => import('./components/pages/TeamList.tsx').then(m => ({ default: m.TeamList })));
 const IncomeView = lazy(() => import('./components/pages/IncomeView.tsx').then(m => ({ default: m.IncomeView })));
 const P2PTransfer = lazy(() => import('./components/pages/P2PTransfer.tsx').then(m => ({ default: m.P2PTransfer })));
 const TransferIncomeToFund = lazy(() => import('./components/pages/TransferIncomeToFund.tsx').then(m => ({ default: m.TransferIncomeToFund })));
@@ -42,6 +42,27 @@ const AdminPackageActivations = lazy(() => import('./components/pages/admin/Admi
 const AdminTransactions = lazy(() => import('./components/pages/admin/AdminTransactions.tsx').then(m => ({ default: m.AdminTransactions })));
 const AdminAudit = lazy(() => import('./components/pages/admin/AdminAudit.tsx').then(m => ({ default: m.AdminAudit })));
 const AdminSettingsPage = lazy(() => import('./components/pages/admin/AdminSettingsPage.tsx').then(m => ({ default: m.AdminSettingsPage })));
+
+class PageErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: unknown) { console.error('Page render failed:', error); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[260px] flex items-center justify-center p-6">
+          <div className="max-w-md w-full p-5 rounded-2xl bg-[#091129] border border-rose-500/30 text-center space-y-3">
+            <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+            <div className="text-white font-bold">Page could not be displayed.</div>
+            <div className="text-xs text-slate-400">Refresh this module and try again. Your account data is not affected.</div>
+            <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold">Refresh Page</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const PageFallback = () => (
   <div className="min-h-[280px] flex items-center justify-center">
@@ -200,7 +221,7 @@ const MainLayout: React.FC = () => {
       <div className="lg:pl-72 flex-1 flex flex-col min-w-0">
         <Header activePage={activePage} onToggleSidebar={() => setIsSidebarOpenMobile(v => !v)} onOpenProfile={() => !isAdminEntry && setShowProfileModal(true)} onNavigate={setActivePage} />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <Suspense fallback={<PageFallback />}>{renderContent()}</Suspense>
+          <PageErrorBoundary><Suspense fallback={<PageFallback />}>{renderContent()}</Suspense></PageErrorBoundary>
         </main>
         <Footer />
       </div>
