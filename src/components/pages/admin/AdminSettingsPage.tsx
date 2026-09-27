@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Settings, Save, Check, RefreshCw, AlertTriangle, Layers, ShieldCheck, WalletCards, QrCode, Link2 } from 'lucide-react';
-import { getSystemSettings, updateSystemSettings } from '../../../services/settingsService.ts';
+import { getCachedSystemSettings, refreshSystemSettings, updateSystemSettings } from '../../../services/settingsService.ts';
 import { useAuth } from '../../../context/AuthContext.tsx';
 import type { SystemSettings } from '../../../types/index.ts';
 
@@ -15,21 +15,24 @@ type ExtendedSettings = SystemSettings & {
 
 export const AdminSettingsPage: React.FC = () => {
   const { user: currentAdmin } = useAuth();
-  const [settings, setSettings] = useState<ExtendedSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<ExtendedSettings>(() => getCachedSystemSettings() as ExtendedSettings);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const loadSettings = async () => {
-    setLoading(true);
+  const loadSettings = async (showSpinner = true) => {
+    if (showSpinner) setRefreshing(true);
     setErrorMsg('');
-    try { setSettings((await getSystemSettings(true)) as ExtendedSettings); }
-    catch (err: any) { setErrorMsg(err?.message || 'Unable to load settings'); }
-    finally { setLoading(false); }
+    try { setSettings((await refreshSystemSettings()) as ExtendedSettings); }
+    catch (err: any) { setErrorMsg(err?.message || 'Unable to refresh settings'); }
+    finally { if (showSpinner) setRefreshing(false); }
   };
 
-  useEffect(() => { loadSettings(); }, []);
+  useEffect(() => {
+    // Render cached/default settings immediately, then refresh in background.
+    void loadSettings(false);
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,16 +50,14 @@ export const AdminSettingsPage: React.FC = () => {
     finally { setSaving(false); }
   };
 
-  if (loading) return <div className="py-16 text-center text-slate-400"><RefreshCw className="w-6 h-6 animate-spin mx-auto text-cyan-400 mb-2" /><span className="text-xs">Loading configuration…</span></div>;
-  if (!settings) return null;
-
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
         <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center"><Settings className="w-5 h-5 text-white" /></div><div><h2 className="text-xl font-bold text-white">System Settings</h2><p className="text-xs text-slate-400">Manage the USDT BEP20 wallet details shown to every user on Recharge.</p></div></div>
-        <button onClick={loadSettings} className="p-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-cyan-400"><RefreshCw className="w-4 h-4" /></button>
+        <button onClick={() => loadSettings(true)} disabled={refreshing} className="p-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-cyan-400 disabled:opacity-50" title="Refresh settings"><RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /></button>
       </div>
 
+      {refreshing && <div className="text-[11px] text-cyan-300">Refreshing latest configuration in background…</div>}
       {successMsg && <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs flex gap-2"><Check className="w-4 h-4" />{successMsg}</div>}
       {errorMsg && <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex gap-2"><AlertTriangle className="w-4 h-4" />{errorMsg}</div>}
 
@@ -78,7 +79,7 @@ export const AdminSettingsPage: React.FC = () => {
             <div className="md:col-span-2"><label className="block text-slate-300 font-semibold mb-1">Network Notice / Warning</label><input value={settings.depositNetworkNotice || ''} onChange={(e) => setSettings({ ...settings, depositNetworkNotice: e.target.value })} placeholder="Send only USDT using BEP20..." className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" /></div>
           </div>
 
-          {settings.depositQrImageUrl && <div className="flex justify-center"><div className="p-3 rounded-2xl bg-white"><img src={settings.depositQrImageUrl} alt="USDT BEP20 deposit QR preview" className="w-44 h-44 object-contain" /></div></div>}
+          {settings.depositQrImageUrl && <div className="flex justify-center"><div className="p-3 rounded-2xl bg-white"><img src={settings.depositQrImageUrl} alt="USDT BEP20 deposit QR preview" loading="lazy" decoding="async" className="w-44 h-44 object-contain" /></div></div>}
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
