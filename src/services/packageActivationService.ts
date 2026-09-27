@@ -6,12 +6,13 @@ import { getSystemSettings } from './settingsService.ts';
 import { createNotification, notifyAdmins } from './notificationService.ts';
 import { recordAuditLog, adminGetPackages } from './financeService.ts';
 import { BASIC_PACKAGE_TEMPLATES } from '../data/basicPackageTemplates.ts';
+import { FD_PACKAGE_TEMPLATES } from '../data/fdPackageTemplates.ts';
 
 async function resolvePackageDefinition(packageId: string): Promise<PackageDefinition> {
   const saved = await adminGetPackages();
   const fromDb = saved.find(p => p.id === packageId || p.code === packageId);
   if (fromDb) return fromDb;
-  const template = BASIC_PACKAGE_TEMPLATES.find(p => p.id === packageId || p.code === packageId);
+  const template = [...BASIC_PACKAGE_TEMPLATES, ...FD_PACKAGE_TEMPLATES].find(p => p.id === packageId || p.code === packageId);
   if (template) return template;
   throw new Error(`Package definition "${packageId}" not found in system.`);
 }
