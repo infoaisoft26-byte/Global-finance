@@ -17,13 +17,39 @@ aside > div:first-of-type > div:first-child > div:first-child {
   background-color: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
-  width: 48px !important;
-  height: 40px !important;
+  width: 58px !important;
+  height: 46px !important;
   border-radius: 8px !important;
   flex-shrink: 0;
+  opacity: 1 !important;
+  filter: none !important;
 }
 aside > div:first-of-type > div:first-child > div:first-child > svg {
   opacity: 0 !important;
+}
+
+/* Keep textual brand identity crisp even when the compact logo artwork is small. */
+aside > div:first-of-type > div:first-child > div:nth-child(2) > span,
+aside > div:first-of-type > div:first-child > div:nth-child(2) > div:first-child {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background-image: none !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+}
+aside > div:first-of-type > div:first-child > div:nth-child(2) p,
+aside > div:first-of-type > div:first-child > div:nth-child(2) > div:last-child {
+  color: #2563eb !important;
+  opacity: 1 !important;
+}
+
+/* Admin stays readable on dark sidebar. */
+aside[class*="border-rose-500/20"] > div:first-of-type > div:first-child > div:nth-child(2) > div:first-child {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+aside[class*="border-rose-500/20"] > div:first-of-type > div:first-child > div:nth-child(2) > div:last-child {
+  color: #fda4af !important;
 }
 
 /* Custom scrollbar */
@@ -61,14 +87,23 @@ aside > div:first-of-type > div:first-child > div:first-child > svg {
 
 /* White member header and remove notification + KYC controls. */
 #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header {
-  background: rgba(255, 255, 255, 0.96) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
   border-color: #e2e8f0 !important;
   box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
+  backdrop-filter: none !important;
 }
 
 #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header button[title="View Real Database Notifications"],
 #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header button[title="View Real Database Notifications"] + div {
   display: none !important;
+}
+
+/* Header breadcrumb and page titles should stay sharp on white. */
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header h1,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header .text-slate-200 {
+  color: #0f172a !important;
+  text-shadow: none !important;
+  filter: none !important;
 }
 
 /* Main member workspace and footer. */
