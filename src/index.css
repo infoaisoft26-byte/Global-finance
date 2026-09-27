@@ -26,11 +26,104 @@ aside > div:first-of-type > div:first-child > div:first-child > svg {
   opacity: 0 !important;
 }
 
-/* Custom scrollbar for dark theme */
+/* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0b1126; }
-::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #334155; }
+::-webkit-scrollbar-track { background: #eaf0f8; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/*
+ * MEMBER PORTAL LIGHT THEME
+ * Scoped to the normal member sidebar so /admin keeps the existing dark staff theme.
+ */
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 8px 0 30px rgba(15, 23, 42, 0.04);
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div:first-of-type,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div:last-of-type {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Remove KYC + Notification navigation from member portal only. */
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div.flex-1 > button:nth-of-type(3),
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div.flex-1 > button:nth-of-type(4) {
+  display: none !important;
+}
+
+/* White member header and remove notification + KYC controls. */
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header button[title="View Real Database Notifications"],
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header button[title="View Real Database Notifications"] + div {
+  display: none !important;
+}
+
+/* Main member workspace and footer. */
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main {
+  background: #f8fafc !important;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) footer {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Convert legacy dark member cards, inputs and tables to white surfaces. */
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) [class*="bg-[#0"],
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) [class*="bg-[#1"] {
+  background-color: #ffffff !important;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-white {
+  color: #0f172a !important;
+}
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-slate-200,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-slate-300 {
+  color: #334155 !important;
+}
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-slate-400,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Keep primary gradient actions readable. */
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) button[class*="bg-gradient"].text-white,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) a[class*="bg-gradient"].text-white,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) [class*="bg-blue-600"].text-white,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) [class*="bg-rose-600"].text-white {
+  color: #ffffff !important;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) [class*="border-blue-"],
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) [class*="border-cyan-"] {
+  border-color: #dbeafe !important;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) input,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) select,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) textarea {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) input::placeholder,
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) textarea::placeholder {
+  color: #94a3b8 !important;
+}
 
 @media print {
   body { background: #ffffff !important; color: #000000 !important; }
