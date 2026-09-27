@@ -1,21 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Package, 
-  Plus, 
-  Edit3, 
-  Check, 
-  X, 
-  TrendingUp, 
-  ShieldCheck, 
-  Percent, 
-  Calendar, 
-  RefreshCw,
-  AlertCircle
-} from 'lucide-react';
-import { 
-  adminGetPackageDefinitions, 
-  adminSavePackageDefinition 
-} from '../../../services/financeService.ts';
+import React, { useEffect, useState } from 'react';
+import { Check, Edit3, Package, Plus, RefreshCw, Sparkles, X } from 'lucide-react';
+import { adminGetPackageDefinitions, adminSavePackageDefinition } from '../../../services/financeService.ts';
+import { BASIC_PACKAGE_TEMPLATES, getBasicPlanDailyReturn, getBasicPlanTotalWithPrincipal } from '../../../data/basicPackageTemplates.ts';
 import { useAuth } from '../../../context/AuthContext.tsx';
 import type { PackageDefinition } from '../../../types/index.ts';
 
@@ -23,333 +9,140 @@ export const AdminPackages: React.FC = () => {
   const { user: currentAdmin } = useAuth();
   const [packages, setPackages] = useState<PackageDefinition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingPkg, setEditingPkg] = useState<PackageDefinition | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [seeding, setSeeding] = useState(false);
+  const [editingPkg, setEditingPkg] = useState<PackageDefinition | null>(null);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   const loadPackages = async () => {
     setLoading(true);
     try {
-      const data = await adminGetPackageDefinitions();
-      setPackages(data);
-    } catch (err) {
-      console.error(err);
+      setPackages(await adminGetPackageDefinitions());
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load packages.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadPackages();
-  }, []);
+  useEffect(() => { loadPackages(); }, []);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPkg || !currentAdmin) return;
-
-    setSaving(true);
-    setErrorMsg('');
+  const seedReferencePlans = async () => {
+    if (!currentAdmin) return;
+    setSeeding(true);
+    setError('');
+    setMessage('');
     try {
-      await adminSavePackageDefinition(currentAdmin.uid, editingPkg);
-      setSaveSuccess(`Package "${editingPkg.name}" updated successfully!`);
-      setEditingPkg(null);
+      const existing = await adminGetPackageDefinitions();
+      const existingCodes = new Set(existing.map(p => p.code));
+      const missing = BASIC_PACKAGE_TEMPLATES.filter(p => !existingCodes.has(p.code));
+      for (const pkg of missing) {
+        await adminSavePackageDefinition(currentAdmin.uid, { ...pkg, updatedAt: new Date().toISOString() });
+      }
+      setMessage(missing.length ? `${missing.length} Basic plans published successfully.` : 'All 11 Basic plans are already published.');
       await loadPackages();
-      setTimeout(() => setSaveSuccess(''), 3000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to save package configuration');
+      setError(err?.message || 'Unable to publish Basic plans.');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const savePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentAdmin || !editingPkg) return;
+    setSaving(true);
+    setError('');
+    try {
+      await adminSavePackageDefinition(currentAdmin.uid, { ...editingPkg, updatedAt: new Date().toISOString() });
+      setEditingPkg(null);
+      setMessage('Package saved successfully.');
+      await loadPackages();
+    } catch (err: any) {
+      setError(err?.message || 'Unable to save package.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleAddNew = () => {
-    const newPkg: PackageDefinition = {
+  const createCustom = () => {
+    const now = new Date().toISOString();
+    setEditingPkg({
       id: `pkg-${Date.now()}`,
       name: 'New Custom Package',
-      code: `PKG_${Date.now().toString().slice(-4)}`,
-      type: 'basic',
-      minAmount: 1000,
-      maxAmount: 100000,
-      roiRate: 1.0,
-      durationDays: 100,
-      description: 'Custom database-configured financial yield package.',
-      terms: 'Daily payout to Available Balance.',
-      active: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    setEditingPkg(newPkg);
+      code: `GF_CUSTOM_${Date.now().toString().slice(-4)}`,
+      type: 'basic', minAmount: 100, maxAmount: 100,
+      roiRate: 0, durationDays: 1,
+      description: 'Admin-configured package.',
+      terms: 'Configure plan terms before publishing.',
+      active: false, createdAt: now, updatedAt: now
+    });
   };
+
+  const basicCount = packages.filter(p => p.type === 'basic' && p.active).length;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-white tracking-tight">Database-Driven Package Configuration</h2>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Configure Basic and FD package terms, limits, and ROI rates dynamically in PostgreSQL / Firestore.
-          </p>
+          <div className="flex items-center gap-2"><Package className="w-5 h-5 text-cyan-400"/><h2 className="text-xl font-bold text-white">Package Management</h2></div>
+          <p className="text-xs text-slate-400 mt-1">Admin controls package amount, configured daily return, duration and visibility.</p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleAddNew}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs shadow-md transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Package</span>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={seedReferencePlans} disabled={seeding || !currentAdmin} className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-2 disabled:opacity-50">
+            <Sparkles className="w-4 h-4"/>{seeding ? 'Publishing...' : 'Publish 11 Basic Plans'}
           </button>
-
-          <button
-            onClick={loadPackages}
-            disabled={loading}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0e173a] hover:bg-[#142250] border border-blue-500/30 text-xs font-semibold text-white transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          <button onClick={createCustom} className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2"><Plus className="w-4 h-4"/>New Package</button>
+          <button onClick={loadPackages} disabled={loading} className="p-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-cyan-400"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}/></button>
         </div>
       </div>
 
-      {saveSuccess && (
-        <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-          <Check className="w-4 h-4 shrink-0" />
-          <span>{saveSuccess}</span>
-        </div>
-      )}
-
-      {/* Package Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {loading ? (
-          <div className="col-span-2 py-16 text-center text-slate-400">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-cyan-400 mb-2" />
-            <span className="text-xs">Loading database package definitions...</span>
-          </div>
-        ) : (
-          packages.map((pkg) => (
-            <div
-              key={pkg.id}
-              className={`p-5 rounded-2xl border transition-all space-y-4 ${
-                pkg.active
-                  ? 'bg-[#091129] border-blue-500/25 shadow-lg'
-                  : 'bg-[#080d20] border-slate-700/40 opacity-75'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-white">{pkg.name}</h3>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      pkg.type === 'basic' ? 'bg-cyan-500/20 text-cyan-300' : 'bg-amber-500/20 text-amber-300'
-                    }`}>
-                      {pkg.type.toUpperCase()}
-                    </span>
-                  </div>
-                  <span className="text-xs font-mono text-cyan-400">{pkg.code}</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                    pkg.active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'
-                  }`}>
-                    {pkg.active ? 'Active' : 'Inactive'}
-                  </span>
-                  <button
-                    onClick={() => setEditingPkg(pkg)}
-                    className="p-1.5 rounded-lg bg-[#0e173a] hover:bg-[#142250] text-cyan-400 border border-blue-500/30"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-300">{pkg.description}</p>
-
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-2 border-t border-blue-500/10">
-                <div className="p-2.5 rounded-xl bg-[#060b1c]">
-                  <span className="text-slate-500 block text-[10px]">Min / Max Investment</span>
-                  <span className="text-white font-bold">₹{pkg.minAmount} - ₹{pkg.maxAmount}</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#060b1c]">
-                  <span className="text-slate-500 block text-[10px]">Daily ROI Rate</span>
-                  <span className="text-emerald-400 font-bold">{pkg.roiRate}% / day</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#060b1c]">
-                  <span className="text-slate-500 block text-[10px]">Maturity Term</span>
-                  <span className="text-cyan-400 font-bold">{pkg.durationDays} days</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#060b1c]">
-                  <span className="text-slate-500 block text-[10px]">Status</span>
-                  <span className="text-slate-300 font-bold">{pkg.active ? 'Available' : 'Paused'}</span>
-                </div>
-              </div>
-
-              <div className="text-[11px] text-slate-400 bg-[#060b1c] p-2.5 rounded-xl border border-blue-500/10">
-                <span className="font-semibold text-slate-300">Terms: </span>
-                {pkg.terms}
-              </div>
-            </div>
-          ))
-        )}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><div className="text-[10px] uppercase text-slate-500">Active Basic Plans</div><div className="text-2xl font-bold text-white">{basicCount}</div></div>
+        <div className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><div className="text-[10px] uppercase text-slate-500">Reference Set</div><div className="text-2xl font-bold text-cyan-300">11</div></div>
+        <div className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><div className="text-[10px] uppercase text-slate-500">Payment Display</div><div className="text-sm font-bold text-white mt-1">TRX / USDT only</div></div>
       </div>
 
-      {/* Edit Package Modal */}
-      {editingPkg && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0b132b] border border-blue-500/40 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-blue-500/20">
-              <div className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-cyan-400" />
-                <h4 className="text-base font-bold text-white">Edit Package Configuration</h4>
-              </div>
-              <button onClick={() => setEditingPkg(null)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {message && <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex gap-2"><Check className="w-4 h-4"/>{message}</div>}
+      {error && <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs">{error}</div>}
 
-            {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs">
-                {errorMsg}
+      {loading ? <div className="py-16 text-center text-slate-400"><RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading packages...</div> : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {packages.map(pkg => {
+            const daily = getBasicPlanDailyReturn(pkg);
+            const total = getBasicPlanTotalWithPrincipal(pkg);
+            return <div key={pkg.id} className={`p-5 rounded-2xl border ${pkg.active ? 'bg-[#091129] border-blue-500/25' : 'bg-[#080d20] border-slate-700/40 opacity-70'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div><div className="text-base font-bold text-white">{pkg.name}</div><div className="text-[11px] text-cyan-400 font-mono">{pkg.code}</div></div>
+                <button onClick={() => setEditingPkg(pkg)} className="p-2 rounded-lg bg-[#0e173a] text-cyan-400 border border-blue-500/30"><Edit3 className="w-3.5 h-3.5"/></button>
               </div>
-            )}
-
-            <form onSubmit={handleSave} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Package Name</label>
-                  <input
-                    type="text"
-                    value={editingPkg.name}
-                    onChange={(e) => setEditingPkg({ ...editingPkg, name: e.target.value })}
-                    required
-                    className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Package Code</label>
-                  <input
-                    type="text"
-                    value={editingPkg.code}
-                    onChange={(e) => setEditingPkg({ ...editingPkg, code: e.target.value.toUpperCase() })}
-                    required
-                    className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-cyan-300 font-mono focus:outline-none focus:border-cyan-400 uppercase"
-                  />
-                </div>
+              <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
+                <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Plan Amount</span><b className="text-white">{pkg.minAmount.toLocaleString('en-IN')}</b></div>
+                <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Configured Daily</span><b className="text-emerald-400">{daily.toLocaleString('en-IN')}</b></div>
+                <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
+                <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Scheduled Total</span><b className="text-white">{total.toLocaleString('en-IN')}</b></div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Package Type</label>
-                  <select
-                    value={editingPkg.type}
-                    onChange={(e) => setEditingPkg({ ...editingPkg, type: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white focus:outline-none focus:border-cyan-400"
-                  >
-                    <option value="basic">Basic Growth Package</option>
-                    <option value="fd">Fixed Deposit (FD)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Active Status</label>
-                  <select
-                    value={editingPkg.active ? 'true' : 'false'}
-                    onChange={(e) => setEditingPkg({ ...editingPkg, active: e.target.value === 'true' })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white focus:outline-none focus:border-cyan-400"
-                  >
-                    <option value="true">Active & Visible</option>
-                    <option value="false">Paused / Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Min (₹)</label>
-                  <input
-                    type="number"
-                    value={editingPkg.minAmount}
-                    onChange={(e) => setEditingPkg({ ...editingPkg, minAmount: parseFloat(e.target.value) || 0 })}
-                    required
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#060b1c] border border-blue-500/30 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Max (₹)</label>
-                  <input
-                    type="number"
-                    value={editingPkg.maxAmount}
-                    onChange={(e) => setEditingPkg({ ...editingPkg, maxAmount: parseFloat(e.target.value) || 0 })}
-                    required
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#060b1c] border border-blue-500/30 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">ROI (%/day)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editingPkg.roiRate}
-                    onChange={(e) => setEditingPkg({ ...editingPkg, roiRate: parseFloat(e.target.value) || 0 })}
-                    required
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#060b1c] border border-blue-500/30 text-emerald-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Days</label>
-                  <input
-                    type="number"
-                    value={editingPkg.durationDays}
-                    onChange={(e) => setEditingPkg({ ...editingPkg, durationDays: parseInt(e.target.value) || 0 })}
-                    required
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#060b1c] border border-blue-500/30 text-cyan-400"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Marketing Description</label>
-                <textarea
-                  rows={2}
-                  value={editingPkg.description}
-                  onChange={(e) => setEditingPkg({ ...editingPkg, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white focus:outline-none focus:border-cyan-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Terms & Conditions</label>
-                <textarea
-                  rows={2}
-                  value={editingPkg.terms}
-                  onChange={(e) => setEditingPkg({ ...editingPkg, terms: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white focus:outline-none focus:border-cyan-400"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-blue-500/20">
-                <button
-                  type="button"
-                  onClick={() => setEditingPkg(null)}
-                  className="px-4 py-2 rounded-xl bg-[#101b3d] text-slate-300 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold shadow-md"
-                >
-                  {saving ? 'Writing to DB...' : 'Save Configuration'}
-                </button>
-              </div>
-            </form>
-          </div>
+              <div className="mt-3 text-[11px] text-slate-400">{pkg.active ? 'Active & visible to members' : 'Inactive / hidden from members'}</div>
+            </div>;
+          })}
         </div>
       )}
+
+      {editingPkg && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg max-h-[90vh] overflow-auto rounded-2xl bg-[#0b132b] border border-blue-500/40 p-5">
+          <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-white">Edit Package</h3><button onClick={() => setEditingPkg(null)}><X className="w-5 h-5 text-slate-400"/></button></div>
+          <form onSubmit={savePackage} className="space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-3"><input value={editingPkg.name} onChange={e=>setEditingPkg({...editingPkg,name:e.target.value})} className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Package name"/><input value={editingPkg.code} onChange={e=>setEditingPkg({...editingPkg,code:e.target.value.toUpperCase()})} className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Code"/></div>
+            <div className="grid grid-cols-2 gap-3"><select value={editingPkg.type} onChange={e=>setEditingPkg({...editingPkg,type:e.target.value as 'basic'|'fd'})} className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"><option value="basic">Basic</option><option value="fd">FD</option></select><select value={editingPkg.active?'yes':'no'} onChange={e=>setEditingPkg({...editingPkg,active:e.target.value==='yes'})} className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"><option value="yes">Active</option><option value="no">Inactive</option></select></div>
+            <div className="grid grid-cols-2 gap-3"><label className="text-slate-400">Min amount<input type="number" value={editingPkg.minAmount} onChange={e=>setEditingPkg({...editingPkg,minAmount:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label><label className="text-slate-400">Max amount<input type="number" value={editingPkg.maxAmount} onChange={e=>setEditingPkg({...editingPkg,maxAmount:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label></div>
+            <div className="grid grid-cols-2 gap-3"><label className="text-slate-400">Daily return %<input type="number" step="0.01" value={editingPkg.roiRate} onChange={e=>setEditingPkg({...editingPkg,roiRate:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label><label className="text-slate-400">Days<input type="number" value={editingPkg.durationDays} onChange={e=>setEditingPkg({...editingPkg,durationDays:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label></div>
+            <textarea rows={2} value={editingPkg.description} onChange={e=>setEditingPkg({...editingPkg,description:e.target.value})} className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Description"/>
+            <textarea rows={2} value={editingPkg.terms} onChange={e=>setEditingPkg({...editingPkg,terms:e.target.value})} className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Terms"/>
+            <button disabled={saving} className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50">{saving ? 'Saving...' : 'Save Package'}</button>
+          </form>
+        </div>
+      </div>}
     </div>
   );
 };
