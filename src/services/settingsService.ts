@@ -8,6 +8,9 @@ const CACHE_TTL_MS = 60_000;
 let cachedSettings: SystemSettings | null = null;
 let cachedAt = 0;
 
+const DEFAULT_BEP20_ADDRESS = '0x062D87BE020291b34D08fdCfa7E432248680910E';
+const DEFAULT_BEP20_QR = '/usdt-bep20-qr.svg';
+
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   platformName: 'GLOBAL FINANCE',
   tagline: 'Secure • Transparent • Digital Finance Platform',
@@ -33,11 +36,11 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   requireKycForP2p: false,
   requireKycForPackageActivation: false,
   supportTicketsEnabled: true,
-  usdtBep20DepositAddress: '',
+  usdtBep20DepositAddress: DEFAULT_BEP20_ADDRESS,
   depositNetworkLabel: 'BNB Smart Chain (BEP20)',
   depositNetworkNotice: 'Send only USDT using the BNB Smart Chain (BEP20) network to this address. Sending any other asset or network may result in loss.',
   depositWalletLink: '',
-  depositQrImageUrl: '',
+  depositQrImageUrl: DEFAULT_BEP20_QR,
   depositDisplayEnabled: true,
   updatedAt: new Date().toISOString()
 } as SystemSettings;
@@ -52,7 +55,10 @@ export async function getSystemSettings(force = false): Promise<SystemSettings> 
     const merged = {
       ...DEFAULT_SYSTEM_SETTINGS,
       ...stored,
-      // The member/admin deposit experience is intentionally BEP20-only.
+      // Keep the member/admin deposit experience BEP20-only and make sure
+      // legacy blank values do not hide the configured production display.
+      usdtBep20DepositAddress: String((stored as any).usdtBep20DepositAddress || DEFAULT_BEP20_ADDRESS),
+      depositQrImageUrl: String((stored as any).depositQrImageUrl || DEFAULT_BEP20_QR),
       depositNetworkLabel: 'BNB Smart Chain (BEP20)',
       basicPackageEnabled: true,
       fdPackageEnabled: true,
