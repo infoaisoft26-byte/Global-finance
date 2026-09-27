@@ -33,6 +33,32 @@ export async function ensureCryptoTestnetSchema() {
       ON crypto_deposit_intents(status, expires_at);
     CREATE INDEX IF NOT EXISTS idx_crypto_deposit_address_amount
       ON crypto_deposit_intents(deposit_address, expected_amount_atomic);
+    CREATE TABLE IF NOT EXISTS test_wallets (
+      user_id VARCHAR(64) PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      balance_inr NUMERIC(16, 2) NOT NULL DEFAULT 0 CHECK (balance_inr >= 0),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS test_wallet_entries (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount_inr NUMERIC(16, 2) NOT NULL CHECK (amount_inr <> 0),
+      kind VARCHAR(32) NOT NULL,
+      reference_id VARCHAR(128) NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS test_buy_orders (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_address VARCHAR(64) NOT NULL,
+      amount_inr NUMERIC(16, 2) NOT NULL CHECK (amount_inr > 0),
+      amount_usdt NUMERIC(20, 6) NOT NULL CHECK (amount_usdt > 0),
+      status VARCHAR(24) NOT NULL DEFAULT 'pending',
+      txid VARCHAR(128) UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_test_buy_user ON test_buy_orders(user_id, created_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_test_buy_one_pending ON test_buy_orders(user_id) WHERE status='pending';
   `);
   initialized = true;
 }

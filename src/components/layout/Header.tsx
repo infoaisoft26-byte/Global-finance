@@ -60,6 +60,7 @@ const pageTitles: Record<ActivePage, { title: string; category: string }> = {
   'admin-packages': { title: 'Database Package Definitions', category: 'Staff Administration' },
   'admin-package-activations': { title: 'Package Activations Queue', category: 'Staff Administration' },
   'admin-transactions': { title: 'Transaction Requests Queue', category: 'Staff Administration' },
+  'admin-test-buys': { title: 'Nile Test Buys', category: 'Staff Administration' },
   'admin-audit': { title: 'Immutable Audit Trail', category: 'Staff Administration' },
   'admin-settings': { title: 'Platform Safety Parameters', category: 'Staff Administration' }
 };

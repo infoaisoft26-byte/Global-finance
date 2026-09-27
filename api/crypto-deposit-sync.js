@@ -13,13 +13,13 @@ async function creditIntent(intent,tx,config){
     const current=locked.rows[0]; if(!current||current.status!=='pending') return {credited:false,alreadyProcessed:true};
     const duplicate=await client.query(`SELECT id FROM crypto_deposit_intents WHERE txid=$1 LIMIT 1`,[tx.transaction_id]); if(duplicate.rows[0]) return {credited:false,duplicate:true};
     const amountInr=Number(current.requested_amount_inr);
-    const walletUpdate=await client.query(`UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2 RETURNING fund_wallet`,[amountInr,current.user_id]);
-    if(!walletUpdate.rows[0]) throw new Error('Wallet record not found');
+    await client.query(`INSERT INTO test_wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`,[current.user_id]);
+    const walletUpdate=await client.query(`UPDATE test_wallets SET balance_inr=balance_inr+$1,updated_at=NOW() WHERE user_id=$2 RETURNING balance_inr`,[amountInr,current.user_id]);
     const ledgerId=`TST_${crypto.randomUUID().replaceAll('-','').slice(0,26)}`;
-    await client.query(`INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata) VALUES ($1,$2,'testnet_crypto_deposit','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,[ledgerId,current.user_id,amountInr,'Nile USDT test deposit credited',tx.transaction_id,JSON.stringify({testnet:true,network:'NILE',token:'USDT-TEST',tokenContract:config.contractAddress,depositAddress:config.depositAddress,expectedAmountUsdt:Number(current.expected_amount_usdt),senderAddress:tx.from,txid:tx.transaction_id,blockTimestamp:tx.block_timestamp})]);
+    await client.query(`INSERT INTO test_wallet_entries (id,user_id,amount_inr,kind,reference_id) VALUES ($1,$2,$3,'sell_usdt_test',$4)`,[ledgerId,current.user_id,amountInr,tx.transaction_id]);
     await client.query(`UPDATE crypto_deposit_intents SET status='credited',txid=$1,sender_address=$2,block_timestamp=$3,credited_at=NOW(),updated_at=NOW() WHERE id=$4`,[tx.transaction_id,tx.from||null,Number(tx.block_timestamp||0),current.id]);
     await client.query(`INSERT INTO audit_logs (id,actor_user_id,actor_email,action,entity_type,entity_id,metadata) VALUES ($1,$2,$3,'testnet_crypto_deposit_credited','crypto_deposit_intent',$4,$5::jsonb)`,[`AUD_${crypto.randomUUID().replaceAll('-','').slice(0,24)}`,current.user_id,null,current.id,JSON.stringify({testnet:true,network:'NILE',txid:tx.transaction_id,amountInr})]);
-    return {credited:true,intentId:current.id,txid:tx.transaction_id,fundWallet:Number(walletUpdate.rows[0].fund_wallet||0)};
+    return {credited:true,intentId:current.id,txid:tx.transaction_id,testBalanceInr:Number(walletUpdate.rows[0].balance_inr||0)};
   });
 }
 

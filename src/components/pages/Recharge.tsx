@@ -1,118 +1,136 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Wallet, Copy, Check, RefreshCw, ShieldCheck, Coins, AlertCircle } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext.tsx';
-import { getSystemSettings } from '../../services/settingsService.ts';
-import type { SystemSettings } from '../../types/index.ts';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Copy, RefreshCw, Wallet, AlertCircle } from 'lucide-react';
 
-type CryptoSettings = SystemSettings & {
-  trxDepositAddress?: string;
-  usdtTrc20DepositAddress?: string;
-  depositNetworkNotice?: string;
-};
+type SellOrder = { id: string; usdt: number; inr: number; status: string; txid?: string; depositAddress: string; expiresAt: string; createdAt: string };
+type BuyOrder = { id: string; usdt: number; inr: number; status: string; txid?: string; address: string; createdAt: string };
+type WalletResponse = { network: 'NILE'; address: string | null; onChain: { trx: number; usdt: number } | null; testBalanceInr: number; sellOrders: SellOrder[]; buyOrders: BuyOrder[] };
+type TronProvider = { request: (input: { method: string }) => Promise<unknown>; tronWeb?: { defaultAddress?: { base58?: string }; fullNode?: { host?: string }; contract?: () => { at: (address: string) => Promise<{ transfer: (to: string, amount: number) => { send: (options: { feeLimit: number; callValue: number }) => Promise<string> } }> } } };
+const NILE_USDT_CONTRACT = 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf';
 
-type Asset = 'USDT' | 'TRX';
+declare global { interface Window { tronLink?: TronProvider } }
+
+async function api<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+  return data as T;
+}
 
 export const Recharge: React.FC = () => {
-  const { wallet } = useAuth();
-  const [settings, setSettings] = useState<CryptoSettings | null>(null);
-  const [asset, setAsset] = useState<Asset>('USDT');
-  const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [address, setAddress] = useState('');
+  const [wallet, setWallet] = useState<WalletResponse | null>(null);
+  const [amount, setAmount] = useState('1000');
+  const [mode, setMode] = useState<'sell' | 'buy'>('sell');
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async (publicAddress = address) => {
+    setWorking(true); setError('');
+    try { setWallet(await api<WalletResponse>(`/api/test-wallet${publicAddress ? `?address=${encodeURIComponent(publicAddress)}` : ''}`)); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Could not load wallet.'); }
+    finally { setWorking(false); }
+  }, [address]);
+  useEffect(() => { void load(''); }, []);
+
+  const connect = async () => {
+    setError('');
     try {
-      setSettings((await getSystemSettings()) as CryptoSettings);
-    } finally {
-      setLoading(false);
-    }
+      const provider = window.tronLink;
+      if (!provider) throw new Error('Install or unlock TronLink, then select Nile Testnet.');
+      const result = await provider.request({ method: 'tron_requestAccounts' });
+      if (result && typeof result === 'object' && 'code' in result && result.code !== 200) throw new Error('TronLink connection was not approved.');
+      const publicAddress = provider.tronWeb?.defaultAddress?.base58 || '';
+      const node = provider.tronWeb?.fullNode?.host || '';
+      if (!node.includes('nile.trongrid.io')) throw new Error('Select Nile Testnet in TronLink before connecting.');
+      if (!publicAddress) throw new Error('No public address received from TronLink.');
+      setAddress(publicAddress);
+      await load(publicAddress);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not connect TronLink.'); }
   };
 
-  useEffect(() => { load(); }, []);
-
-  const address = useMemo(() => {
-    if (!settings) return '';
-    return asset === 'USDT'
-      ? (settings.usdtTrc20DepositAddress || '')
-      : (settings.trxDepositAddress || '');
-  }, [asset, settings]);
-
-  const copyAddress = async () => {
-    if (!address) return;
-    await navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+  const submit = async () => {
+    setWorking(true); setError(''); setMessage('');
+    try {
+      const amountInr = Number(amount);
+      if (!Number.isFinite(amountInr) || amountInr < 100 || amountInr > 500000) throw new Error('Enter ₹100–₹5,00,000 in test credits.');
+      if (mode === 'buy') {
+        if (!address) throw new Error('Connect your Nile TronLink wallet first.');
+        const result = await api<{ order: { amountUsdt: number }; message: string }>('/api/test-buy-order', { method: 'POST', body: JSON.stringify({ amountInr, address }) });
+        setMessage(`Buy request saved for ${result.order.amountUsdt} test USDT. Treasury transfer is pending verification.`);
+      } else {
+        const result = await api<{ intent: { expectedAmountUsdt: number } }>('/api/crypto-deposit-intent', { method: 'POST', body: JSON.stringify({ amountInr }) });
+        setMessage(`Sell request ready: send exactly ${result.intent.expectedAmountUsdt.toFixed(6)} Nile test USDT to the address below.`);
+      }
+      await load(address);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Request failed.'); }
+    finally { setWorking(false); }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-500/20 pb-3">
-        <div>
-          <h2 className="text-xl font-bold text-white">Crypto Deposit</h2>
-          <p className="text-xs text-slate-400 mt-1">TRON network only — TRX and USDT (TRC20). INR, bank transfer, UPI and HDFC details are not shown.</p>
-        </div>
-        <div className="p-3 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-3">
-          <Wallet className="w-5 h-5 text-cyan-400" />
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500">Platform Fund Balance</div>
-            <div className="text-sm font-bold font-mono text-cyan-300">{Number(wallet?.fundWallet || 0).toFixed(2)}</div>
-          </div>
-        </div>
-      </div>
+  const checkSell = async () => {
+    setWorking(true); setError('');
+    try {
+      const result = await api<{ credited: boolean; message?: string }>('/api/crypto-deposit-sync', { method: 'POST', body: '{}' });
+      setMessage(result.credited ? 'Nile transfer confirmed. Test credits added to your test wallet.' : (result.message || 'Still waiting for a confirmed transfer.'));
+      await load(address);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Confirmation check failed.'); }
+    finally { setWorking(false); }
+  };
 
-      <div className="p-4 rounded-xl bg-[#0c1638] border border-blue-500/30 flex gap-3 text-xs text-slate-300">
-        <ShieldCheck className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-        <div>
-          <strong className="text-cyan-300 block mb-1">Admin-controlled deposit destination</strong>
-          <span>{settings?.depositNetworkNotice || 'Send only the selected TRON asset to the matching address.'}</span>
-        </div>
-      </div>
+  const sendSell = async (order: SellOrder) => {
+    setError(''); setMessage(''); setWorking(true);
+    try {
+      const tronWeb = window.tronLink?.tronWeb;
+      if (!address || tronWeb?.defaultAddress?.base58 !== address || !tronWeb.fullNode?.host?.includes('nile.trongrid.io')) throw new Error('Connect the same wallet on Nile Testnet before sending.');
+      if (order.depositAddress === address) throw new Error('The connected wallet cannot send test tokens to itself as a sell order.');
+      if ((wallet?.onChain?.usdt || 0) < order.usdt) throw new Error('Not enough Nile test USDT in this wallet.');
+      if (!tronWeb.contract) throw new Error('TronLink contract support is unavailable. Send manually from TronLink instead.');
+      const contract = await tronWeb.contract().at(NILE_USDT_CONTRACT);
+      const txid = await contract.transfer(order.depositAddress, Math.round(order.usdt * 1e6)).send({ feeLimit: 100_000_000, callValue: 0 });
+      setMessage(`Nile transaction submitted: ${txid}. Use Check confirmation after it is confirmed on chain.`);
+      await load(address);
+    } catch (err) { setError(err instanceof Error ? err.message : 'TronLink transfer failed.'); }
+    finally { setWorking(false); }
+  };
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-7 p-5 sm:p-6 rounded-2xl bg-[#091129] border border-blue-500/25 shadow-xl space-y-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Select Asset</h3>
-            <button onClick={load} disabled={loading} className="p-2 rounded-lg bg-[#0e173a] border border-blue-500/20 text-cyan-400 disabled:opacity-50"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
-          </div>
+  const activeSell = wallet?.sellOrders.find(item => item.status === 'pending' && new Date(item.expiresAt).getTime() > Date.now());
+  useEffect(() => {
+    if (!activeSell) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const result = await api<{ credited: boolean }>('/api/crypto-deposit-sync', { method: 'POST', body: '{}' });
+        if (result.credited) { setMessage('Nile transfer confirmed. Test credits added automatically.'); await load(address); }
+      } catch { /* Keep the order visible; the member can retry manually. */ }
+    }, 12000);
+    return () => window.clearInterval(timer);
+  }, [activeSell?.id, address, load]);
+  useEffect(() => {
+    if (!wallet?.buyOrders.some(item => item.status === 'pending')) return;
+    const timer = window.setInterval(() => { void load(address); }, 30000);
+    return () => window.clearInterval(timer);
+  }, [wallet?.buyOrders.some(item => item.status === 'pending'), address, load]);
+  const latestOrders = [...(wallet?.buyOrders || []).map(item => ({ ...item, side: 'Buy' })), ...(wallet?.sellOrders || []).map(item => ({ ...item, side: 'Sell' }))].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8);
 
-          <div className="grid grid-cols-2 gap-3">
-            {(['USDT','TRX'] as Asset[]).map((item) => (
-              <button key={item} onClick={() => setAsset(item)} className={`p-4 rounded-xl border text-left transition-all ${asset === item ? 'bg-blue-600/20 border-cyan-400' : 'bg-[#060b1c] border-blue-500/20 hover:border-blue-500/40'}`}>
-                <div className="flex items-center gap-2"><Coins className="w-4 h-4 text-cyan-400" /><span className="font-bold text-white">{item}</span></div>
-                <div className="text-[11px] text-slate-400 mt-1">{item === 'USDT' ? 'USDT • TRC20' : 'TRX • TRON'}</div>
-              </button>
-            ))}
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Admin Deposit Address</label>
-            {address ? (
-              <div className="flex gap-2">
-                <div className="flex-1 px-3.5 py-3 rounded-xl bg-[#060b1c] border border-blue-500/30 text-cyan-300 font-mono text-xs break-all">{address}</div>
-                <button onClick={copyAddress} className="px-3 rounded-xl bg-blue-600/20 border border-blue-500/30 text-cyan-300">{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button>
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs flex gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>No {asset} deposit address is configured yet. Admin must add the address in System Settings before users can make a deposit.</span>
-              </div>
-            )}
-          </div>
-
-          <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 text-[11px] text-slate-400 leading-relaxed">
-            Deposit submission/auto-credit remains disabled until the payment provider or verified on-chain reconciliation flow is configured. This prevents accidental real-money credits from unverified transfers.
-          </div>
-        </div>
-
-        <div className="lg:col-span-5 p-5 rounded-2xl bg-[#091129] border border-blue-500/25 shadow-xl space-y-4">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Network Rules</h3>
-          <div className="space-y-3 text-xs">
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/15"><span className="text-slate-500 block text-[10px] uppercase">USDT</span><strong className="text-white">TRC20 only</strong></div>
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/15"><span className="text-slate-500 block text-[10px] uppercase">TRX</span><strong className="text-white">TRON network only</strong></div>
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/15"><span className="text-slate-500 block text-[10px] uppercase">INR / Bank / UPI</span><strong className="text-rose-300">Disabled / Hidden</strong></div>
-          </div>
-        </div>
-      </div>
+  return <div className="space-y-5 text-slate-200">
+    <div className="flex items-start justify-between gap-3 flex-wrap border-b border-blue-500/20 pb-4">
+      <div><h2 className="text-xl font-bold text-white">Nile Test Wallet & Trading</h2><p className="text-xs text-amber-300 mt-1">TESTNET ONLY · Test tokens and test credits have no cash value.</p></div>
+      <div className="flex gap-2"><button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" onClick={connect}>Connect TronLink</button><button onClick={() => void load(address)} disabled={working} className="rounded-xl border border-blue-500/30 px-3 py-2 text-sm disabled:opacity-50" aria-label="Refresh Nile balances"><RefreshCw size={16}/></button></div>
     </div>
-  );
+    <div className="grid gap-3 md:grid-cols-3">
+      <div className="rounded-xl border border-blue-500/25 bg-[#091129] p-4"><p className="text-xs text-slate-400">Your Nile TRX on chain</p><p className="mt-2 text-2xl font-bold">{wallet?.onChain ? wallet.onChain.trx.toLocaleString() : '—'} <span className="text-sm">TRX</span></p></div>
+      <div className="rounded-xl border border-blue-500/25 bg-[#091129] p-4"><p className="text-xs text-slate-400">Your Nile USDT on chain</p><p className="mt-2 text-2xl font-bold">{wallet?.onChain ? wallet.onChain.usdt.toLocaleString() : '—'} <span className="text-sm">USDT-TEST</span></p></div>
+      <div className="rounded-xl border border-blue-500/25 bg-[#091129] p-4"><p className="text-xs text-slate-400">Platform test credits</p><p className="mt-2 text-2xl font-bold">₹{(wallet?.testBalanceInr || 0).toLocaleString('en-IN')}</p><p className="mt-1 text-[11px] text-amber-300">Separate from real Fund Wallet</p></div>
+    </div>
+    {address && <div className="rounded-xl border border-blue-500/25 bg-[#091129] p-3 text-xs">Connected public address: <span className="font-mono text-cyan-300 break-all">{address}</span> <button className="ml-2 text-cyan-400" onClick={() => navigator.clipboard.writeText(address)} aria-label="Copy address"><Copy size={14}/></button></div>}
+    {error && <div role="alert" className="rounded-xl border border-rose-500/40 bg-rose-950/20 p-3 text-sm text-rose-200 flex gap-2"><AlertCircle size={18}/>{error}</div>}
+    {message && <div role="status" className="rounded-xl border border-cyan-500/40 bg-cyan-950/20 p-3 text-sm text-cyan-100">{message}</div>}
+    <div className="rounded-2xl border border-blue-500/25 bg-[#091129] p-5 space-y-4">
+      <div className="flex gap-2"><button onClick={() => setMode('sell')} className={`px-4 py-2 rounded-lg text-sm ${mode === 'sell' ? 'bg-cyan-600 text-white' : 'bg-[#151e3b]'}`}>Sell test USDT</button><button onClick={() => setMode('buy')} className={`px-4 py-2 rounded-lg text-sm ${mode === 'buy' ? 'bg-cyan-600 text-white' : 'bg-[#151e3b]'}`}>Buy test USDT</button></div>
+      <p className="text-xs text-slate-400">{mode === 'sell' ? 'Send test USDT from your Nile wallet. Confirmed transfer credits your separate test balance.' : 'Spend test credits. The treasury must send test USDT to your connected Nile address; the order stays pending until that transfer is verified.'}</p>
+      <label className="block text-sm">Amount in test credits (₹)<input type="number" min="100" max="500000" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} className="mt-2 block w-full max-w-xs rounded-xl border border-blue-500/30 bg-[#060b1c] p-3 text-white" /></label>
+      <button disabled={working || (mode === 'buy' && !address)} onClick={submit} className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{working ? 'Please wait…' : mode === 'sell' ? 'Create sell request' : 'Request test USDT buy'}</button>
+      {activeSell && <div className="rounded-xl border border-amber-500/30 bg-[#060b1c] p-4 space-y-2 text-sm"><strong className="text-amber-300">Pending sell · expires {new Date(activeSell.expiresAt).toLocaleString('en-IN')}</strong><p>Send exactly <strong>{activeSell.usdt.toFixed(6)} USDT-TEST</strong> on Nile to:</p><div className="flex gap-2 items-center"><code className="break-all text-cyan-300">{activeSell.depositAddress}</code><button onClick={() => navigator.clipboard.writeText(activeSell.depositAddress)} aria-label="Copy deposit address"><Copy size={16}/></button></div><p className="text-xs text-amber-200">Check the Nile network, token, address and exact amount in TronLink before signing. Never enter a seed phrase here.</p><div className="flex gap-2 flex-wrap"><button disabled={working || !address || address === activeSell.depositAddress} onClick={() => void sendSell(activeSell)} className="rounded-lg bg-blue-600 px-3 py-2 text-white disabled:opacity-50">Send with TronLink</button><button disabled={working} onClick={checkSell} className="rounded-lg border border-cyan-500/40 px-3 py-2 text-cyan-300 flex items-center gap-2 disabled:opacity-50"><RefreshCw size={15}/> Check confirmation</button></div></div>}
+    </div>
+    <div className="rounded-2xl border border-blue-500/25 bg-[#091129] p-5"><h3 className="font-semibold text-white mb-3 flex gap-2 items-center"><Wallet size={17}/> Recent test orders</h3>{latestOrders.length ? <div className="space-y-2">{latestOrders.map(item => <div key={item.id} className="flex flex-wrap justify-between gap-2 border-b border-blue-500/10 py-2 text-xs"><span>{item.side} {item.usdt.toFixed(6)} USDT-TEST · ₹{item.inr.toLocaleString('en-IN')}</span><span className="text-cyan-300">{item.status}{item.txid ? ` · ${item.txid.slice(0, 12)}…` : ''}</span></div>)}</div> : <p className="text-xs text-slate-400">No test orders yet.</p>}</div>
+  </div>;
 };
