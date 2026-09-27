@@ -5,28 +5,45 @@ import { BASIC_PACKAGE_TEMPLATES, getBasicPlanDailyReturn, getBasicPlanTotalWith
 import { useAuth } from '../../../context/AuthContext.tsx';
 import type { PackageDefinition } from '../../../types/index.ts';
 
+const FAST_READ_TIMEOUT = 3500;
+const withTimeout = async <T,>(promise: Promise<T>, fallback: T): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), FAST_READ_TIMEOUT))
+  ]);
+};
+
 export const AdminPackages: React.FC = () => {
   const { user: currentAdmin } = useAuth();
-  const [packages, setPackages] = useState<PackageDefinition[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [packages, setPackages] = useState<PackageDefinition[]>(BASIC_PACKAGE_TEMPLATES);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [editingPkg, setEditingPkg] = useState<PackageDefinition | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const loadPackages = async () => {
-    setLoading(true);
+  const mergeWithTemplates = (saved: PackageDefinition[]) => {
+    const savedBasic = saved.filter(p => p.type === 'basic');
+    const byCode = new Map(savedBasic.map(p => [p.code, p]));
+    const basics = BASIC_PACKAGE_TEMPLATES.map(t => byCode.get(t.code) || t);
+    const custom = saved.filter(p => !BASIC_PACKAGE_TEMPLATES.some(t => t.code === p.code));
+    return [...basics, ...custom];
+  };
+
+  const loadPackages = async (showRefresh = false) => {
+    if (showRefresh) setRefreshing(true);
     try {
-      setPackages(await adminGetPackageDefinitions());
+      const saved = await withTimeout(adminGetPackageDefinitions(), [] as PackageDefinition[]);
+      if (saved.length) setPackages(mergeWithTemplates(saved));
     } catch (err: any) {
-      setError(err?.message || 'Unable to load packages.');
+      console.warn('Package background refresh failed:', err);
     } finally {
-      setLoading(false);
+      if (showRefresh) setRefreshing(false);
     }
   };
 
-  useEffect(() => { loadPackages(); }, []);
+  useEffect(() => { void loadPackages(false); }, []);
 
   const seedReferencePlans = async () => {
     if (!currentAdmin) return;
@@ -34,14 +51,14 @@ export const AdminPackages: React.FC = () => {
     setError('');
     setMessage('');
     try {
-      const existing = await adminGetPackageDefinitions();
+      const existing = await withTimeout(adminGetPackageDefinitions(), [] as PackageDefinition[]);
       const existingCodes = new Set(existing.map(p => p.code));
       const missing = BASIC_PACKAGE_TEMPLATES.filter(p => !existingCodes.has(p.code));
       for (const pkg of missing) {
         await adminSavePackageDefinition(currentAdmin.uid, { ...pkg, updatedAt: new Date().toISOString() });
       }
       setMessage(missing.length ? `${missing.length} Basic plans published successfully.` : 'All 11 Basic plans are already published.');
-      await loadPackages();
+      await loadPackages(true);
     } catch (err: any) {
       setError(err?.message || 'Unable to publish Basic plans.');
     } finally {
@@ -55,10 +72,13 @@ export const AdminPackages: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      await adminSavePackageDefinition(currentAdmin.uid, { ...editingPkg, updatedAt: new Date().toISOString() });
+      const updated = { ...editingPkg, updatedAt: new Date().toISOString() };
+      setPackages(prev => mergeWithTemplates(prev.map(p => p.id === updated.id ? updated : p)));
       setEditingPkg(null);
+      setMessage('Saving package in background...');
+      await adminSavePackageDefinition(currentAdmin.uid, updated);
       setMessage('Package saved successfully.');
-      await loadPackages();
+      void loadPackages(false);
     } catch (err: any) {
       setError(err?.message || 'Unable to save package.');
     } finally {
@@ -87,14 +107,14 @@ export const AdminPackages: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2"><Package className="w-5 h-5 text-cyan-400"/><h2 className="text-xl font-bold text-white">Package Management</h2></div>
-          <p className="text-xs text-slate-400 mt-1">Admin controls package amount, configured daily return, duration and visibility.</p>
+          <p className="text-xs text-slate-400 mt-1">Catalog opens instantly; database sync happens in the background.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={seedReferencePlans} disabled={seeding || !currentAdmin} className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-2 disabled:opacity-50">
             <Sparkles className="w-4 h-4"/>{seeding ? 'Publishing...' : 'Publish 11 Basic Plans'}
           </button>
           <button onClick={createCustom} className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2"><Plus className="w-4 h-4"/>New Package</button>
-          <button onClick={loadPackages} disabled={loading} className="p-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-cyan-400"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}/></button>
+          <button onClick={() => loadPackages(true)} disabled={refreshing} className="p-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-cyan-400"><RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}/></button>
         </div>
       </div>
 
@@ -107,27 +127,25 @@ export const AdminPackages: React.FC = () => {
       {message && <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex gap-2"><Check className="w-4 h-4"/>{message}</div>}
       {error && <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs">{error}</div>}
 
-      {loading ? <div className="py-16 text-center text-slate-400"><RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading packages...</div> : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {packages.map(pkg => {
-            const daily = getBasicPlanDailyReturn(pkg);
-            const total = getBasicPlanTotalWithPrincipal(pkg);
-            return <div key={pkg.id} className={`p-5 rounded-2xl border ${pkg.active ? 'bg-[#091129] border-blue-500/25' : 'bg-[#080d20] border-slate-700/40 opacity-70'}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div><div className="text-base font-bold text-white">{pkg.name}</div><div className="text-[11px] text-cyan-400 font-mono">{pkg.code}</div></div>
-                <button onClick={() => setEditingPkg(pkg)} className="p-2 rounded-lg bg-[#0e173a] text-cyan-400 border border-blue-500/30"><Edit3 className="w-3.5 h-3.5"/></button>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
-                <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Plan Amount</span><b className="text-white">{pkg.minAmount.toLocaleString('en-IN')}</b></div>
-                <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Configured Daily</span><b className="text-emerald-400">{daily.toLocaleString('en-IN')}</b></div>
-                <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
-                <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Scheduled Total</span><b className="text-white">{total.toLocaleString('en-IN')}</b></div>
-              </div>
-              <div className="mt-3 text-[11px] text-slate-400">{pkg.active ? 'Active & visible to members' : 'Inactive / hidden from members'}</div>
-            </div>;
-          })}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {packages.map(pkg => {
+          const daily = getBasicPlanDailyReturn(pkg);
+          const total = getBasicPlanTotalWithPrincipal(pkg);
+          return <div key={pkg.id} className={`p-5 rounded-2xl border ${pkg.active ? 'bg-[#091129] border-blue-500/25' : 'bg-[#080d20] border-slate-700/40 opacity-70'}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div><div className="text-base font-bold text-white">{pkg.name}</div><div className="text-[11px] text-cyan-400 font-mono">{pkg.code}</div></div>
+              <button onClick={() => setEditingPkg(pkg)} className="p-2 rounded-lg bg-[#0e173a] text-cyan-400 border border-blue-500/30"><Edit3 className="w-3.5 h-3.5"/></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Plan Amount</span><b className="text-white">{pkg.minAmount.toLocaleString('en-IN')}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Configured Daily</span><b className="text-emerald-400">{daily.toLocaleString('en-IN')}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Scheduled Total</span><b className="text-white">{total.toLocaleString('en-IN')}</b></div>
+            </div>
+            <div className="mt-3 text-[11px] text-slate-400">{pkg.active ? 'Active & visible to members' : 'Inactive / hidden from members'}</div>
+          </div>;
+        })}
+      </div>
 
       {editingPkg && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
         <div className="w-full max-w-lg max-h-[90vh] overflow-auto rounded-2xl bg-[#0b132b] border border-blue-500/40 p-5">
