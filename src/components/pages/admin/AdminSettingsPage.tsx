@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Settings, Save, Check, RefreshCw, AlertTriangle, Layers, ShieldCheck, WalletCards } from 'lucide-react';
+import { Settings, Save, Check, RefreshCw, AlertTriangle, Layers, ShieldCheck, WalletCards, QrCode, Link2 } from 'lucide-react';
 import { getSystemSettings, updateSystemSettings } from '../../../services/settingsService.ts';
 import { useAuth } from '../../../context/AuthContext.tsx';
 import type { SystemSettings } from '../../../types/index.ts';
@@ -7,7 +7,11 @@ import type { SystemSettings } from '../../../types/index.ts';
 type ExtendedSettings = SystemSettings & {
   trxDepositAddress?: string;
   usdtTrc20DepositAddress?: string;
+  depositNetworkLabel?: string;
   depositNetworkNotice?: string;
+  depositWalletLink?: string;
+  depositQrImageUrl?: string;
+  depositDisplayEnabled?: boolean;
 };
 
 export const AdminSettingsPage: React.FC = () => {
@@ -21,13 +25,9 @@ export const AdminSettingsPage: React.FC = () => {
   const loadSettings = async () => {
     setLoading(true);
     setErrorMsg('');
-    try {
-      setSettings((await getSystemSettings(true)) as ExtendedSettings);
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Unable to load settings');
-    } finally {
-      setLoading(false);
-    }
+    try { setSettings((await getSystemSettings(true)) as ExtendedSettings); }
+    catch (err: any) { setErrorMsg(err?.message || 'Unable to load settings'); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { loadSettings(); }, []);
@@ -35,32 +35,23 @@ export const AdminSettingsPage: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settings || !currentAdmin) return;
-    setSaving(true);
-    setErrorMsg('');
+    setSaving(true); setErrorMsg('');
     try {
       const updated = await updateSystemSettings(currentAdmin.uid, currentAdmin.email || undefined, settings);
       setSettings(updated as ExtendedSettings);
-      setSuccessMsg('Settings saved successfully.');
-      setTimeout(() => setSuccessMsg(''), 2500);
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
+      setSuccessMsg('Deposit display settings saved. Users will see the latest active details automatically.');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err: any) { setErrorMsg(err?.message || 'Failed to save settings'); }
+    finally { setSaving(false); }
   };
 
-  if (loading) {
-    return <div className="py-16 text-center text-slate-400"><RefreshCw className="w-6 h-6 animate-spin mx-auto text-cyan-400 mb-2" /><span className="text-xs">Loading configuration…</span></div>;
-  }
+  if (loading) return <div className="py-16 text-center text-slate-400"><RefreshCw className="w-6 h-6 animate-spin mx-auto text-cyan-400 mb-2" /><span className="text-xs">Loading configuration…</span></div>;
   if (!settings) return null;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center"><Settings className="w-5 h-5 text-white" /></div>
-          <div><h2 className="text-xl font-bold text-white">System Settings</h2><p className="text-xs text-slate-400">Package visibility, testnet wallet display and platform safety.</p></div>
-        </div>
+        <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center"><Settings className="w-5 h-5 text-white" /></div><div><h2 className="text-xl font-bold text-white">System Settings</h2><p className="text-xs text-slate-400">Manage the wallet details shown to every user on Recharge.</p></div></div>
         <button onClick={loadSettings} className="p-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-cyan-400"><RefreshCw className="w-4 h-4" /></button>
       </div>
 
@@ -69,31 +60,28 @@ export const AdminSettingsPage: React.FC = () => {
 
       <form onSubmit={handleSave} className="space-y-6">
         <section className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-4">
-          <div className="flex items-center gap-2 border-b border-blue-500/20 pb-2"><WalletCards className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">TRON Testnet Display Details</h3></div>
-          <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 text-xs text-amber-200">No bank, HDFC, UPI or INR details are prefilled. Enter only testnet TRON addresses here while payment execution remains disabled.</div>
-          <div className="grid grid-cols-1 gap-4 text-xs">
-            <div><label className="block text-slate-300 font-semibold mb-1">TRX Testnet Address</label><input value={settings.trxDepositAddress || ''} onChange={(e) => setSettings({ ...settings, trxDepositAddress: e.target.value.trim() })} placeholder="Enter TRON testnet address" className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono" /></div>
-            <div><label className="block text-slate-300 font-semibold mb-1">USDT TRC20 Testnet Address</label><input value={settings.usdtTrc20DepositAddress || ''} onChange={(e) => setSettings({ ...settings, usdtTrc20DepositAddress: e.target.value.trim() })} placeholder="Enter testnet TRC20 address" className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono" /></div>
-            <div><label className="block text-slate-300 font-semibold mb-1">Network Notice</label><input value={settings.depositNetworkNotice || ''} onChange={(e) => setSettings({ ...settings, depositNetworkNotice: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" /></div>
+          <div className="flex items-center justify-between gap-3 border-b border-blue-500/20 pb-3">
+            <div className="flex items-center gap-2"><WalletCards className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">Deposit Wallet Display</h3></div>
+            <label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={settings.depositDisplayEnabled !== false} onChange={(e) => setSettings({ ...settings, depositDisplayEnabled: e.target.checked })} /> Show to users</label>
           </div>
+          <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 text-xs text-amber-200">Use testnet details while real-money payment execution is disabled. Changing these fields updates what users see; it does not itself credit funds.</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div className="md:col-span-2"><label className="block text-slate-300 font-semibold mb-1">USDT TRC20 Deposit Address</label><input value={settings.usdtTrc20DepositAddress || ''} onChange={(e) => setSettings({ ...settings, usdtTrc20DepositAddress: e.target.value.trim() })} placeholder="T..." className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono" /></div>
+            <div><label className="block text-slate-300 font-semibold mb-1">TRX Deposit Address</label><input value={settings.trxDepositAddress || ''} onChange={(e) => setSettings({ ...settings, trxDepositAddress: e.target.value.trim() })} placeholder="T..." className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono" /></div>
+            <div><label className="block text-slate-300 font-semibold mb-1">Network Label</label><input value={settings.depositNetworkLabel || ''} onChange={(e) => setSettings({ ...settings, depositNetworkLabel: e.target.value })} placeholder="Nile Testnet • TRC20" className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" /></div>
+            <div className="md:col-span-2"><label className="flex items-center gap-2 text-slate-300 font-semibold mb-1"><Link2 className="w-3.5 h-3.5" /> Wallet / Open Link</label><input value={settings.depositWalletLink || ''} onChange={(e) => setSettings({ ...settings, depositWalletLink: e.target.value.trim() })} placeholder="https://... or wallet deep link" className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" /></div>
+            <div className="md:col-span-2"><label className="flex items-center gap-2 text-slate-300 font-semibold mb-1"><QrCode className="w-3.5 h-3.5" /> QR Image URL</label><input value={settings.depositQrImageUrl || ''} onChange={(e) => setSettings({ ...settings, depositQrImageUrl: e.target.value.trim() })} placeholder="https://.../qr.png" className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" /></div>
+            <div className="md:col-span-2"><label className="block text-slate-300 font-semibold mb-1">Network Notice / Warning</label><input value={settings.depositNetworkNotice || ''} onChange={(e) => setSettings({ ...settings, depositNetworkNotice: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" /></div>
+          </div>
+          {settings.depositQrImageUrl && <div className="flex justify-center"><div className="p-3 rounded-2xl bg-white"><img src={settings.depositQrImageUrl} alt="Configured deposit QR preview" className="w-44 h-44 object-contain" /></div></div>}
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-3 text-xs">
-            <div className="flex items-center gap-2 border-b border-blue-500/20 pb-2"><Layers className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase text-cyan-400">Package Visibility</h3></div>
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20"><span className="text-white font-semibold">Basic Package</span><div className="text-emerald-400 mt-1">LIVE / Visible to users</div></div>
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20"><span className="text-white font-semibold">FD Package</span><div className="text-emerald-400 mt-1">LIVE / Visible to users</div></div>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-3 text-xs">
-            <div className="flex items-center gap-2 border-b border-blue-500/20 pb-2"><ShieldCheck className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase text-cyan-400">Safety Status</h3></div>
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 flex justify-between"><span>Basic Package Enabled</span><span className={settings.basicPackageEnabled ? 'text-emerald-400' : 'text-rose-400'}>{settings.basicPackageEnabled ? 'YES' : 'NO'}</span></div>
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 flex justify-between"><span>FD Package Enabled</span><span className={settings.fdPackageEnabled ? 'text-emerald-400' : 'text-rose-400'}>{settings.fdPackageEnabled ? 'YES' : 'NO'}</span></div>
-            <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 flex justify-between"><span>Real-money Payments</span><span className="text-rose-400">DISABLED</span></div>
-          </div>
+          <div className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-3 text-xs"><div className="flex items-center gap-2 border-b border-blue-500/20 pb-2"><Layers className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase text-cyan-400">Package Visibility</h3></div><div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20"><span className="text-white font-semibold">Basic Package</span><div className="text-emerald-400 mt-1">LIVE / Visible to users</div></div><div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20"><span className="text-white font-semibold">FD Package</span><div className="text-emerald-400 mt-1">LIVE / Visible to users</div></div></div>
+          <div className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-3 text-xs"><div className="flex items-center gap-2 border-b border-blue-500/20 pb-2"><ShieldCheck className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase text-cyan-400">Safety Status</h3></div><div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 flex justify-between"><span>Deposit Display</span><span className={settings.depositDisplayEnabled !== false ? 'text-emerald-400' : 'text-rose-400'}>{settings.depositDisplayEnabled !== false ? 'VISIBLE' : 'HIDDEN'}</span></div><div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 flex justify-between"><span>Real-money Auto Credit</span><span className="text-rose-400">DISABLED</span></div></div>
         </section>
 
-        <div className="flex justify-end"><button type="submit" disabled={saving} className="px-7 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-xs flex items-center gap-2 disabled:opacity-50">{saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{saving ? 'Saving…' : 'Save Settings'}</button></div>
+        <div className="flex justify-end"><button type="submit" disabled={saving} className="px-7 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-xs flex items-center gap-2 disabled:opacity-50">{saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{saving ? 'Saving…' : 'Save Deposit Settings'}</button></div>
       </form>
     </div>
   );
