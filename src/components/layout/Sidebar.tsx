@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
           >
             <Wallet className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm">Recharge Fund</span>
+            <span className="text-sm">Nile Test Wallet & Trading</span>
           </button>
 
           {/* KYC Verification Page */}

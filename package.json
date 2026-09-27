@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test:nile": "node --test tests/tronTestnet.test.mjs",
     "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {

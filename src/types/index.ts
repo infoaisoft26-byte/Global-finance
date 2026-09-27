@@ -339,5 +339,6 @@ export type ActivePage =
   | 'admin-packages'
   | 'admin-package-activations'
   | 'admin-transactions'
+  | 'admin-test-buys'
   | 'admin-audit'
   | 'admin-settings';
