@@ -8,36 +8,33 @@
   }
 }
 
+/* Official GLOBAL FINANCE branding for both member/admin sidebars. */
+aside > div:first-of-type > div:first-child > div:first-child {
+  background-image: url('/global-finance-logo.webp') !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: contain !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  width: 48px !important;
+  height: 40px !important;
+  border-radius: 8px !important;
+  flex-shrink: 0;
+}
+aside > div:first-of-type > div:first-child > div:first-child > svg {
+  opacity: 0 !important;
+}
+
 /* Custom scrollbar for dark theme */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #0b1126;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0b1126; }
+::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
 
 @media print {
-  body {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-  .no-print {
-    display: none !important;
-  }
-  .print-only {
-    display: block !important;
-  }
-  .data-table-container {
-    box-shadow: none !important;
-    border: 1px solid #ddd !important;
-  }
+  body { background: #ffffff !important; color: #000000 !important; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .data-table-container { box-shadow: none !important; border: 1px solid #ddd !important; }
 }
-
