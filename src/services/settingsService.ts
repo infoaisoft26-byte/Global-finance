@@ -35,7 +35,11 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   supportTicketsEnabled: true,
   trxDepositAddress: '',
   usdtTrc20DepositAddress: '',
-  depositNetworkNotice: 'TRON testnet only. Use only TRX or USDT (TRC20) with the matching testnet address.',
+  depositNetworkLabel: 'Nile Testnet • TRC20',
+  depositNetworkNotice: 'TRON testnet only. Use only the selected asset and matching testnet network.',
+  depositWalletLink: '',
+  depositQrImageUrl: '',
+  depositDisplayEnabled: true,
   updatedAt: new Date().toISOString()
 } as SystemSettings;
 
@@ -49,7 +53,6 @@ export async function getSystemSettings(force = false): Promise<SystemSettings> 
     const merged = {
       ...DEFAULT_SYSTEM_SETTINGS,
       ...stored,
-      // Product catalog remains visible; transaction execution is controlled separately.
       basicPackageEnabled: true,
       fdPackageEnabled: true,
       rechargeEnabled: false,
@@ -93,9 +96,15 @@ export async function updateSystemSettings(
     rechargeEnabled: false,
     withdrawalEnabled: false,
     p2pEnabled: updated.p2pEnabled,
-    cryptoDepositConfigurationUpdated:
-      Object.prototype.hasOwnProperty.call(updates, 'trxDepositAddress') ||
-      Object.prototype.hasOwnProperty.call(updates, 'usdtTrc20DepositAddress')
+    cryptoDepositConfigurationUpdated: [
+      'trxDepositAddress',
+      'usdtTrc20DepositAddress',
+      'depositWalletLink',
+      'depositQrImageUrl',
+      'depositNetworkLabel',
+      'depositNetworkNotice',
+      'depositDisplayEnabled'
+    ].some((key) => Object.prototype.hasOwnProperty.call(updates, key))
   });
 
   return updated;
