@@ -9,6 +9,12 @@
 }
 
 /* Official GLOBAL FINANCE branding for both member/admin sidebars. */
+aside > div:first-of-type {
+  min-height: 86px !important;
+  height: auto !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+}
 aside > div:first-of-type > div:first-child > div:first-child {
   background-image: url('/global-finance-logo.webp') !important;
   background-repeat: no-repeat !important;
@@ -17,9 +23,9 @@ aside > div:first-of-type > div:first-child > div:first-child {
   background-color: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
-  width: 58px !important;
-  height: 46px !important;
-  border-radius: 8px !important;
+  width: 76px !important;
+  height: 58px !important;
+  border-radius: 10px !important;
   flex-shrink: 0;
   opacity: 1 !important;
   filter: none !important;
@@ -50,6 +56,31 @@ aside[class*="border-rose-500/20"] > div:first-of-type > div:first-child > div:n
 }
 aside[class*="border-rose-500/20"] > div:first-of-type > div:first-child > div:nth-child(2) > div:last-child {
   color: #fda4af !important;
+}
+
+/* Opening/auth bootstrap screen: show the official logo instead of a generic shield. */
+#root > div.min-h-screen.flex.flex-col.items-center.justify-center:has(> h2) > div:first-child {
+  width: 240px !important;
+  height: 165px !important;
+  margin-bottom: 10px !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  background-image: url('/global-finance-logo.webp') !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: contain !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  animation: none !important;
+  filter: drop-shadow(0 16px 40px rgba(0, 217, 255, 0.22));
+}
+#root > div.min-h-screen.flex.flex-col.items-center.justify-center:has(> h2) > div:first-child > svg {
+  display: none !important;
+}
+#root > div.min-h-screen.flex.flex-col.items-center.justify-center:has(> h2) > h2 {
+  font-size: 1.5rem !important;
+  letter-spacing: .16em !important;
+  color: #ffffff !important;
 }
 
 /* Custom scrollbar */
@@ -158,6 +189,17 @@ aside[class*="border-rose-500/20"] > div:first-of-type > div:first-child > div:n
 #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) input::placeholder,
 #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) textarea::placeholder {
   color: #94a3b8 !important;
+}
+
+@media (max-width: 640px) {
+  #root > div.min-h-screen.flex.flex-col.items-center.justify-center:has(> h2) > div:first-child {
+    width: 190px !important;
+    height: 130px !important;
+  }
+  aside > div:first-of-type > div:first-child > div:first-child {
+    width: 66px !important;
+    height: 50px !important;
+  }
 }
 
 @media print {
