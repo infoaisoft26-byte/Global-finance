@@ -3,7 +3,12 @@ import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lu
 import { useAuth } from '../../context/AuthContext.tsx';
 import { adminGetPackages } from '../../services/financeService.ts';
 import { getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
-import { BASIC_PACKAGE_TEMPLATES, getBasicPlanDailyReturn, getBasicPlanTotalWithPrincipal } from '../../data/basicPackageTemplates.ts';
+import {
+  BASIC_PACKAGE_TEMPLATES,
+  getBasicPlanDailyReturn,
+  getBasicPlanScheduledReturn,
+  getBasicPlanMaturityValue
+} from '../../data/basicPackageTemplates.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { PackageActivationRequest, PackageDefinition } from '../../types/index.ts';
 
@@ -71,7 +76,7 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
 
   return <div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div><h2 className="text-xl font-bold">Basic Package</h2><p className="text-xs mt-1">Purchase directly with verified Available USDT. The amount is deducted atomically when the plan activates.</p></div>
+      <div><h2 className="text-xl font-bold">Basic Package</h2><p className="text-xs mt-1">Choose a plan and see the daily income, total profit and maturity amount before purchase.</p></div>
       <div className="flex items-center gap-2">
         <div className="px-4 py-2.5 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-2"><Wallet className="w-4 h-4 text-cyan-400"/><div><div className="text-[9px] uppercase">Available USDT</div><div className="font-mono text-sm font-bold">{Number(wallet?.fundWallet || 0).toFixed(2)}</div></div></div>
         <button onClick={onNavigateToRecharge} className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold">Add USDT</button>
@@ -82,13 +87,22 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {packages.map(pkg => {
         const waiting = submittingId === pkg.id;
+        const dailyIncome = getBasicPlanDailyReturn(pkg);
+        const totalProfit = getBasicPlanScheduledReturn(pkg);
+        const maturityAmount = getBasicPlanMaturityValue(pkg);
         return <div key={pkg.id} className="rounded-2xl bg-[#091129] border border-blue-500/25 overflow-hidden shadow-lg">
           <div className="p-4 border-b border-blue-500/15 flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center"><Package className="w-5 h-5 text-white"/></div><div><h3 className="font-bold">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-500">{pkg.code}</span></div></div>
           <div className="p-4 space-y-2 text-xs">
-            <div className="flex justify-between"><span>Price</span><b className="font-mono">USDT {pkg.minAmount.toFixed(2)}</b></div>
-            <div className="flex justify-between"><span>Configured Daily Return</span><b className="font-mono">{getBasicPlanDailyReturn(pkg).toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Plan Amount</span><b className="font-mono">USDT {pkg.minAmount.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-cyan-400">{pkg.roiRate}%</b></div>
+            <div className="flex justify-between"><span>Daily Income</span><b className="font-mono text-emerald-400">USDT {dailyIncome.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
-            <div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Scheduled Total</span><b className="font-mono">{getBasicPlanTotalWithPrincipal(pkg).toFixed(2)}</b></div>
+            <div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Total Profit</span><b className="font-mono text-emerald-400">USDT {totalProfit.toFixed(2)}</b></div>
+            <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-3">
+              <div className="text-[10px] uppercase tracking-wide text-cyan-300">Maturity Amount</div>
+              <div className="mt-1 text-xl font-bold font-mono text-white">USDT {maturityAmount.toFixed(2)}</div>
+              <div className="mt-1 text-[10px] text-slate-400">Principal + total profit after {pkg.durationDays} days</div>
+            </div>
           </div>
           <button onClick={() => purchase(pkg)} disabled={waiting} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">{waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing…</> : 'Purchase with USDT'}</button>
         </div>;
