@@ -4,7 +4,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "crons": [
-    { "path": "/api/daily-income-cron", "schedule": "40 18 * * *" }
+    { "path": "/api/usdt-bep20-deposit", "schedule": "40 18 * * *" }
   ],
   "rewrites": [
     { "source": "/admin", "destination": "/index.html" },
