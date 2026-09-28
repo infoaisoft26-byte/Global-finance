@@ -113,10 +113,10 @@ export const Recharge: React.FC = () => {
         </div>
 
         <form onSubmit={submitConfirmation} className="lg:col-span-5 p-5 rounded-2xl bg-[#091129] border border-blue-500/25 shadow-xl space-y-4">
-          <div><h3 className="text-sm font-bold text-white uppercase tracking-wider">Payment Confirmation</h3><p className="text-[11px] text-slate-400 mt-1">After sending USDT BEP20, enter the amount and submit confirmation for admin verification.</p></div>
+          <div><h3 className="text-sm font-bold text-white uppercase tracking-wider">Confirm Payment</h3><p className="text-[11px] text-slate-400 mt-1">After sending USDT BEP20, enter the amount and submit confirmation for admin verification.</p></div>
           <div><label className="block text-xs font-semibold text-slate-300 mb-1">USDT Amount</label><input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="e.g. 50" className="w-full px-3.5 py-3 rounded-xl border border-blue-500/30" /></div>
           <div><label className="block text-xs font-semibold text-slate-300 mb-1">Transaction Hash / Reference <span className="font-normal text-slate-500">(optional)</span></label><input value={txRef} onChange={e => setTxRef(e.target.value)} placeholder="Paste transaction hash/reference" className="w-full px-3.5 py-3 rounded-xl border border-blue-500/30" /></div>
-          <button type="submit" disabled={submitting} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">{submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}{submitting ? 'Confirming Payment…' : 'Confirmation Payment'}</button>
+          <button type="submit" disabled={submitting} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">{submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}{submitting ? 'Confirming Payment…' : 'Confirm Payment'}</button>
           <p className="text-[10px] text-slate-500">Payment confirmation does not credit funds automatically. Balance is updated only after admin verification/completion.</p>
         </form>
       </div>
