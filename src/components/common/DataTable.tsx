@@ -13,9 +13,12 @@ export interface Column<T> {
   header: string;
   render?: (item: T, index: number) => React.ReactNode;
   accessor?: (item: T) => any;
-  pdfAccessor?: (item: T, index: number) => any;
-  pdfHeader?: string;
   sortable?: boolean;
+}
+
+export interface PdfColumn<T> {
+  header: string;
+  accessor: (item: T, index: number) => any;
 }
 
 interface DataTableProps<T> {
@@ -26,6 +29,7 @@ interface DataTableProps<T> {
   isLoading?: boolean;
   emptyMessage?: string;
   pdfDocumentTitle?: string;
+  pdfColumns?: PdfColumn<T>[];
 }
 
 function escapeHtml(value: unknown) {
@@ -50,7 +54,8 @@ export function DataTable<T extends Record<string, any>>({
   onRefresh,
   isLoading = false,
   emptyMessage = 'No matching records found',
-  pdfDocumentTitle = 'Member Dashboard - Global Finance'
+  pdfDocumentTitle = 'Member Dashboard - Global Finance',
+  pdfColumns
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,16 +91,14 @@ export function DataTable<T extends Record<string, any>>({
       return;
     }
 
-    const headers = ['Sr', ...columns.map(col => col.pdfHeader || col.header)];
+    const effectivePdfColumns: PdfColumn<T>[] = pdfColumns || columns.map(col => ({
+      header: col.header,
+      accessor: (item: T) => col.accessor ? col.accessor(item) : item[col.key]
+    }));
+
+    const headers = ['Sr', ...effectivePdfColumns.map(col => col.header)];
     const rows = filteredData.map((item, index) => {
-      const values = columns.map(col => {
-        const value = col.pdfAccessor
-          ? col.pdfAccessor(item, index + 1)
-          : col.accessor
-            ? col.accessor(item)
-            : item[col.key];
-        return formatPdfValue(value);
-      });
+      const values = effectivePdfColumns.map(col => formatPdfValue(col.accessor(item, index + 1)));
       return [String(index + 1), ...values];
     });
 
@@ -121,16 +124,14 @@ export function DataTable<T extends Record<string, any>>({
   body { margin: 0; color: #111; background: #fff; font-family: Arial, Helvetica, sans-serif; }
   .sheet { width: 100%; padding-top: 8mm; }
   h1 { margin: 0 0 12mm; text-align: center; font-size: 20px; font-weight: 500; }
-  .report-name { text-align: center; font-size: 11px; color: #555; margin-top: -8mm; margin-bottom: 8mm; }
   table { width: 100%; border-collapse: collapse; table-layout: auto; }
-  th { font-size: 12px; font-weight: 700; text-align: left; padding: 7px 8px; white-space: nowrap; border-bottom: 1px solid #222; }
-  td { font-size: 11px; padding: 7px 8px; vertical-align: top; border-bottom: 1px solid #ddd; word-break: break-word; }
+  th { font-size: 12px; font-weight: 700; text-align: left; padding: 7px 8px; white-space: nowrap; }
+  td { font-size: 11px; padding: 7px 8px; vertical-align: top; word-break: break-word; }
   .empty { text-align: center; padding: 24px; color: #666; }
   .actions { margin-top: 18px; text-align: center; }
   .actions button { border: 0; border-radius: 6px; padding: 10px 18px; font-size: 13px; cursor: pointer; background: #111827; color: #fff; }
   @media print {
-    .actions, .report-name { display: none !important; }
-    h1 { margin-bottom: 12mm; }
+    .actions { display: none !important; }
     thead { display: table-header-group; }
     tr { break-inside: avoid; }
   }
@@ -139,7 +140,6 @@ export function DataTable<T extends Record<string, any>>({
 <body>
   <div class="sheet">
     <h1>${escapeHtml(pdfDocumentTitle)}</h1>
-    ${title ? `<div class="report-name">${escapeHtml(title)}</div>` : ''}
     <table>
       <thead><tr>${headerHtml}</tr></thead>
       <tbody>${bodyHtml}</tbody>
