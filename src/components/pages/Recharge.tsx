@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Check, CheckCircle2, Copy, ExternalLink, QrCode, RefreshCw, ShieldCheck, Wallet } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Copy, ExternalLink, Image as ImageIcon, QrCode, RefreshCw, ShieldCheck, Upload, Wallet } from 'lucide-react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getSystemSettings } from '../../services/settingsService.ts';
+import { storage } from '../../lib/firebase.ts';
 import type { SystemSettings } from '../../types/index.ts';
 
 type CryptoSettings = SystemSettings & {
@@ -18,12 +20,17 @@ type VerifyState = {
   message: string;
 } | null;
 
+const MAX_PROOF_SIZE = 8 * 1024 * 1024;
+const ALLOWED_PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
 export const Recharge: React.FC = () => {
   const { wallet, user, refreshWallet } = useAuth();
   const [settings, setSettings] = useState<CryptoSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [txHash, setTxHash] = useState('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [result, setResult] = useState<VerifyState>(null);
 
@@ -37,6 +44,7 @@ export const Recharge: React.FC = () => {
   };
 
   useEffect(() => { void loadSettings(); }, []);
+  useEffect(() => () => { if (proofPreview) URL.revokeObjectURL(proofPreview); }, [proofPreview]);
 
   const address = String(settings?.usdtBep20DepositAddress || '').trim();
 
@@ -47,7 +55,39 @@ export const Recharge: React.FC = () => {
     window.setTimeout(() => setCopied(false), 1800);
   };
 
-  const verifyDeposit = async (event: React.FormEvent) => {
+  const chooseProof = (file?: File) => {
+    setResult(null);
+    if (!file) {
+      setProofFile(null);
+      if (proofPreview) URL.revokeObjectURL(proofPreview);
+      setProofPreview('');
+      return;
+    }
+    if (!ALLOWED_PROOF_TYPES.includes(file.type)) {
+      setResult({ kind: 'error', title: 'Invalid Screenshot', message: 'Upload a PNG, JPG/JPEG, or WEBP payment screenshot.' });
+      return;
+    }
+    if (file.size > MAX_PROOF_SIZE) {
+      setResult({ kind: 'error', title: 'Screenshot Too Large', message: 'Payment screenshot must be 8 MB or smaller.' });
+      return;
+    }
+    if (proofPreview) URL.revokeObjectURL(proofPreview);
+    setProofFile(file);
+    setProofPreview(URL.createObjectURL(file));
+  };
+
+  const uploadProof = async (uid: string, hash: string) => {
+    if (!proofFile) return '';
+    const safeName = proofFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const objectRef = ref(storage, `payment_proofs/${uid}/${hash}/${Date.now()}-${safeName}`);
+    await uploadBytes(objectRef, proofFile, {
+      contentType: proofFile.type,
+      customMetadata: { ownerUid: uid, txHash: hash, asset: 'USDT', network: 'BEP20' },
+    });
+    return getDownloadURL(objectRef);
+  };
+
+  const confirmPayment = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!user) return;
     const hash = txHash.trim();
@@ -59,42 +99,43 @@ export const Recharge: React.FC = () => {
     setVerifying(true);
     setResult(null);
     try {
+      const paymentProofUrl = await uploadProof(user.uid, hash);
       const idToken = await user.getIdToken();
       const response = await fetch('/api/usdt-bep20-deposit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ txHash: hash }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ txHash: hash, paymentProofUrl }),
       });
       const data = await response.json().catch(() => ({}));
 
       if (response.status === 202) {
         setResult({
           kind: 'pending',
-          title: 'Waiting for Blockchain Confirmations',
+          title: 'Payment Submitted — Waiting for Confirmations',
           message: data.error || `Confirmations: ${Number(data.confirmations || 0)} / ${Number(data.requiredConfirmations || 12)}. Please retry shortly.`,
         });
         return;
       }
 
       if (!response.ok || !data.verified || !data.credited) {
-        throw new Error(data.error || 'This transaction could not be verified as a USDT BEP20 deposit to the Global Finance wallet.');
+        throw new Error(data.error || 'This payment could not be verified as a USDT BEP20 deposit to the Global Finance wallet.');
       }
 
       await refreshWallet();
       const amount = Number(data.amount || 0).toFixed(2);
       setResult({
         kind: 'success',
-        title: data.alreadyCredited ? 'Deposit Already Credited' : 'USDT Deposit Verified & Credited',
+        title: data.alreadyCredited ? 'Payment Already Confirmed' : 'Payment Confirmed',
         message: data.alreadyCredited
-          ? `This transaction was already processed. USDT ${amount} is included in your Available USDT balance.`
-          : `USDT ${amount} was verified on BNB Smart Chain and automatically credited to your Available USDT balance. You can now use the verified balance to purchase a plan.`,
+          ? `This transaction was already processed. USDT ${amount} is already included in your Available USDT balance.${paymentProofUrl ? ' Screenshot attached.' : ''}`
+          : `USDT ${amount} was verified on BNB Smart Chain and automatically credited to your Available USDT balance.${paymentProofUrl ? ' Payment screenshot uploaded successfully.' : ''}`,
       });
       setTxHash('');
+      setProofFile(null);
+      if (proofPreview) URL.revokeObjectURL(proofPreview);
+      setProofPreview('');
     } catch (error: any) {
-      setResult({ kind: 'error', title: 'Verification Failed', message: error?.message || 'Unable to verify this deposit right now.' });
+      setResult({ kind: 'error', title: 'Confirm Payment Failed', message: error?.message || 'Unable to confirm this payment right now.' });
     } finally {
       setVerifying(false);
     }
@@ -115,7 +156,7 @@ export const Recharge: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-500/20 pb-3">
         <div>
           <h2 className="text-xl font-bold text-white">Recharge — USDT BEP20</h2>
-          <p className="text-xs text-slate-400 mt-1">Real BNB Smart Chain verification. Successful confirmed deposits are credited automatically.</p>
+          <p className="text-xs text-slate-400 mt-1">Send USDT, enter the transaction hash, optionally upload your payment screenshot, then press Confirm Payment.</p>
         </div>
         <div className="p-3 rounded-xl bg-[#091129] border border-emerald-500/25 min-w-44">
           <div className="text-[10px] uppercase tracking-wider text-slate-500">Available USDT</div>
@@ -134,7 +175,7 @@ export const Recharge: React.FC = () => {
         <ShieldCheck className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
         <div>
           <strong className="block mb-1">USDT on BNB Smart Chain (BEP20) only</strong>
-          <span>{settings?.depositNetworkNotice || 'Send only USDT using the BNB Smart Chain (BEP20) network to this address.'} The system checks the real token contract, receiving wallet, successful receipt, confirmations, and duplicate transaction hash before crediting.</span>
+          <span>{settings?.depositNetworkNotice || 'Send only USDT using the BNB Smart Chain (BEP20) network to this address.'} The transaction hash is verified on-chain before any USDT is credited. Screenshot is supporting proof only.</span>
         </div>
       </div>
 
@@ -164,20 +205,39 @@ export const Recharge: React.FC = () => {
           {settings?.depositWalletLink && <a href={settings.depositWalletLink} target="_blank" rel="noreferrer" className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold"><ExternalLink className="w-4 h-4" />Open Wallet / Payment Link</a>}
         </div>
 
-        <form onSubmit={verifyDeposit} className="lg:col-span-5 p-5 rounded-2xl bg-[#091129] border border-blue-500/25 shadow-xl space-y-4">
+        <form onSubmit={confirmPayment} className="lg:col-span-5 p-5 rounded-2xl bg-[#091129] border border-blue-500/25 shadow-xl space-y-4">
           <div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Verify & Auto-Credit</h3>
-            <p className="text-[11px] text-slate-400 mt-1">After sending USDT, paste the real BEP20 transaction hash. The credited amount is read directly from the blockchain, not from a typed amount or screenshot.</p>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Confirm Payment</h3>
+            <p className="text-[11px] text-slate-400 mt-1">Paste the real BEP20 transaction hash. You can also upload the payment screenshot for reference.</p>
           </div>
+
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1">Transaction Hash</label>
             <input value={txHash} onChange={e => setTxHash(e.target.value)} placeholder="0x..." className="w-full px-3.5 py-3 rounded-xl border border-blue-500/30 font-mono text-xs" />
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Screenshot <span className="font-normal text-slate-500">(optional)</span></label>
+            <label className="flex items-center justify-center gap-2 w-full min-h-24 px-4 py-4 rounded-xl border-2 border-dashed border-blue-500/30 cursor-pointer hover:border-cyan-400/60 transition-colors">
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e => chooseProof(e.target.files?.[0])} />
+              <Upload className="w-5 h-5 text-cyan-500" />
+              <div className="text-left"><div className="text-xs font-bold">Upload Payment Screenshot</div><div className="text-[10px] text-slate-500">PNG, JPG, WEBP • Max 8 MB</div></div>
+            </label>
+            {proofFile && (
+              <div className="mt-2 p-2 rounded-xl border border-emerald-500/25 bg-emerald-500/5 flex items-center gap-3">
+                {proofPreview ? <img src={proofPreview} alt="Payment proof preview" className="w-12 h-12 rounded-lg object-cover border" /> : <ImageIcon className="w-5 h-5" />}
+                <div className="min-w-0 flex-1"><div className="text-xs font-semibold truncate">{proofFile.name}</div><div className="text-[10px] text-emerald-600">Screenshot selected ✓</div></div>
+                <button type="button" onClick={() => chooseProof(undefined)} className="text-[10px] px-2 py-1 rounded-lg border border-slate-300">Remove</button>
+              </div>
+            )}
+          </div>
+
           <button type="submit" disabled={verifying || !address} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">
             {verifying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            {verifying ? 'Checking BNB Smart Chain…' : 'Verify Payment & Credit USDT'}
+            {verifying ? 'Confirming Payment…' : 'Confirm Payment'}
           </button>
-          <div className="text-[10px] leading-relaxed text-slate-500">Security: one transaction hash can be credited only once. Wrong token, wrong network, failed transaction, wrong receiver, or insufficient confirmations will not credit the wallet.</div>
+
+          <div className="text-[10px] leading-relaxed text-slate-500">Security: screenshot upload alone never credits funds. Only a valid confirmed USDT BEP20 transaction to the configured wallet can credit Available USDT, and each transaction hash can be credited once.</div>
         </form>
       </div>
     </div>
