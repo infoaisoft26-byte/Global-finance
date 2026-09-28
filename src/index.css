@@ -191,6 +191,43 @@ aside[class*="border-rose-500/20"] > div:first-of-type > div:first-child > div:n
   color: #94a3b8 !important;
 }
 
+/* Strong light-mode readability: all member-panel text uses true black/dark ink. */
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main {
+  color: #050505 !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(h1,h2,h3,h4,h5,h6,p,span,label,td,th,li),
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(h1,h2,h3,h4,h5,h6,p,span,label,td,th,li) {
+  color: #050505 !important;
+  -webkit-text-fill-color: #050505 !important;
+  text-shadow: none !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(.text-white,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-cyan-300,.text-cyan-400,.text-cyan-500,.text-blue-300,.text-blue-400,.text-indigo-300,.text-indigo-400,.text-teal-300,.text-teal-400,.text-amber-300,.text-amber-400,.text-yellow-300,.text-emerald-300,.text-emerald-400,.text-emerald-500,.text-rose-300,.text-rose-400,.text-rose-500),
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(.text-white,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-400,.text-slate-500,.text-cyan-300,.text-cyan-400,.text-cyan-500,.text-blue-300,.text-blue-400,.text-indigo-300,.text-indigo-400,.text-teal-300,.text-teal-400,.text-amber-300,.text-amber-400,.text-yellow-300,.text-emerald-300,.text-emerald-400,.text-emerald-500,.text-rose-300,.text-rose-400,.text-rose-500) {
+  color: #050505 !important;
+  -webkit-text-fill-color: #050505 !important;
+}
+
+/* Inputs/selects must also remain clearly readable in light mode. */
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(input,select,textarea,option),
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(input,select,textarea,option) {
+  color: #050505 !important;
+  -webkit-text-fill-color: #050505 !important;
+}
+
+/* Text sitting on strong action/status backgrounds stays white for contrast. */
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(button,a)[class*="bg-gradient"] :is(span,p),
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(button,a)[class*="bg-gradient"] :is(span,p),
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(button,a)[class*="bg-blue-6"] :is(span,p),
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(button,a)[class*="bg-blue-6"] :is(span,p),
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(button,a)[class*="bg-rose-6"] :is(span,p),
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(button,a)[class*="bg-rose-6"] :is(span,p) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 @media (max-width: 640px) {
   #root > div.min-h-screen.flex.flex-col.items-center.justify-center:has(> h2) > div:first-child {
     width: 190px !important;
