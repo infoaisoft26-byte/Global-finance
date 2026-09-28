@@ -8,16 +8,46 @@ img[data-global-finance-logo] {
   opacity: 1 !important;
 }
 
-/* Member/admin sidebar: replace legacy shield/text lockup with official logo. */
+/* Premium integrated sidebar brand area.
+   Keep the logo as part of the sidebar header instead of a small pasted-on sticker. */
+aside[class*="w-72"] > div:first-child {
+  min-height: 88px !important;
+  height: 88px !important;
+  padding: 10px 16px !important;
+  background: linear-gradient(135deg, #061126 0%, #071a35 58%, #08254b 100%) !important;
+  border-bottom: 1px solid rgba(34, 211, 238, 0.22) !important;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.03), 0 8px 24px rgba(5,18,42,0.16) !important;
+}
+
+/* Replace the legacy shield + GLOBAL FINANCE text lockup with one clean logo strip. */
 aside[class*="w-72"] > div:first-child > div:first-child {
-  width: 100%;
-  min-width: 0;
-  height: 58px;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 68px !important;
   background-image: var(--gf-logo) !important;
   background-repeat: no-repeat !important;
   background-position: left center !important;
-  background-size: contain !important;
+  background-size: 205px auto !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
+
+/* Hide old shield, duplicate brand name and tagline so only the real logo is visible. */
 aside[class*="w-72"] > div:first-child > div:first-child > * {
   visibility: hidden !important;
+}
+
+/* Keep the mobile close button usable even though the legacy brand children are hidden. */
+aside[class*="w-72"] > div:first-child > button {
+  position: relative;
+  z-index: 3;
+}
+
+/* Remove the tiny framed/sticker appearance from any logo image used in branding areas. */
+img[data-global-finance-logo],
+img[src*="global-finance-logo.webp"] {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
