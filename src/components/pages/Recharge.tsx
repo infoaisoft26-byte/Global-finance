@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Wallet, Copy, Check, RefreshCw, ShieldCheck, AlertCircle, ExternalLink, QrCode, Upload, CheckCircle2, Clock3 } from 'lucide-react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../lib/firebase.ts';
+import { Wallet, Copy, Check, RefreshCw, ShieldCheck, AlertCircle, ExternalLink, QrCode, CheckCircle2, Clock3 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getSystemSettings } from '../../services/settingsService.ts';
 import { createTransactionRequest, getUserTransactionRequests } from '../../services/transactionRequestService.ts';
@@ -23,7 +21,6 @@ export const Recharge: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState('');
   const [txRef, setTxRef] = useState('');
-  const [proof, setProof] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -53,35 +50,14 @@ export const Recharge: React.FC = () => {
     setTimeout(() => setCopied(false), 1800);
   };
 
-  const handleProof = (file?: File) => {
-    if (!file) return setProof(null);
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Payment screenshot must be JPG, PNG or WEBP.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Payment screenshot must be below 5 MB.');
-      return;
-    }
-    setError('');
-    setProof(file);
-  };
-
-  const submitProof = async (e: React.FormEvent) => {
+  const submitConfirmation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !profile) return;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return setError('Enter a valid USDT amount.');
-    if (!proof) return setError('Upload your payment screenshot before submitting.');
 
     setSubmitting(true); setError(''); setSuccess('');
     try {
-      const safeName = proof.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const proofPath = `payment_proofs/${user.uid}/${Date.now()}_${safeName}`;
-      const storageRef = ref(storage, proofPath);
-      await uploadBytes(storageRef, proof, { contentType: proof.type, customMetadata: { ownerUid: user.uid, purpose: 'usdt_bep20_recharge' } });
-      const proofUrl = await getDownloadURL(storageRef);
-
       const result = await createTransactionRequest({
         userId: user.uid,
         userEmail: user.email || undefined,
@@ -91,23 +67,24 @@ export const Recharge: React.FC = () => {
         sourceWalletType: 'fund_wallet',
         destinationWalletType: 'fund_wallet',
         amountRupees: numericAmount,
-        userNote: txRef.trim() ? `USDT BEP20 payment reference: ${txRef.trim()}` : 'USDT BEP20 payment proof uploaded by member.',
+        userNote: txRef.trim()
+          ? `USDT BEP20 payment confirmation. Transaction reference: ${txRef.trim()}`
+          : 'USDT BEP20 payment confirmation submitted by member.',
         metadata: {
           asset: 'USDT',
           network: 'BEP20',
-          paymentProofUrl: proofUrl,
-          paymentProofPath: proofPath,
-          paymentProofFileName: proof.name,
           paymentReference: txRef.trim(),
-          proofUploaded: true
+          paymentConfirmationSubmitted: true,
+          proofUploaded: false
         }
       });
 
       setRequests(prev => [result.request, ...prev.filter(r => r.id !== result.request.id)]);
-      setSuccess(`Payment screenshot uploaded successfully. Request ${result.request.reference} is now reflected in your account as ${result.request.status.toUpperCase()}.`);
-      setAmount(''); setTxRef(''); setProof(null);
+      setSuccess(`Payment confirmation submitted successfully. Request ${result.request.reference} is now ${result.request.status.toUpperCase()}.`);
+      setAmount('');
+      setTxRef('');
     } catch (err: any) {
-      setError(err?.message || 'Unable to upload payment screenshot. Please try again.');
+      setError(err?.message || 'Unable to submit payment confirmation. Please try again.');
     } finally { setSubmitting(false); }
   };
 
@@ -118,7 +95,7 @@ export const Recharge: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-500/20 pb-3">
-        <div><h2 className="text-xl font-bold text-white">Recharge — USDT BEP20</h2><p className="text-xs text-slate-400 mt-1">Pay using the wallet below, then upload the payment screenshot for admin verification.</p></div>
+        <div><h2 className="text-xl font-bold text-white">Recharge — USDT BEP20</h2><p className="text-xs text-slate-400 mt-1">Pay using the wallet below, then submit payment confirmation for admin verification.</p></div>
         <div className="p-3 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-3"><Wallet className="w-5 h-5 text-cyan-400" /><div><div className="text-[10px] uppercase tracking-wider text-slate-500">Fund Balance</div><div className="text-sm font-bold font-mono text-cyan-300">{Number(wallet?.fundWallet || 0).toFixed(2)}</div></div></div>
       </div>
 
@@ -135,19 +112,18 @@ export const Recharge: React.FC = () => {
           {settings?.depositWalletLink && <a href={settings.depositWalletLink} target="_blank" rel="noreferrer" className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold"><ExternalLink className="w-4 h-4" />Open Wallet / Payment Link</a>}
         </div>
 
-        <form onSubmit={submitProof} className="lg:col-span-5 p-5 rounded-2xl bg-[#091129] border border-blue-500/25 shadow-xl space-y-4">
-          <div><h3 className="text-sm font-bold text-white uppercase tracking-wider">Upload Payment Proof</h3><p className="text-[11px] text-slate-400 mt-1">After payment, upload the screenshot. It will automatically appear in your account as a pending recharge request.</p></div>
+        <form onSubmit={submitConfirmation} className="lg:col-span-5 p-5 rounded-2xl bg-[#091129] border border-blue-500/25 shadow-xl space-y-4">
+          <div><h3 className="text-sm font-bold text-white uppercase tracking-wider">Payment Confirmation</h3><p className="text-[11px] text-slate-400 mt-1">After sending USDT BEP20, enter the amount and submit confirmation for admin verification.</p></div>
           <div><label className="block text-xs font-semibold text-slate-300 mb-1">USDT Amount</label><input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="e.g. 50" className="w-full px-3.5 py-3 rounded-xl border border-blue-500/30" /></div>
           <div><label className="block text-xs font-semibold text-slate-300 mb-1">Transaction Hash / Reference <span className="font-normal text-slate-500">(optional)</span></label><input value={txRef} onChange={e => setTxRef(e.target.value)} placeholder="Paste transaction hash/reference" className="w-full px-3.5 py-3 rounded-xl border border-blue-500/30" /></div>
-          <label className="block p-4 rounded-xl border border-dashed border-cyan-500/40 cursor-pointer text-center hover:border-cyan-400 transition-colors"><Upload className="w-6 h-6 mx-auto text-cyan-500 mb-2" /><div className="text-xs font-semibold">{proof ? proof.name : 'Choose payment screenshot'}</div><div className="text-[10px] text-slate-500 mt-1">JPG / PNG / WEBP • max 5 MB</div><input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e => handleProof(e.target.files?.[0])} /></label>
-          <button type="submit" disabled={submitting || !proof} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">{submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}{submitting ? 'Uploading & Submitting…' : 'Upload Screenshot & Submit'}</button>
-          <p className="text-[10px] text-slate-500">Submitting a screenshot does not credit funds automatically. Balance is updated only after admin verification/completion.</p>
+          <button type="submit" disabled={submitting} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">{submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}{submitting ? 'Confirming Payment…' : 'Confirmation Payment'}</button>
+          <p className="text-[10px] text-slate-500">Payment confirmation does not credit funds automatically. Balance is updated only after admin verification/completion.</p>
         </form>
       </div>
 
       <section className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 shadow-xl">
-        <div className="flex items-center justify-between mb-4"><div><h3 className="text-sm font-bold text-white">My Recharge Requests</h3><p className="text-[11px] text-slate-400">Automatic account reflection after proof upload.</p></div><button onClick={load} className="p-2 rounded-lg border border-blue-500/25"><RefreshCw className={`w-4 h-4 text-cyan-500 ${loading ? 'animate-spin' : ''}`} /></button></div>
-        {recent.length === 0 ? <div className="text-xs text-slate-500 py-6 text-center">No payment screenshot submitted yet.</div> : <div className="space-y-2">{recent.map(r => <div key={r.id} className="p-3 rounded-xl border border-blue-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2"><div><div className="font-mono text-xs font-bold text-cyan-500">{r.reference}</div><div className="text-[11px] text-slate-500">USDT {Number(r.amountRupees || 0).toFixed(2)} • {new Date(r.createdAt).toLocaleString('en-IN')}</div></div><div className="flex items-center gap-2 text-xs font-semibold"><Clock3 className="w-4 h-4 text-amber-500" /><span className={r.status === 'completed' ? 'text-emerald-500' : r.status === 'rejected' ? 'text-rose-500' : 'text-amber-500'}>{r.status.replace(/_/g, ' ').toUpperCase()}</span>{(r.metadata as any)?.proofUploaded && <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px]">Screenshot uploaded ✓</span>}</div></div>)}</div>}
+        <div className="flex items-center justify-between mb-4"><div><h3 className="text-sm font-bold text-white">My Recharge Requests</h3><p className="text-[11px] text-slate-400">Your submitted payment confirmations appear here.</p></div><button onClick={load} className="p-2 rounded-lg border border-blue-500/25"><RefreshCw className={`w-4 h-4 text-cyan-500 ${loading ? 'animate-spin' : ''}`} /></button></div>
+        {recent.length === 0 ? <div className="text-xs text-slate-500 py-6 text-center">No payment confirmation submitted yet.</div> : <div className="space-y-2">{recent.map(r => <div key={r.id} className="p-3 rounded-xl border border-blue-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2"><div><div className="font-mono text-xs font-bold text-cyan-500">{r.reference}</div><div className="text-[11px] text-slate-500">USDT {Number(r.amountRupees || 0).toFixed(2)} • {new Date(r.createdAt).toLocaleString('en-IN')}</div></div><div className="flex items-center gap-2 text-xs font-semibold"><Clock3 className="w-4 h-4 text-amber-500" /><span className={r.status === 'completed' ? 'text-emerald-500' : r.status === 'rejected' ? 'text-rose-500' : 'text-amber-500'}>{r.status.replace(/_/g, ' ').toUpperCase()}</span>{(r.metadata as any)?.paymentConfirmationSubmitted && <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px]">Confirmed ✓</span>}</div></div>)}</div>}
       </section>
     </div>
   );
