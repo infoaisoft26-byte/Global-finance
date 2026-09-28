@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -21,13 +21,21 @@ export const AuthScreen: React.FC = () => {
     sponsorReferralParam
   } = useAuth();
 
-  const [mode, setMode] = useState<'signin' | 'register'>('signin');
+  const isReferralRoute = typeof window !== 'undefined' && window.location.pathname === '/register';
+  const [mode, setMode] = useState<'signin' | 'register'>(isReferralRoute ? 'register' : 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [sponsorCode, setSponsorCode] = useState(sponsorReferralParam || 'GF788872');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (sponsorReferralParam) {
+      setSponsorCode(sponsorReferralParam);
+      setMode('register');
+    }
+  }, [sponsorReferralParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +85,12 @@ export const AuthScreen: React.FC = () => {
             <button type="button" onClick={() => { setMode('register'); setErrorMsg(''); }} className={`py-2 text-xs font-bold rounded-lg transition-all ${mode === 'register' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-cyan-950/40' : 'text-slate-400 hover:text-white'}`}>New Account</button>
           </div>
 
+          {sponsorReferralParam && mode === 'register' && (
+            <div className="mb-4 p-3 rounded-xl bg-cyan-500/10 border border-cyan-400/30 text-cyan-200 text-xs">
+              Referral link detected. Sponsor Member ID <span className="font-mono font-bold text-white">{sponsorReferralParam}</span> will be attached to this new account.
+            </div>
+          )}
+
           {errorMsg && <div className="mb-4 p-3 rounded-xl bg-rose-950/45 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2 shadow-lg shadow-rose-950/15"><AlertCircle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span></div>}
 
           <button type="button" onClick={handleGoogle} className="w-full py-2.5 rounded-xl bg-[#0d1938]/90 hover:bg-[#142654] border border-blue-400/25 text-white font-medium text-xs flex items-center justify-center gap-2.5 transition-all shadow-sm mb-4">
@@ -89,7 +103,7 @@ export const AuthScreen: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && <>
               <div><label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label><div className="relative"><User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="Enter your name" value={name} onChange={(e)=>setName(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
-              <div><label className="block text-xs font-semibold text-slate-300 mb-1">Sponsor Member ID</label><div className="relative"><Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="e.g. GF788872" value={sponsorCode} onChange={(e)=>setSponsorCode(e.target.value.toUpperCase())} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-cyan-300 font-mono text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 uppercase transition-shadow"/></div></div>
+              <div><label className="block text-xs font-semibold text-slate-300 mb-1">Sponsor Member ID</label><div className="relative"><Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="e.g. GF788872" value={sponsorCode} readOnly={Boolean(sponsorReferralParam)} onChange={(e)=>setSponsorCode(e.target.value.toUpperCase())} className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-cyan-300 font-mono text-xs uppercase transition-shadow ${sponsorReferralParam ? 'bg-cyan-950/30 border-cyan-400/40 cursor-not-allowed' : 'bg-[#081632]/90 border-blue-400/25 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10'}`}/></div>{sponsorReferralParam && <p className="mt-1 text-[10px] text-cyan-300">Referral sponsor locked from the referral link.</p>}</div>
             </>}
             <div><label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label><div className="relative"><Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="email" placeholder="name@example.com" value={email} onChange={(e)=>setEmail(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
             <div><label className="block text-xs font-semibold text-slate-300 mb-1">Password</label><div className="relative"><Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="password" placeholder="••••••••" value={password} onChange={(e)=>setPassword(e.target.value)} required minLength={6} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
