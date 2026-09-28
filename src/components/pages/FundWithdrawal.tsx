@@ -219,12 +219,6 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
               <textarea value={userNote} onChange={(e) => setUserNote(e.target.value)} rows={3} placeholder="Optional note for admin" className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm focus:outline-none focus:border-cyan-500" />
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs space-y-2">
-              <div className="flex justify-between"><span>Requested</span><strong className="font-mono">{amount.toFixed(6)} USDT</strong></div>
-              <div className="flex justify-between"><span>Fee ({feePercent}%)</span><strong className="font-mono">{feeAmount.toFixed(6)} USDT</strong></div>
-              <div className="flex justify-between border-t border-slate-200 pt-2"><span>Estimated Net</span><strong className="font-mono">{netPayout.toFixed(6)} USDT</strong></div>
-            </div>
-
             <button type="submit" disabled={withdrawing || !isWithdrawalEnabled} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2">
               {withdrawing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowDownLeft className="w-4 h-4" />}
               {withdrawing ? 'Submitting…' : 'Submit USDT Withdrawal'}
