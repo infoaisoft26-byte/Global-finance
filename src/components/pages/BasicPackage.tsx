@@ -1,179 +1,99 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet, Coins } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { adminGetPackages } from '../../services/financeService.ts';
-import { createPackageActivationRequest, getUserPackageActivationRequests } from '../../services/packageActivationService.ts';
+import { getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
 import { BASIC_PACKAGE_TEMPLATES, getBasicPlanDailyReturn, getBasicPlanTotalWithPrincipal } from '../../data/basicPackageTemplates.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { PackageActivationRequest, PackageDefinition } from '../../types/index.ts';
 
-const FAST_READ_TIMEOUT = 3500;
-const PURCHASE_TIMEOUT = 12000;
-const withTimeout = async <T,>(promise: Promise<T>, fallback: T): Promise<T> => Promise.race([
-  promise,
-  new Promise<T>(resolve => setTimeout(() => resolve(fallback), FAST_READ_TIMEOUT))
-]);
-
 export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNavigateToRecharge }) => {
-  const { profile, wallet, refreshWallet, user } = useAuth();
+  const { wallet, refreshWallet, user } = useAuth();
   const [packages, setPackages] = useState<PackageDefinition[]>(BASIC_PACKAGE_TEMPLATES);
   const [requests, setRequests] = useState<PackageActivationRequest[]>([]);
   const [submittingId, setSubmittingId] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [tokenBalance, setTokenBalance] = useState(0);
-  const [tokenLoading, setTokenLoading] = useState(false);
-
-  const loadTokenBalance = async () => {
-    if (!user) return;
-    setTokenLoading(true);
-    try {
-      const idToken = await user.getIdToken(true);
-      const res = await fetch('/api/member-token', { headers: { Authorization: `Bearer ${idToken}` }, cache: 'no-store' });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) setTokenBalance(Number(data.tokenBalance || 0));
-    } catch (err) {
-      console.warn('GF Token balance refresh failed:', err);
-    } finally {
-      setTokenLoading(false);
-    }
-  };
 
   const loadData = async (showRefresh = false) => {
-    if (!profile) return;
+    if (!user) return;
     if (showRefresh) setRefreshing(true);
     try {
-      const [saved, reqs] = await Promise.all([
-        withTimeout(adminGetPackages(), [] as PackageDefinition[]),
-        withTimeout(getUserPackageActivationRequests(profile.uid), [] as PackageActivationRequest[])
+      const [saved, history] = await Promise.all([
+        adminGetPackages().catch(() => [] as PackageDefinition[]),
+        getPackagePurchaseHistory(user).catch(() => [] as PackageActivationRequest[]),
       ]);
       if (saved.length) {
         const savedBasic = saved.filter(p => p.type === 'basic');
         const byCode = new Map(savedBasic.map(p => [p.code, p]));
-        const merged = BASIC_PACKAGE_TEMPLATES.map(template => byCode.get(template.code) || template).filter(p => p.active);
+        const merged = BASIC_PACKAGE_TEMPLATES.map(t => byCode.get(t.code) || t).filter(p => p.active);
         const custom = savedBasic.filter(p => p.active && !BASIC_PACKAGE_TEMPLATES.some(t => t.code === p.code));
         setPackages([...merged, ...custom]);
       }
-      setRequests(reqs.filter(r => r.packageType === 'basic'));
-    } catch (err: any) {
-      console.warn('Basic package background sync failed:', err);
+      setRequests(history.filter(r => r.packageType === 'basic'));
     } finally {
       if (showRefresh) setRefreshing(false);
     }
   };
 
-  useEffect(() => { void loadData(false); }, [profile?.uid]);
-  useEffect(() => {
-    if (!user) return;
-    void loadTokenBalance();
-    const timer = window.setInterval(() => { void loadTokenBalance(); }, 15000);
-    const onFocus = () => { void loadTokenBalance(); };
-    window.addEventListener('focus', onFocus);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [user?.uid]);
+  useEffect(() => { void loadData(false); }, [user?.uid]);
 
   const purchase = async (pkg: PackageDefinition) => {
-    if (!profile) return;
-    const amount = pkg.minAmount;
-    setError('');
-    setMessage('');
-
-    const availableFund = Number(wallet?.fundWallet || 0);
-    if (availableFund < amount) {
-      setMessage(`Required fund: ₹${amount.toLocaleString('en-IN')}. Opening payment/recharge page…`);
+    if (!user) return;
+    setError(''); setMessage('');
+    if (Number(wallet?.fundWallet || 0) < pkg.minAmount) {
+      setMessage(`USDT ${pkg.minAmount.toFixed(2)} required. Opening Recharge…`);
       onNavigateToRecharge();
       return;
     }
-
     setSubmittingId(pkg.id);
     try {
-      const result = await Promise.race([
-        createPackageActivationRequest({
-          userId: profile.uid,
-          userEmail: profile.email,
-          userName: profile.name,
-          userReferralCode: profile.referralCode,
-          packageId: pkg.id,
-          amountRupees: amount
-        }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Package request timed out. Please retry; no duplicate payment was created by this screen.')), PURCHASE_TIMEOUT))
-      ]);
+      const result = await purchasePackageWithUsdt(user, pkg.id);
       setMessage(result.message);
       await refreshWallet();
-      void loadData(false);
-      void loadTokenBalance();
+      await loadData(false);
     } catch (err: any) {
-      const text = err?.message || 'Package activation request failed.';
-      if (/insufficient|available fund|add funds/i.test(text)) {
-        setMessage('Fund balance is insufficient. Opening payment/recharge page…');
+      const text = err?.message || 'Package purchase failed.';
+      if (/insufficient/i.test(text)) {
+        setMessage('Available USDT is insufficient. Opening Recharge…');
         onNavigateToRecharge();
-      } else {
-        setError(text);
-      }
-    } finally {
-      setSubmittingId('');
-    }
+      } else setError(text);
+    } finally { setSubmittingId(''); }
   };
 
   const columns: Column<PackageActivationRequest>[] = useMemo(() => [
-    { key: 'createdAt', header: 'Date', render: item => <span className="text-xs text-slate-300">{new Date(item.createdAt).toLocaleString('en-IN')}</span> },
-    { key: 'packageName', header: 'Package', render: item => <span className="text-xs font-semibold text-white">{item.packageName}</span> },
-    { key: 'amountRupees', header: 'Amount', render: item => <span className="text-xs font-mono text-cyan-300">{item.amountRupees.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span> },
-    { key: 'status', header: 'Status', render: item => <span className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold ${item.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>{item.status.replace('_',' ').toUpperCase()}</span> }
+    { key: 'createdAt', header: 'Date', render: item => <span className="text-xs">{new Date(item.createdAt).toLocaleString('en-IN')}</span> },
+    { key: 'packageName', header: 'Package', render: item => <span className="text-xs font-semibold">{item.packageName}</span> },
+    { key: 'amountRupees', header: 'USDT Amount', render: item => <span className="text-xs font-mono">USDT {item.amountRupees.toFixed(2)}</span> },
+    { key: 'status', header: 'Status', render: item => <span className="inline-flex px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-500">{item.status.toUpperCase()}</span> }
   ], []);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-white">Basic Package</h2>
-          <p className="text-xs text-slate-400 mt-1">Plans appear instantly; live records sync in the background.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="px-4 py-2.5 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-2">
-            <Wallet className="w-4 h-4 text-cyan-400"/><div><div className="text-[9px] uppercase text-slate-500">Available Fund</div><div className="font-mono text-sm font-bold text-white">{(wallet?.fundWallet || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div></div>
-          </div>
-          <button type="button" onClick={() => void loadTokenBalance()} className="px-4 py-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30 flex items-center gap-2 text-left">
-            <Coins className="w-4 h-4 text-amber-300"/><div><div className="text-[9px] uppercase text-slate-500">GF Token</div><div className="font-mono text-sm font-bold text-amber-300">{tokenLoading ? '...' : tokenBalance.toLocaleString('en-IN')} GF</div></div>
-          </button>
-          <button onClick={onNavigateToRecharge} className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold">Add TRX / USDT</button>
-        </div>
-      </div>
-
-      {message && <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/>{message}</div>}
-      {error && <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4"/>{error}</div>}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {packages.map(pkg => {
-          const daily = getBasicPlanDailyReturn(pkg);
-          const total = getBasicPlanTotalWithPrincipal(pkg);
-          const waiting = submittingId === pkg.id;
-          return <div key={pkg.id} className="rounded-2xl bg-[#091129] border border-blue-500/25 overflow-hidden shadow-lg hover:border-cyan-400/50 transition-colors">
-            <div className="p-4 border-b border-blue-500/15 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center"><Package className="w-5 h-5 text-white"/></div>
-              <div><h3 className="font-bold text-white">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-400">{pkg.code}</span></div>
-            </div>
-            <div className="p-4 space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-slate-400">Amount</span><b className="text-white font-mono">{pkg.minAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b></div>
-              <div className="flex justify-between"><span className="text-slate-400">Configured Daily Return</span><b className="text-emerald-400 font-mono">{daily.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b></div>
-              <div className="flex justify-between"><span className="text-slate-400">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
-              <div className="flex justify-between pt-2 border-t border-blue-500/15"><span className="text-slate-300 font-semibold">Scheduled Total</span><b className="text-white font-mono">{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b></div>
-            </div>
-            <button onClick={() => purchase(pkg)} disabled={waiting} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">
-              {waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing...</> : 'Purchase'}
-            </button>
-          </div>;
-        })}
-      </div>
-
-      <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5">
-        <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold text-white flex items-center gap-2"><Clock className="w-4 h-4 text-cyan-400"/>Package History</h3><button onClick={() => loadData(true)} disabled={refreshing} className="text-xs text-cyan-400 flex items-center gap-1"><RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}/>Refresh</button></div>
-        <DataTable columns={columns} data={requests} emptyMessage="No basic package activations yet." />
+  return <div className="space-y-6">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div><h2 className="text-xl font-bold">Basic Package</h2><p className="text-xs mt-1">Purchase directly with verified Available USDT. The amount is deducted atomically when the plan activates.</p></div>
+      <div className="flex items-center gap-2">
+        <div className="px-4 py-2.5 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-2"><Wallet className="w-4 h-4 text-cyan-400"/><div><div className="text-[9px] uppercase">Available USDT</div><div className="font-mono text-sm font-bold">{Number(wallet?.fundWallet || 0).toFixed(2)}</div></div></div>
+        <button onClick={onNavigateToRecharge} className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold">Add USDT</button>
       </div>
     </div>
-  );
+    {message && <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/>{message}</div>}
+    {error && <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4"/>{error}</div>}
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {packages.map(pkg => {
+        const waiting = submittingId === pkg.id;
+        return <div key={pkg.id} className="rounded-2xl bg-[#091129] border border-blue-500/25 overflow-hidden shadow-lg">
+          <div className="p-4 border-b border-blue-500/15 flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center"><Package className="w-5 h-5 text-white"/></div><div><h3 className="font-bold">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-500">{pkg.code}</span></div></div>
+          <div className="p-4 space-y-2 text-xs">
+            <div className="flex justify-between"><span>Price</span><b className="font-mono">USDT {pkg.minAmount.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Configured Daily Return</span><b className="font-mono">{getBasicPlanDailyReturn(pkg).toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
+            <div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Scheduled Total</span><b className="font-mono">{getBasicPlanTotalWithPrincipal(pkg).toFixed(2)}</b></div>
+          </div>
+          <button onClick={() => purchase(pkg)} disabled={waiting} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">{waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing…</> : 'Purchase with USDT'}</button>
+        </div>;
+      })}
+    </div>
+    <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5"><div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-cyan-400"/>Purchase History</h3><button onClick={() => loadData(true)} disabled={refreshing} className="text-xs text-cyan-500 flex items-center gap-1"><RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}/>Refresh</button></div><DataTable columns={columns} data={requests} emptyMessage="No basic package purchases yet." /></div>
+  </div>;
 };
