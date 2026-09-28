@@ -21,6 +21,26 @@ async function callUsdtEndpoint(user: { getIdToken: () => Promise<string> }, bod
   return data;
 }
 
+function mapActivationRow(row: any): PackageActivationRequest {
+  return {
+    id: row.id,
+    reference: row.id,
+    userId: row.user_id,
+    userName: row.user_name || 'Member',
+    userEmail: row.user_email || '',
+    packageId: row.package_id,
+    packageName: row.package_name,
+    packageType: row.package_type,
+    amountPaise: Math.round(Number(row.amount || 0) * 100),
+    amountRupees: Number(row.amount || 0),
+    fundingSource: 'fund_wallet',
+    status: row.status,
+    createdAt: row.activated_at,
+    updatedAt: row.activated_at,
+    activatedAt: row.activated_at,
+  } as PackageActivationRequest;
+}
+
 export async function purchasePackageWithUsdt(user: { getIdToken: () => Promise<string> }, packageId: string) {
   return await callUsdtEndpoint(user, { action: 'package_purchase', packageId }) as {
     success: boolean;
@@ -35,19 +55,10 @@ export async function purchasePackageWithUsdt(user: { getIdToken: () => Promise<
 
 export async function getPackagePurchaseHistory(user: { getIdToken: () => Promise<string> }): Promise<PackageActivationRequest[]> {
   const data = await callUsdtEndpoint(user, { action: 'package_history' });
-  return (Array.isArray(data.items) ? data.items : []).map((row: any) => ({
-    id: row.id,
-    reference: row.id,
-    userId: row.user_id,
-    packageId: row.package_id,
-    packageName: row.package_name,
-    packageType: row.package_type,
-    amountPaise: Math.round(Number(row.amount || 0) * 100),
-    amountRupees: Number(row.amount || 0),
-    fundingSource: 'fund_wallet',
-    status: row.status,
-    createdAt: row.activated_at,
-    updatedAt: row.activated_at,
-    activatedAt: row.activated_at,
-  })) as PackageActivationRequest[];
+  return (Array.isArray(data.items) ? data.items : []).map(mapActivationRow);
+}
+
+export async function adminGetPackagePurchaseHistory(user: { getIdToken: () => Promise<string> }): Promise<PackageActivationRequest[]> {
+  const data = await callUsdtEndpoint(user, { action: 'admin_package_history' });
+  return (Array.isArray(data.items) ? data.items : []).map(mapActivationRow);
 }
