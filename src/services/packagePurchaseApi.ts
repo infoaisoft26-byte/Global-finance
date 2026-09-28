@@ -1,23 +1,28 @@
 import type { PackageActivationRequest } from '../types/index.ts';
 
-export async function purchasePackageWithUsdt(user: { getIdToken: () => Promise<string> }, packageId: string) {
+async function callUsdtEndpoint(user: { getIdToken: () => Promise<string> }, body: Record<string, unknown>) {
   const idToken = await user.getIdToken();
-  const response = await fetch('/api/package-purchase', {
+  const response = await fetch('/api/usdt-bep20-deposit', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${idToken}`,
     },
-    body: JSON.stringify({ packageId }),
+    body: JSON.stringify(body),
+    cache: 'no-store',
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(data.error || 'Package purchase failed.') as Error & { available?: number; required?: number };
+    const error = new Error(data.error || 'USDT operation failed.') as Error & { available?: number; required?: number };
     error.available = Number(data.available || 0);
     error.required = Number(data.required || 0);
     throw error;
   }
-  return data as {
+  return data;
+}
+
+export async function purchasePackageWithUsdt(user: { getIdToken: () => Promise<string> }, packageId: string) {
+  return await callUsdtEndpoint(user, { action: 'package_purchase', packageId }) as {
     success: boolean;
     purchaseId: string;
     packageName: string;
@@ -29,14 +34,7 @@ export async function purchasePackageWithUsdt(user: { getIdToken: () => Promise<
 }
 
 export async function getPackagePurchaseHistory(user: { getIdToken: () => Promise<string> }): Promise<PackageActivationRequest[]> {
-  const idToken = await user.getIdToken();
-  const response = await fetch('/api/package-purchase', {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${idToken}` },
-    cache: 'no-store',
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Unable to load package purchase history.');
+  const data = await callUsdtEndpoint(user, { action: 'package_history' });
   return (Array.isArray(data.items) ? data.items : []).map((row: any) => ({
     id: row.id,
     reference: row.id,
