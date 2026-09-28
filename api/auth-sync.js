@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { withTransaction } from './_lib/db.js';
 import { createSessionToken, sessionCookie } from './_lib/session.js';
+import { sendWelcomeEmail } from './_lib/email.js';
 
 const REFERRAL_SIGNUP_BONUS = 50;
 
@@ -72,8 +73,10 @@ export default async function handler(req, res) {
 
     const result = await withTransaction(async (client) => {
       let existing = await client.query('SELECT * FROM users WHERE id=$1 FOR UPDATE', [uid]);
+      let isNewRegistration = false;
 
       if (!existing.rowCount) {
+        isNewRegistration = true;
         let sponsorId = null;
         let sponsorUserId = null;
         let sponsorEmail = null;
@@ -121,8 +124,6 @@ export default async function handler(req, res) {
           [crypto.randomUUID(), uid, email, JSON.stringify({ referralCode: code, sponsorId, role })]
         );
 
-        // A valid referral creates exactly one sponsor reward because this block only runs on first registration.
-        // This is internal referral income only; external payouts remain governed by payout settings.
         if (sponsorUserId && role === 'user') {
           await client.query(
             `UPDATE wallets
@@ -135,7 +136,6 @@ export default async function handler(req, res) {
             [sponsorUserId, REFERRAL_SIGNUP_BONUS]
           );
 
-          // Keep ancestor total-team counters synchronized for the complete referral chain.
           await client.query(
             `WITH RECURSIVE uplines AS (
                SELECT sponsor_id FROM users WHERE id=$1 AND sponsor_id IS NOT NULL
@@ -201,12 +201,24 @@ export default async function handler(req, res) {
       }
 
       const profile = existing.rows[0];
-      if (profile.status !== 'active') return { suspended: true, profile };
+      if (profile.status !== 'active') return { suspended: true, profile, isNewRegistration };
       const walletResult = await client.query('SELECT * FROM wallets WHERE user_id=$1 LIMIT 1', [uid]);
-      return { suspended: false, profile, wallet: walletResult.rows[0] };
+      return { suspended: false, profile, wallet: walletResult.rows[0], isNewRegistration };
     });
 
     if (result.suspended) return json(res, 403, { error: 'Account is suspended. Please contact support.' });
+
+    if (result.isNewRegistration) {
+      try {
+        await sendWelcomeEmail({
+          to: result.profile.email,
+          name: result.profile.name,
+          memberId: result.profile.referral_code,
+        });
+      } catch (emailError) {
+        console.error('Welcome email failed:', emailError instanceof Error ? emailError.message : emailError);
+      }
+    }
 
     const token = await createSessionToken({ idToken: body.idToken });
     res.setHeader('Set-Cookie', sessionCookie(token));
