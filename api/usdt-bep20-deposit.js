@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { withTransaction } from './_lib/db.js';
-import { applyActivationIncome, ensureIncomeSchema } from './_lib/incomeEngine.js';
+import { applyActivationIncome, ensureIncomeSchema, runDailyIncome } from './_lib/incomeEngine.js';
 
 const BASIC_AMOUNTS = [200, 500, 1000, 2000, 5000, 10000, 20000, 500000, 100000, 200000, 500000];
 const FD_AMOUNTS = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
@@ -46,6 +46,26 @@ async function requireMember(req) {
 function requireAdmin(member) {
   const allowed = String(process.env.ADMIN_EMAIL || 'admin@gf.app').trim().toLowerCase();
   if (!member?.email || member.email !== allowed) throw new Error('ADMIN_REQUIRED');
+}
+
+async function handleCron(req, res) {
+  const configured = String(process.env.CRON_SECRET || '').trim();
+  const auth = String(req.headers.authorization || '');
+  if (!configured) return json(res, 503, { error: 'CRON_SECRET is not configured' });
+  if (auth !== `Bearer ${configured}`) return json(res, 401, { error: 'Unauthorized' });
+  const requested = String(req.query?.date || '').trim();
+  if (requested && !/^\d{4}-\d{2}-\d{2}$/.test(requested)) return json(res, 400, { error: 'Invalid date' });
+  const result = await withTransaction(async (client) => {
+    const daily = await runDailyIncome(client, requested || undefined);
+    await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+      VALUES($1,'SYSTEM',NULL,'AUTOMATIC_DAILY_INCOME_RUN','ledger',$2,$3::jsonb)`, [
+        crypto.randomUUID(),
+        daily.businessDate,
+        JSON.stringify({ packages: daily.packages, packagesProcessed: daily.packagesProcessed, roiCredits: daily.roiCredits, levelCredits: daily.levelCredits })
+      ]);
+    return daily;
+  });
+  return json(res, 200, { ok: true, ...result });
 }
 
 async function handlePackageHistory(member, res) {
@@ -105,8 +125,9 @@ async function handlePackagePurchase(member, body, res) {
 }
 
 export default async function handler(req,res) {
-  if (req.method!=='POST') return json(res,405,{error:'Method not allowed'});
   try {
+    if (req.method === 'GET') return await handleCron(req, res);
+    if (req.method !== 'POST') return json(res,405,{error:'Method not allowed'});
     const member = await requireMember(req);
     const body = typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
     const action = String(body.action||'verify_deposit');
