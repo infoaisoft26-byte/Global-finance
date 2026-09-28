@@ -17,7 +17,7 @@ function fallbackPackage(id) {
     const i = Number(b[1]) - 1;
     const amount = BASIC_AMOUNTS[i];
     if (!amount) return null;
-    return { id, name: `Base Plan ${i + 1}`, code: `GF_BASE_${String(i + 1).padStart(2,'0')}`, type: 'basic', min_amount: amount, max_amount: amount, roi_rate: 5, duration_days: 25, active: true };
+    return { id, name: `Base Plan ${i + 1}`, code: `GF_BASE_${String(i + 1).padStart(2,'0')}`, type: 'basic', min_amount: amount, max_amount: amount, roi_rate: 1, duration_days: 25, active: true };
   }
   const f = /^gf-fd-(base|prime)-(\d+)$/.exec(id);
   if (f) {
