@@ -17,7 +17,7 @@ function fallbackPackage(id) {
     const i = Number(b[1]) - 1;
     const amount = BASIC_AMOUNTS[i];
     if (!amount) return null;
-    return { id, name: `Base Plan ${i + 1}`, code: `GF_BASE_${String(i + 1).padStart(2,'0')}`, type: 'basic', min_amount: amount, max_amount: amount, roi_rate: 5, duration_days: 25, active: true };
+    return { id, name: `Base Plan ${i + 1}`, code: `GF_BASE_${String(i + 1).padStart(2,'0')}`, type: 'basic', min_amount: amount, max_amount: amount, roi_rate: 1, duration_days: 25, active: true };
   }
   const f = /^gf-fd-(base|prime)-(\d+)$/.exec(id);
   if (f) {
@@ -42,12 +42,33 @@ async function requireMember(req) {
   if (!uid || !email) throw new Error('AUTH_REQUIRED');
   return { uid, email };
 }
+function requireAdmin(member) {
+  const allowed = String(process.env.ADMIN_EMAIL || 'admin@gf.app').trim().toLowerCase();
+  if (!member?.email || member.email !== allowed) throw new Error('ADMIN_REQUIRED');
+}
 
 async function handlePackageHistory(member, res) {
   const rows = await withTransaction(async (client) => {
     const user = await client.query('SELECT id,status FROM users WHERE id=$1 AND email=$2 LIMIT 1', [member.uid, member.email]);
     if (!user.rowCount || user.rows[0].status !== 'active') throw new Error('ACTIVE_MEMBER_REQUIRED');
     const q = await client.query(`SELECT id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at FROM package_activations WHERE user_id=$1 ORDER BY activated_at DESC LIMIT 100`, [member.uid]);
+    return q.rows;
+  });
+  return json(res, 200, { items: rows });
+}
+
+async function handleAdminPackageHistory(member, res) {
+  requireAdmin(member);
+  const rows = await withTransaction(async (client) => {
+    const q = await client.query(`
+      SELECT pa.id, pa.user_id, pa.package_id, pa.package_type, pa.package_name, pa.amount,
+             pa.roi_daily_rate, pa.duration_days, pa.total_earned, pa.status, pa.activated_at, pa.expires_at,
+             u.name AS user_name, u.email AS user_email
+      FROM package_activations pa
+      LEFT JOIN users u ON u.id = pa.user_id
+      ORDER BY pa.activated_at DESC
+      LIMIT 500
+    `);
     return q.rows;
   });
   return json(res, 200, { items: rows });
@@ -87,12 +108,14 @@ export default async function handler(req,res) {
     const body = typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
     const action = String(body.action||'verify_deposit');
     if (action==='package_history') return await handlePackageHistory(member,res);
+    if (action==='admin_package_history') return await handleAdminPackageHistory(member,res);
     if (action==='package_purchase') return await handlePackagePurchase(member,body,res);
     if (action==='verify_deposit') return json(res,410,{error:'Direct deposit credit is retired. Submit a recharge request for admin review.'});
     return json(res,400,{error:'Invalid action'});
   } catch (error) {
     const message = String(error?.message||'');
     if (message==='AUTH_REQUIRED') return json(res,401,{error:'Authentication required'});
+    if (message==='ADMIN_REQUIRED') return json(res,403,{error:'Admin access required'});
     if (message==='ACTIVE_MEMBER_REQUIRED') return json(res,403,{error:'Active member account required'});
     if (message==='PACKAGE_NOT_AVAILABLE') return json(res,404,{error:'Package is not available'});
     if (message==='INSUFFICIENT_USDT') return json(res,409,{error:'Insufficient Available USDT',available:Number(error.available||0),required:Number(error.required||0)});
