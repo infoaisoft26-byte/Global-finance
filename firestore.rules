@@ -2,6 +2,17 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Global Finance runtime data remains server-controlled. Only the
+    // single system-settings document is exposed to authenticated clients.
+    match /system_settings/global_finance_system_settings {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() == 'admin@gf.app';
+      allow delete: if false;
+    }
+
+    // Keep every other Firestore document locked down.
     match /{document=**} {
       allow read, write: if false;
     }
