@@ -12,6 +12,11 @@ export async function ensureIncomeSchema(client) {
     ADD COLUMN IF NOT EXISTS today_level_income NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS total_roi_income NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS total_level_income NUMERIC(16,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS fd_referral_income NUMERIC(16,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS fd_today_roi_income NUMERIC(16,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS fd_today_level_income NUMERIC(16,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS fd_total_roi_income NUMERIC(16,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS fd_total_level_income NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS total_salary NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS income_stat_date DATE`);
   await client.query(`CREATE TABLE IF NOT EXISTS income_events(
@@ -36,6 +41,8 @@ export async function ensureIncomeSchema(client) {
     ledger_id VARCHAR(64) NOT NULL UNIQUE REFERENCES ledger_transactions(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(event_key,recipient_user_id,income_type,level))`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_income_distributions_recipient ON income_distributions(recipient_user_id,created_at DESC)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_income_events_type_date ON income_events(event_type,business_date)`);
   await client.query(`CREATE TABLE IF NOT EXISTS salary_rules(
     code VARCHAR(32) PRIMARY KEY,
     title VARCHAR(80) NOT NULL,
@@ -57,10 +64,22 @@ export async function ensureIncomeSchema(client) {
     VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(code) DO UPDATE SET title=EXCLUDED.title,team_business=EXCLUDED.team_business,salary_percent=EXCLUDED.salary_percent,recurring_percent=EXCLUDED.recurring_percent,direct_ids=EXCLUDED.direct_ids,sort_order=EXCLUDED.sort_order`, r);
 }
 
+function previousIndiaBusinessDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  const y = Number(parts.find(p => p.type === 'year')?.value || 1970);
+  const m = Number(parts.find(p => p.type === 'month')?.value || 1);
+  const d = Number(parts.find(p => p.type === 'day')?.value || 1);
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
 async function uplines(client, userId) {
   const { rows } = await client.query(`WITH RECURSIVE u AS (
-    SELECT s.id,s.referral_code,s.sponsor_id,1 level FROM users m JOIN users s ON s.referral_code=m.sponsor_id WHERE m.id=$1
-    UNION ALL SELECT s.id,s.referral_code,s.sponsor_id,u.level+1 FROM u JOIN users s ON s.referral_code=u.sponsor_id WHERE u.level<$2)
+    SELECT s.id,s.referral_code,s.sponsor_id,s.status,1 level,ARRAY[m.id,s.id]::varchar[] path
+      FROM users m JOIN users s ON s.referral_code=m.sponsor_id WHERE m.id=$1
+    UNION ALL
+    SELECT s.id,s.referral_code,s.sponsor_id,s.status,u.level+1,u.path||s.id
+      FROM u JOIN users s ON s.referral_code=u.sponsor_id
+     WHERE u.level<$2 AND NOT (s.id=ANY(u.path)))
     SELECT * FROM u ORDER BY level`, [userId, MAX_LEVEL]);
   return rows;
 }
@@ -80,51 +99,85 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
   const ledgerId='LED-'+id;
   await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
     VALUES($1,$2,$3,'income_wallet','credit',$4,0,$4,$5,$6,'completed',$7::jsonb)`,[ledgerId,recipient,incomeType,amount,description,eventKey,JSON.stringify({sourceUserId:source,level,percentage:rate,baseAmount:money(base),businessDate:businessDate||null})]);
-  const referral=['basic_referral','retopup_income'].includes(incomeType)?amount:0;
-  const roi=incomeType==='basic_roi'?amount:0; const levelIncome=incomeType==='basic_level'?amount:0; const salary=incomeType==='salary'?amount:0;
-  await client.query(`UPDATE wallets SET income_wallet=income_wallet+$2,total_income=total_income+$2,referral_income=referral_income+$3,
-    today_roi_income=CASE WHEN $4::date IS NULL THEN today_roi_income WHEN income_stat_date=$4::date THEN today_roi_income+$5 ELSE $5 END,
-    today_level_income=CASE WHEN $4::date IS NULL THEN today_level_income WHEN income_stat_date=$4::date THEN today_level_income+$6 ELSE $6 END,
-    total_roi_income=total_roi_income+$5,total_level_income=total_level_income+$6,total_salary=total_salary+$7,
-    income_stat_date=CASE WHEN $4::date IS NULL THEN income_stat_date ELSE $4::date END,updated_at=NOW() WHERE user_id=$1`,[recipient,amount,referral,businessDate||null,roi,levelIncome,salary]);
+
+  const basicReferral=incomeType==='basic_referral'?amount:0;
+  const fdReferral=incomeType==='fd_referral'?amount:0;
+  const basicRoi=incomeType==='basic_roi'?amount:0;
+  const basicLevel=incomeType==='basic_level'?amount:0;
+  const fdRoi=incomeType==='fd_roi'?amount:0;
+  const fdLevel=incomeType==='fd_level'?amount:0;
+  const salary=incomeType==='salary'?amount:0;
+
+  await client.query(`UPDATE wallets SET
+    income_wallet=income_wallet+$2,
+    total_income=total_income+$2,
+    referral_income=referral_income+$3,
+    fd_referral_income=fd_referral_income+$4,
+    today_roi_income=CASE WHEN $5::date IS NULL THEN today_roi_income WHEN income_stat_date=$5::date THEN today_roi_income+$6 ELSE $6 END,
+    today_level_income=CASE WHEN $5::date IS NULL THEN today_level_income WHEN income_stat_date=$5::date THEN today_level_income+$7 ELSE $7 END,
+    fd_today_roi_income=CASE WHEN $5::date IS NULL THEN fd_today_roi_income WHEN income_stat_date=$5::date THEN fd_today_roi_income+$8 ELSE $8 END,
+    fd_today_level_income=CASE WHEN $5::date IS NULL THEN fd_today_level_income WHEN income_stat_date=$5::date THEN fd_today_level_income+$9 ELSE $9 END,
+    total_roi_income=total_roi_income+$6,
+    total_level_income=total_level_income+$7,
+    fd_total_roi_income=fd_total_roi_income+$8,
+    fd_total_level_income=fd_total_level_income+$9,
+    total_salary=total_salary+$10,
+    income_stat_date=CASE WHEN $5::date IS NULL THEN income_stat_date ELSE $5::date END,
+    updated_at=NOW() WHERE user_id=$1`,[recipient,amount,basicReferral,fdReferral,businessDate||null,basicRoi,basicLevel,fdRoi,fdLevel,salary]);
+
   await client.query(`INSERT INTO income_distributions(id,event_key,recipient_user_id,source_user_id,income_type,level,percentage,base_amount,amount,ledger_id)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[id,eventKey,recipient,source,incomeType,level,rate,money(base),amount,ledgerId]);
   return true;
 }
 
-export async function applyActivationIncome(client,{activationId,userId,amount,packageName}) {
+export async function applyActivationIncome(client,{activationId,userId,amount,packageName,packageType='basic'}) {
   await ensureIncomeSchema(client);
   const count=await client.query('SELECT COUNT(*)::int n FROM package_activations WHERE user_id=$1',[userId]);
   const first=Number(count.rows[0]?.n||0)<=1;
   const type=first?'joining':'retopup'; const key=`ACT:${activationId}:${type}`;
-  if(!await eventOnce(client,key,type,userId,activationId,amount,null,{packageName})) return {skipped:true,credited:0};
+  if(!await eventOnce(client,key,type,userId,activationId,amount,null,{packageName,packageType})) return {skipped:true,credited:0};
   const ups=await uplines(client,userId); let credited=0;
   for(const u of ups){
+    if(u.status!=='active') continue;
     const level=Number(u.level); let rate=0;
     if(first){ if(level!==1) continue; rate=5; }
     else rate=level===1?1:0.25;
-    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType:first?'basic_referral':'retopup_income',level,rate,base:amount,amount:pct(amount,rate),description:`${first?'Joining referral':'Re-topup'} income L${level} from ${userId}`})) credited++;
+    const incomeType=packageType==='fd'?'fd_referral':'basic_referral';
+    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:pct(amount,rate),description:`${first?'Joining referral':'Re-topup'} income L${level} from ${userId}`})) credited++;
   }
   return {skipped:false,credited};
 }
 
 export async function runDailyIncome(client,businessDate) {
   await ensureIncomeSchema(client);
-  const date=businessDate || new Date(Date.now()-86400000).toISOString().slice(0,10);
-  const {rows}=await client.query(`SELECT * FROM package_activations WHERE status='active' AND activated_at::date<=$1::date AND expires_at::date>=$1::date FOR UPDATE`,[date]);
-  let roiCredits=0,levelCredits=0;
+  const date=businessDate || previousIndiaBusinessDate();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_BUSINESS_DATE');
+  const {rows}=await client.query(`SELECT pa.* FROM package_activations pa JOIN users u ON u.id=pa.user_id
+    WHERE pa.status='active' AND u.status='active'
+      AND (pa.activated_at AT TIME ZONE 'Asia/Kolkata')::date<=$1::date
+      AND (pa.expires_at AT TIME ZONE 'Asia/Kolkata')::date>=$1::date
+    FOR UPDATE OF pa`,[date]);
+  let roiCredits=0,levelCredits=0,packagesProcessed=0;
   for(const a of rows){
-    const max=money(Number(a.amount)*Number(a.roi_daily_rate)*Number(a.duration_days)/100); if(Number(a.total_earned)>=max) continue;
-    const roi=money(Math.min(pct(a.amount,a.roi_daily_rate),max-Number(a.total_earned||0))); if(roi<=0) continue;
-    const key=`ROI:${a.id}:${date}`; if(!await eventOnce(client,key,'daily_roi',a.user_id,a.id,roi,date,{principal:Number(a.amount),rate:Number(a.roi_daily_rate)})) continue;
-    if(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:'basic_roi',rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date})) roiCredits++;
+    const max=money(Number(a.amount)*Number(a.roi_daily_rate)*Number(a.duration_days)/100);
+    const already=money(a.total_earned||0);
+    if(already>=max){await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1 AND status='active'`,[a.id]);continue;}
+    const roi=money(Math.min(pct(a.amount,a.roi_daily_rate),max-already)); if(roi<=0) continue;
+    const key=`ROI:${a.id}:${date}`;
+    if(!await eventOnce(client,key,'daily_roi',a.user_id,a.id,roi,date,{principal:Number(a.amount),rate:Number(a.roi_daily_rate),packageType:a.package_type})) continue;
+    const roiType=a.package_type==='fd'?'fd_roi':'basic_roi';
+    const levelType=a.package_type==='fd'?'fd_level':'basic_level';
+    if(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date})) roiCredits++;
     await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roi]);
     for(const u of await uplines(client,a.user_id)){
+      if(u.status!=='active') continue;
       const level=Number(u.level), rate=level===1?5:1;
-      if(await credit(client,{eventKey:key,recipient:u.id,source:a.user_id,incomeType:'basic_level',level,rate,base:roi,amount:pct(roi,rate),description:`Daily level L${level} on ROI from ${a.user_id}`,businessDate:date})) levelCredits++;
+      if(await credit(client,{eventKey:key,recipient:u.id,source:a.user_id,incomeType:levelType,level,rate,base:roi,amount:pct(roi,rate),description:`Daily level L${level} on ROI from ${a.user_id}`,businessDate:date})) levelCredits++;
     }
+    packagesProcessed++;
+    if(money(already+roi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1`,[a.id]);
   }
-  return {businessDate:date,packages:rows.length,roiCredits,levelCredits};
+  return {businessDate:date,packages:rows.length,packagesProcessed,roiCredits,levelCredits};
 }
 
 export async function evaluateSalaryRanks(client) {
