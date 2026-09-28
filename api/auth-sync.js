@@ -9,7 +9,29 @@ function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}
 function referralCode(){return `GF${Math.floor(100000+Math.random()*900000)}`;}
 function mapProfile(row){return {uid:row.id,name:row.name,email:row.email,phone:row.phone||undefined,referralCode:row.referral_code,sponsorId:row.sponsor_id||undefined,rankCode:row.rank_code||'MEMBER',role:row.role,status:row.status,kycStatus:row.kyc_status,panNumber:row.pan_number||undefined,bankAccount:row.bank_account||undefined,bankName:row.bank_name||undefined,ifscCode:row.ifsc_code||undefined,upiId:row.upi_id||undefined,createdAt:row.created_at?.toISOString?.()||String(row.created_at),updatedAt:row.updated_at?.toISOString?.()||String(row.updated_at)};}
-function mapWallet(row){return {userId:row.user_id,fundWallet:Number(row.fund_wallet||0),incomeWallet:Number(row.income_wallet||0),totalIncome:Number(row.total_income||0),totalWithdrawal:Number(row.total_withdrawal||0),basicPackageActive:Number(row.basic_package_active||0),fdPackageActive:Number(row.fd_package_active||0),directTeamCount:Number(row.direct_team_count||0),totalTeamCount:Number(row.total_team_count||0),referralIncome:Number(row.referral_income||0),todayRoiIncome:Number(row.today_roi_income||0),todayLevelIncome:Number(row.today_level_income||0),totalRoiIncome:Number(row.total_roi_income||0),totalLevelIncome:Number(row.total_level_income||0),totalSalary:Number(row.total_salary||0),updatedAt:row.updated_at?.toISOString?.()||String(row.updated_at)};}
+function mapWallet(row){return {
+  userId:row.user_id,
+  fundWallet:Number(row.fund_wallet||0),
+  incomeWallet:Number(row.income_wallet||0),
+  totalIncome:Number(row.total_income||0),
+  totalWithdrawal:Number(row.total_withdrawal||0),
+  basicPackageActive:Number(row.basic_package_active||0),
+  fdPackageActive:Number(row.fd_package_active||0),
+  directTeamCount:Number(row.direct_team_count||0),
+  totalTeamCount:Number(row.total_team_count||0),
+  referralIncome:Number(row.referral_income||0),
+  todayRoiIncome:Number(row.today_roi_income||0),
+  todayLevelIncome:Number(row.today_level_income||0),
+  totalRoiIncome:Number(row.total_roi_income||0),
+  totalLevelIncome:Number(row.total_level_income||0),
+  fdReferralIncome:Number(row.fd_referral_income||0),
+  fdTodayRoiIncome:Number(row.fd_today_roi_income||0),
+  fdTodayLevelIncome:Number(row.fd_today_level_income||0),
+  fdTotalRoiIncome:Number(row.fd_total_roi_income||0),
+  fdTotalLevelIncome:Number(row.fd_total_level_income||0),
+  totalSalary:Number(row.total_salary||0),
+  updatedAt:row.updated_at?.toISOString?.()||String(row.updated_at)
+};}
 
 export default async function handler(req,res){
   if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});
