@@ -1,0 +1,38 @@
+html[data-gf-font="small"] { font-size: 14px; }
+html[data-gf-font="normal"] { font-size: 16px; }
+html[data-gf-font="large"] { font-size: 18px; }
+
+/* Member portal dark-mode override. Admin keeps its existing dark design. */
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) {
+  background: #050b1c !important;
+  color: #e2e8f0 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div:first-of-type,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div:last-of-type,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) footer,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) [class*="bg-[#0"],
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) [class*="bg-[#1"] {
+  background-color: #071126 !important;
+  border-color: rgba(37,99,235,.28) !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-white,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-slate-200,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-slate-300,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header h1 {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-slate-400,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-slate-500 {
+  color: #94a3b8 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) input,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) select,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) textarea {
+  background: #050b1c !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(37,99,235,.35) !important;
+}
