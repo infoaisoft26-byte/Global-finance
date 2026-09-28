@@ -70,6 +70,7 @@ export default async function handler(req, res) {
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const txHash = normalizeHash(body.txHash);
+    const paymentProofUrl = String(body.paymentProofUrl || '').trim();
     if (!txHash) return json(res, 400, { error: 'Valid BEP20 transaction hash is required' });
 
     const receiver = normalizeAddress(process.env.USDT_BEP20_RECEIVER || DEFAULT_RECEIVER);
@@ -81,25 +82,15 @@ export default async function handler(req, res) {
       rpc('eth_blockNumber'),
     ]);
 
-    if (String(chainId).toLowerCase() !== '0x38') {
-      return json(res, 503, { error: 'Configured RPC is not BNB Smart Chain mainnet' });
-    }
+    if (String(chainId).toLowerCase() !== '0x38') return json(res, 503, { error: 'Configured RPC is not BNB Smart Chain mainnet' });
     if (!receipt) return json(res, 202, { verified: false, status: 'pending_chain', error: 'Transaction is not mined yet' });
-    if (String(receipt.status).toLowerCase() !== '0x1') {
-      return json(res, 400, { verified: false, status: 'failed', error: 'Blockchain transaction failed' });
-    }
+    if (String(receipt.status).toLowerCase() !== '0x1') return json(res, 400, { verified: false, status: 'failed', error: 'Blockchain transaction failed' });
 
     const txBlock = Number.parseInt(String(receipt.blockNumber || '0x0'), 16);
     const currentBlock = Number.parseInt(String(currentBlockHex || '0x0'), 16);
     const confirmations = Math.max(0, currentBlock - txBlock + 1);
     if (confirmations < MIN_CONFIRMATIONS) {
-      return json(res, 202, {
-        verified: false,
-        status: 'confirming',
-        confirmations,
-        requiredConfirmations: MIN_CONFIRMATIONS,
-        error: `Waiting for ${MIN_CONFIRMATIONS - confirmations} more confirmation(s)`,
-      });
+      return json(res, 202, { verified: false, status: 'confirming', confirmations, requiredConfirmations: MIN_CONFIRMATIONS, error: `Waiting for ${MIN_CONFIRMATIONS - confirmations} more confirmation(s)` });
     }
 
     let totalRaw = 0n;
@@ -111,13 +102,7 @@ export default async function handler(req, res) {
       try { totalRaw += BigInt(String(log.data || '0x0')); } catch { /* ignore malformed log */ }
     }
 
-    if (totalRaw <= 0n) {
-      return json(res, 400, {
-        verified: false,
-        status: 'wrong_payment',
-        error: 'No USDT BEP20 transfer to the configured Global Finance wallet was found in this transaction',
-      });
-    }
+    if (totalRaw <= 0n) return json(res, 400, { verified: false, status: 'wrong_payment', error: 'No USDT BEP20 transfer to the configured Global Finance wallet was found in this transaction' });
 
     const amountText = formatUnits(totalRaw, 18);
     const amount = Number(amountText);
@@ -125,85 +110,40 @@ export default async function handler(req, res) {
 
     const creditId = `BEP20-${txHash}`;
     const result = await withTransaction(async (client) => {
-      const memberResult = await client.query(
-        'SELECT id,email,status FROM users WHERE id=$1 AND email=$2 LIMIT 1 FOR UPDATE',
-        [uid, email]
-      );
+      const memberResult = await client.query('SELECT id,email,status FROM users WHERE id=$1 AND email=$2 LIMIT 1 FOR UPDATE', [uid, email]);
       const member = memberResult.rows[0];
       if (!member || member.status !== 'active') throw new Error('Active member account required');
 
-      const existing = await client.query(
-        'SELECT id,user_id,amount FROM ledger_transactions WHERE id=$1 LIMIT 1',
-        [creditId]
-      );
+      const existing = await client.query('SELECT id,user_id,amount FROM ledger_transactions WHERE id=$1 LIMIT 1', [creditId]);
       if (existing.rowCount) {
         if (existing.rows[0].user_id !== uid) throw new Error('Transaction hash has already been claimed by another account');
+        if (paymentProofUrl) {
+          await client.query(`UPDATE ledger_transactions SET metadata = COALESCE(metadata,'{}'::jsonb) || $2::jsonb WHERE id=$1`, [creditId, JSON.stringify({ paymentProofUrl, proofUploaded: true })]);
+        }
         const walletResult = await client.query('SELECT * FROM wallets WHERE user_id=$1 LIMIT 1', [uid]);
         return { alreadyCredited: true, wallet: walletResult.rows[0], amount: Number(existing.rows[0].amount || amount) };
       }
 
       await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [uid]);
-      await client.query(
-        `UPDATE wallets
-         SET fund_wallet = fund_wallet + $2,
-             updated_at = NOW()
-         WHERE user_id=$1`,
-        [uid, amount]
-      );
+      await client.query(`UPDATE wallets SET fund_wallet = fund_wallet + $2, updated_at = NOW() WHERE user_id=$1`, [uid, amount]);
 
       await client.query(
-        `INSERT INTO ledger_transactions
-         (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
+        `INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
          VALUES ($1,$2,'crypto_deposit','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
-        [
-          creditId,
-          uid,
-          amount,
-          `Verified USDT BEP20 deposit ${txHash}`,
-          txHash,
-          JSON.stringify({
-            asset: 'USDT',
-            network: 'BEP20',
-            chainId: 56,
-            tokenContract: USDT_BEP20_CONTRACT,
-            receiver,
-            txHash,
-            confirmations,
-            rawAmount: totalRaw.toString(),
-            decimals: 18,
-            verifiedOnChain: true,
-          }),
-        ]
+        [creditId, uid, amount, `Verified USDT BEP20 deposit ${txHash}`, txHash, JSON.stringify({ asset: 'USDT', network: 'BEP20', chainId: 56, tokenContract: USDT_BEP20_CONTRACT, receiver, txHash, confirmations, rawAmount: totalRaw.toString(), decimals: 18, verifiedOnChain: true, paymentProofUrl: paymentProofUrl || null, proofUploaded: Boolean(paymentProofUrl) })]
       );
 
       await client.query(
         `INSERT INTO audit_logs (id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
          VALUES ($1,$2,$3,'USDT_BEP20_DEPOSIT_AUTO_CREDITED','ledger',$4,$5::jsonb)`,
-        [
-          crypto.randomUUID(),
-          uid,
-          email,
-          creditId,
-          JSON.stringify({ txHash, amount, receiver, confirmations, tokenContract: USDT_BEP20_CONTRACT }),
-        ]
+        [crypto.randomUUID(), uid, email, creditId, JSON.stringify({ txHash, amount, receiver, confirmations, tokenContract: USDT_BEP20_CONTRACT, paymentProofUrl: paymentProofUrl || null })]
       );
 
       const walletResult = await client.query('SELECT * FROM wallets WHERE user_id=$1 LIMIT 1', [uid]);
       return { alreadyCredited: false, wallet: walletResult.rows[0], amount };
     });
 
-    return json(res, 200, {
-      verified: true,
-      credited: true,
-      alreadyCredited: result.alreadyCredited,
-      asset: 'USDT',
-      network: 'BEP20',
-      amount: result.amount,
-      txHash,
-      confirmations,
-      requiredConfirmations: MIN_CONFIRMATIONS,
-      fundWallet: Number(result.wallet?.fund_wallet || 0),
-    });
+    return json(res, 200, { verified: true, credited: true, alreadyCredited: result.alreadyCredited, asset: 'USDT', network: 'BEP20', amount: result.amount, txHash, confirmations, requiredConfirmations: MIN_CONFIRMATIONS, fundWallet: Number(result.wallet?.fund_wallet || 0), proofUploaded: Boolean(paymentProofUrl) });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Deposit verification failed';
     console.error('usdt-bep20-deposit failed:', message);
