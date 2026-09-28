@@ -1,0 +1,26 @@
+/* Keep the member dashboard dark welcome banner readable in light mode.
+   This intentionally overrides the global black-text light theme only inside
+   the left copy area of the navy dashboard hero. */
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="from-[#0d173d]"] > div:first-child h2,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="from-[#0d173d]"] > div:first-child h2 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="from-[#0d173d]"] > div:first-child p,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="from-[#0d173d]"] > div:first-child p {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="from-[#0d173d]"] > div:first-child > div:first-child span:first-child,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="from-[#0d173d]"] > div:first-child > div:first-child span:first-child {
+  color: #22d3ee !important;
+  -webkit-text-fill-color: #22d3ee !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="from-[#0d173d]"] > div:first-child > div:first-child span:not(:first-child),
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="from-[#0d173d]"] > div:first-child > div:first-child span:not(:first-child) {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
