@@ -48,6 +48,12 @@ export function getFdPlanDailyReturn(pkg: PackageDefinition): number {
   return Number(((pkg.minAmount * pkg.roiRate) / 100).toFixed(4));
 }
 
+/** Total FD profit over the configured duration. */
 export function getFdPlanScheduledReturn(pkg: PackageDefinition): number {
   return Number((getFdPlanDailyReturn(pkg) * pkg.durationDays).toFixed(4));
+}
+
+/** Final maturity amount = principal + total FD profit. */
+export function getFdPlanMaturityValue(pkg: PackageDefinition): number {
+  return Number((pkg.minAmount + getFdPlanScheduledReturn(pkg)).toFixed(4));
 }

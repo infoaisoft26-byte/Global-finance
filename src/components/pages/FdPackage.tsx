@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lu
 import { useAuth } from '../../context/AuthContext.tsx';
 import { adminGetPackages } from '../../services/financeService.ts';
 import { getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
-import { FD_PACKAGE_TEMPLATES, getFdPlanDailyReturn, getFdPlanScheduledReturn } from '../../data/fdPackageTemplates.ts';
+import { FD_PACKAGE_TEMPLATES, getFdPlanDailyReturn, getFdPlanScheduledReturn, getFdPlanMaturityValue } from '../../data/fdPackageTemplates.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { PackageActivationRequest, PackageDefinition } from '../../types/index.ts';
 
@@ -71,7 +71,7 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
 
   return <div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div><h2 className="text-xl font-bold">FD Package</h2><p className="text-xs mt-1">Purchase directly with verified Available USDT. The amount is deducted atomically when the plan activates.</p></div>
+      <div><h2 className="text-xl font-bold">FD Package</h2><p className="text-xs mt-1">Choose an active FD plan and review its daily income, total profit and maturity amount before purchase.</p></div>
       <div className="flex items-center gap-2"><div className="px-4 py-2.5 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-2"><Wallet className="w-4 h-4 text-cyan-400"/><div><div className="text-[9px] uppercase">Available USDT</div><div className="font-mono text-sm font-bold">{Number(wallet?.fundWallet || 0).toFixed(2)}</div></div></div><button onClick={onNavigateToRecharge} className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold">Add USDT</button></div>
     </div>
     {message && <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/>{message}</div>}
@@ -80,9 +80,18 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
       {packages.map(pkg => {
         const prime = pkg.name.toLowerCase().includes('prime');
         const waiting = submittingId === pkg.id;
+        const daily = getFdPlanDailyReturn(pkg);
+        const profit = getFdPlanScheduledReturn(pkg);
+        const maturity = getFdPlanMaturityValue(pkg);
         return <div key={pkg.id} className={`rounded-2xl bg-[#091129] border overflow-hidden shadow-lg ${prime ? 'border-violet-500/30' : 'border-blue-500/25'}`}>
           <div className="p-4 border-b border-blue-500/15 flex items-center gap-3"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${prime ? 'bg-gradient-to-br from-violet-600 to-fuchsia-500' : 'bg-gradient-to-br from-blue-600 to-cyan-500'}`}><Package className="w-5 h-5 text-white"/></div><div><h3 className="font-bold">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-500">{pkg.code}</span></div></div>
-          <div className="p-4 space-y-2 text-xs"><div className="flex justify-between"><span>Price</span><b className="font-mono">USDT {pkg.minAmount.toFixed(2)}</b></div><div className="flex justify-between"><span>Configured Daily</span><b className="font-mono">{getFdPlanDailyReturn(pkg).toFixed(2)}</b></div><div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div><div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Scheduled Return</span><b className="font-mono">{getFdPlanScheduledReturn(pkg).toFixed(2)}</b></div></div>
+          <div className="p-4 space-y-2 text-xs">
+            <div className="flex justify-between"><span>Plan Amount</span><b className="font-mono">USDT {pkg.minAmount.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-emerald-400">{pkg.roiRate}% = USDT {daily.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
+            <div className="flex justify-between"><span>Total Profit</span><b className="font-mono text-emerald-300">USDT {profit.toFixed(2)}</b></div>
+            <div className={`flex justify-between pt-3 mt-1 border-t ${prime ? 'border-violet-500/20' : 'border-blue-500/20'}`}><span className="font-semibold">Maturity Amount</span><b className="font-mono text-base">USDT {maturity.toFixed(2)}</b></div>
+          </div>
           <button onClick={() => purchase(pkg)} disabled={waiting} className={`w-full py-3 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2 ${prime ? 'bg-violet-600 hover:bg-violet-500' : 'bg-blue-600 hover:bg-blue-500'}`}>{waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing…</> : 'Purchase with USDT'}</button>
         </div>;
       })}
