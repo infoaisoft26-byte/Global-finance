@@ -39,7 +39,7 @@ const AdminTickets = lazy(() => import('./components/pages/admin/AdminTickets.ts
 const AdminReports = lazy(() => import('./components/pages/admin/AdminReports.tsx').then(m => ({ default: m.AdminReports })));
 const AdminPackages = lazy(() => import('./components/pages/admin/AdminPackages.tsx').then(m => ({ default: m.AdminPackages })));
 const AdminPackageActivations = lazy(() => import('./components/pages/admin/AdminPackageActivations.tsx').then(m => ({ default: m.AdminPackageActivations })));
-const AdminTransactions = lazy(() => import('./components/pages/admin/AdminTransactions.tsx').then(m => ({ default: m.AdminTransactions })));
+const AdminTransactions = lazy(() => import('./components/pages/admin/AdminTransactionsAccounting.tsx').then(m => ({ default: m.AdminTransactionsAccounting })));
 const AdminAudit = lazy(() => import('./components/pages/admin/AdminAudit.tsx').then(m => ({ default: m.AdminAudit })));
 const AdminSettingsPage = lazy(() => import('./components/pages/admin/AdminSettingsPage.tsx').then(m => ({ default: m.AdminSettingsPage })));
 
