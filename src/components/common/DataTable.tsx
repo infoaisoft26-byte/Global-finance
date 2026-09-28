@@ -1,15 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Search, 
-  RotateCcw, 
-  RefreshCw, 
-  Copy, 
-  FileSpreadsheet, 
-  FileText, 
-  Printer, 
-  ChevronLeft, 
-  ChevronRight,
-  Check
+import {
+  Search,
+  RotateCcw,
+  RefreshCw,
+  FileText,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 export interface Column<T> {
@@ -20,6 +16,11 @@ export interface Column<T> {
   sortable?: boolean;
 }
 
+export interface PdfColumn<T> {
+  header: string;
+  accessor: (item: T, index: number) => any;
+}
+
 interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
@@ -27,6 +28,23 @@ interface DataTableProps<T> {
   onRefresh?: () => void;
   isLoading?: boolean;
   emptyMessage?: string;
+  pdfDocumentTitle?: string;
+  pdfColumns?: PdfColumn<T>[];
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatPdfValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return '';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -35,127 +53,119 @@ export function DataTable<T extends Record<string, any>>({
   title,
   onRefresh,
   isLoading = false,
-  emptyMessage = "No matching records found"
+  emptyMessage = 'No matching records found',
+  pdfDocumentTitle = 'Member Dashboard - Global Finance',
+  pdfColumns
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [copied, setCopied] = useState(false);
 
-  // Filtered data based on search
   const filteredData = useMemo(() => {
     if (!searchTerm.trim()) return data;
     const term = searchTerm.toLowerCase();
-
-    return data.filter((item) => {
-      return Object.values(item).some((val) => {
-        if (val === null || val === undefined) return false;
-        return String(val).toLowerCase().includes(term);
-      });
-    });
+    return data.filter((item) => Object.values(item).some((val) => {
+      if (val === null || val === undefined) return false;
+      return String(val).toLowerCase().includes(term);
+    }));
   }, [data, searchTerm]);
 
-  // Pagination calculation
   const totalEntries = filteredData.length;
   const totalPages = Math.ceil(totalEntries / pageSize) || 1;
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalEntries);
-  const currentRows = useMemo(() => {
-    return filteredData.slice(startIndex, endIndex);
-  }, [filteredData, startIndex, endIndex]);
+  const currentRows = useMemo(
+    () => filteredData.slice(startIndex, endIndex),
+    [filteredData, startIndex, endIndex]
+  );
 
-  // Reset filter
   const handleReset = () => {
     setSearchTerm('');
     setCurrentPage(1);
   };
 
-  // Copy table to clipboard
-  const handleCopy = () => {
-    const headers = columns.map(c => c.header).join('\t');
-    const rows = filteredData.map(item => {
-      return columns.map(col => {
-        if (col.accessor) return String(col.accessor(item) ?? '');
-        return String(item[col.key] ?? '');
-      }).join('\t');
-    }).join('\n');
-
-    const fullText = `${headers}\n${rows}`;
-    navigator.clipboard.writeText(fullText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Export to Excel / CSV
-  const handleExportCsv = () => {
-    const headers = columns.map(c => `"${c.header.replace(/"/g, '""')}"`).join(',');
-    const rows = filteredData.map(item => {
-      return columns.map(col => {
-        const val = col.accessor ? col.accessor(item) : item[col.key];
-        return `"${String(val ?? '').replace(/"/g, '""')}"`;
-      }).join(',');
-    }).join('\n');
-
-    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(`${headers}\n${rows}`);
-    const link = document.createElement("a");
-    link.setAttribute("href", csvContent);
-    link.setAttribute("download", `${title ? title.toLowerCase().replace(/\s+/g, '_') : 'global_finance'}_report.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Export to PDF / Formatted text
   const handleExportPdf = () => {
-    // Open printable pop-up formatted view
-    window.print();
-  };
+    const popup = window.open('', '_blank', 'noopener,noreferrer,width=1000,height=760');
+    if (!popup) {
+      window.alert('Please allow pop-ups to download the PDF report.');
+      return;
+    }
 
-  // Print view
-  const handlePrint = () => {
-    window.print();
+    const effectivePdfColumns: PdfColumn<T>[] = pdfColumns || columns.map(col => ({
+      header: col.header,
+      accessor: (item: T) => col.accessor ? col.accessor(item) : item[col.key]
+    }));
+
+    const headers = ['Sr', ...effectivePdfColumns.map(col => col.header)];
+    const rows = filteredData.map((item, index) => {
+      const values = effectivePdfColumns.map(col => formatPdfValue(col.accessor(item, index + 1)));
+      return [String(index + 1), ...values];
+    });
+
+    const headerHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+    const bodyHtml = rows.length
+      ? rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')
+      : `<tr><td colspan="${headers.length}" class="empty">No records found</td></tr>`;
+
+    const safeFileName = (title || 'member_report')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'member_report';
+
+    popup.document.open();
+    popup.document.write(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(title || 'Member Report')}</title>
+<style>
+  @page { size: A4 landscape; margin: 16mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: #111; background: #fff; font-family: Arial, Helvetica, sans-serif; }
+  .sheet { width: 100%; padding-top: 8mm; }
+  h1 { margin: 0 0 12mm; text-align: center; font-size: 20px; font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; table-layout: auto; }
+  th { font-size: 12px; font-weight: 700; text-align: left; padding: 7px 8px; white-space: nowrap; }
+  td { font-size: 11px; padding: 7px 8px; vertical-align: top; word-break: break-word; }
+  .empty { text-align: center; padding: 24px; color: #666; }
+  .actions { margin-top: 18px; text-align: center; }
+  .actions button { border: 0; border-radius: 6px; padding: 10px 18px; font-size: 13px; cursor: pointer; background: #111827; color: #fff; }
+  @media print {
+    .actions { display: none !important; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <h1>${escapeHtml(pdfDocumentTitle)}</h1>
+    <table>
+      <thead><tr>${headerHtml}</tr></thead>
+      <tbody>${bodyHtml}</tbody>
+    </table>
+    <div class="actions"><button onclick="window.print()">Save / Download PDF</button></div>
+  </div>
+<script>
+  document.title = '${safeFileName}_report';
+  setTimeout(function () { window.print(); }, 250);
+</script>
+</body>
+</html>`);
+    popup.document.close();
   };
 
   return (
     <div className="bg-[#0b132b]/80 border border-blue-500/20 rounded-xl overflow-hidden shadow-xl backdrop-blur-md data-table-container">
-      {/* Top Action Toolbar */}
       <div className="p-4 sm:p-5 border-b border-blue-500/20 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 no-print">
-        {/* Left: Export Buttons */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <button
-            onClick={handleCopy}
-            title="Copy to clipboard"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#142044] hover:bg-[#1c2c5c] text-slate-200 border border-blue-500/30 transition-colors shadow-sm"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
-
-          <button
-            onClick={handleExportCsv}
-            title="Export CSV / Excel"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#142044] hover:bg-[#1c2c5c] text-slate-200 border border-blue-500/30 transition-colors shadow-sm"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Excel</span>
-          </button>
-
-          <button
             onClick={handleExportPdf}
-            title="Export to PDF"
+            title="Download PDF"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#142044] hover:bg-[#1c2c5c] text-slate-200 border border-blue-500/30 transition-colors shadow-sm"
           >
             <FileText className="w-3.5 h-3.5 text-rose-400" />
-            <span>PDF</span>
-          </button>
-
-          <button
-            onClick={handlePrint}
-            title="Print Table"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#142044] hover:bg-[#1c2c5c] text-slate-200 border border-blue-500/30 transition-colors shadow-sm"
-          >
-            <Printer className="w-3.5 h-3.5 text-blue-400" />
-            <span>Print</span>
+            <span>Download PDF</span>
           </button>
 
           {onRefresh && (
@@ -180,7 +190,6 @@ export function DataTable<T extends Record<string, any>>({
           </button>
         </div>
 
-        {/* Right: Search & Page size */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span>Show</span>
@@ -217,24 +226,13 @@ export function DataTable<T extends Record<string, any>>({
         </div>
       </div>
 
-      {/* Table Title on Print */}
-      {title && (
-        <div className="hidden print-only p-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800">GLOBAL FINANCE - {title}</h2>
-          <p className="text-sm text-gray-500">Generated on {new Date().toLocaleString()}</p>
-        </div>
-      )}
-
-      {/* Table Content */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-[#0f1b40] border-b border-blue-500/30 text-xs font-semibold text-cyan-300 uppercase tracking-wider">
               <th className="py-3.5 px-4 text-center w-12 text-slate-400">#</th>
               {columns.map((col) => (
-                <th key={col.key} className="py-3.5 px-4 whitespace-nowrap">
-                  {col.header}
-                </th>
+                <th key={col.key} className="py-3.5 px-4 whitespace-nowrap">{col.header}</th>
               ))}
             </tr>
           </thead>
@@ -253,12 +251,7 @@ export function DataTable<T extends Record<string, any>>({
                 <td colSpan={columns.length + 1} className="py-12 text-center text-slate-400">
                   <p className="text-sm">{emptyMessage}</p>
                   {searchTerm && (
-                    <button
-                      onClick={handleReset}
-                      className="mt-2 text-xs text-cyan-400 hover:underline"
-                    >
-                      Clear search filter
-                    </button>
+                    <button onClick={handleReset} className="mt-2 text-xs text-cyan-400 hover:underline">Clear search filter</button>
                   )}
                 </td>
               </tr>
@@ -266,19 +259,14 @@ export function DataTable<T extends Record<string, any>>({
               currentRows.map((item, rowIdx) => {
                 const globalIndex = startIndex + rowIdx + 1;
                 return (
-                  <tr 
-                    key={item.id || globalIndex} 
-                    className="hover:bg-[#121e48]/70 transition-colors"
-                  >
-                    <td className="py-3.5 px-4 text-center text-xs text-slate-500 font-mono">
-                      {globalIndex}
-                    </td>
+                  <tr key={item.id || globalIndex} className="hover:bg-[#121e48]/70 transition-colors">
+                    <td className="py-3.5 px-4 text-center text-xs text-slate-500 font-mono">{globalIndex}</td>
                     {columns.map((col) => (
                       <td key={col.key} className="py-3.5 px-4">
-                        {col.render 
-                          ? col.render(item, globalIndex) 
-                          : col.accessor 
-                            ? col.accessor(item) 
+                        {col.render
+                          ? col.render(item, globalIndex)
+                          : col.accessor
+                            ? col.accessor(item)
                             : String(item[col.key] ?? '—')}
                       </td>
                     ))}
@@ -290,7 +278,6 @@ export function DataTable<T extends Record<string, any>>({
         </table>
       </div>
 
-      {/* Pagination Footer */}
       <div className="p-4 border-t border-blue-500/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 no-print">
         <div>
           Showing <span className="font-semibold text-slate-200">{totalEntries === 0 ? 0 : startIndex + 1}</span> to{' '}
@@ -308,7 +295,6 @@ export function DataTable<T extends Record<string, any>>({
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          {/* Page numbers */}
           {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
             let pageNum = i + 1;
             if (totalPages > 5 && currentPage > 3) {
