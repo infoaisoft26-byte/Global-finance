@@ -9,7 +9,6 @@ import { AdminLoginScreen } from './components/auth/AdminLoginScreen.tsx';
 import { ProfileKycModal } from './components/modals/ProfileKycModal.tsx';
 import { DirectTeam } from './components/pages/DirectTeam.tsx';
 import { TeamList } from './components/pages/TeamList.tsx';
-import { PaymentStatusSummary } from './components/dashboard/PaymentStatusSummary.tsx';
 import { getSystemSettings } from './services/settingsService.ts';
 import type { ActivePage, SystemSettings } from './types/index.ts';
 import { ShieldCheck, RefreshCw, ShieldAlert, LogOut, AlertTriangle, Wrench } from 'lucide-react';
@@ -163,12 +162,7 @@ const MainLayout: React.FC = () => {
     if (activePage.startsWith('admin-') && !isAdmin) return <div className="p-8 text-center text-rose-300">Access denied.</div>;
 
     switch (activePage) {
-      case 'dashboard': return (
-        <div className="space-y-6">
-          <PaymentStatusSummary onOpenRecharge={() => setActivePage('recharge')} />
-          <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />
-        </div>
-      );
+      case 'dashboard': return <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
       case 'recharge': return <Recharge />;
       case 'kyc': return <KycPage />;
       case 'transactions': return <TransactionsPage />;
@@ -206,12 +200,7 @@ const MainLayout: React.FC = () => {
       case 'admin-packages': return <AdminPackages />;
       case 'admin-audit': return <AdminAudit />;
       case 'admin-settings': return <AdminSettingsPage />;
-      default: return isAdminEntry ? <AdminDashboardFast onNavigate={setActivePage} /> : (
-        <div className="space-y-6">
-          <PaymentStatusSummary onOpenRecharge={() => setActivePage('recharge')} />
-          <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />
-        </div>
-      );
+      default: return isAdminEntry ? <AdminDashboardFast onNavigate={setActivePage} /> : <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
     }
   };
 
