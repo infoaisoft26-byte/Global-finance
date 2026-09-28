@@ -1,12 +1,9 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase.ts';
+import { auth } from '../lib/firebase.ts';
 import type { SystemSettings } from '../types/index.ts';
-import { recordAuditLog } from './financeService.ts';
 
-const SETTINGS_DOC_ID = 'global_finance_system_settings';
 const CACHE_TTL_MS = 5 * 60_000;
-const READ_TIMEOUT_MS = 3000;
-const WRITE_TIMEOUT_MS = 5000;
+const READ_TIMEOUT_MS = 5000;
+const WRITE_TIMEOUT_MS = 8000;
 let cachedSettings: SystemSettings | null = null;
 let cachedAt = 0;
 let inFlightRead: Promise<SystemSettings> | null = null;
@@ -72,30 +69,40 @@ const normalizeSettings = (stored: Partial<SystemSettings> & Record<string, any>
   withdrawalEnabled: false
 } as SystemSettings);
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Authentication required');
+  const idToken = await currentUser.getIdToken();
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${idToken}`,
+  };
+}
+
 export async function getSystemSettings(force = false): Promise<SystemSettings> {
   const now = Date.now();
   if (!force && cachedSettings && now - cachedAt < CACHE_TTL_MS) return cachedSettings;
   if (inFlightRead && !force) return inFlightRead;
 
   const fetchSettings = async (): Promise<SystemSettings> => {
+    const fallback = cachedSettings || DEFAULT_SYSTEM_SETTINGS;
     try {
-      const ref = doc(db, 'system_settings', SETTINGS_DOC_ID);
-      const fallback = cachedSettings || DEFAULT_SYSTEM_SETTINGS;
-      const snap = await withTimeout(getDoc(ref), READ_TIMEOUT_MS, null as any);
-      if (!snap) return fallback;
-
-      const stored = snap.exists() ? (snap.data() as Partial<SystemSettings> & Record<string, any>) : {};
-      const merged = normalizeSettings(stored);
+      const headers = await authHeaders();
+      const response = await withTimeout(
+        fetch('/api/system-settings', { method: 'GET', credentials: 'include', headers }),
+        READ_TIMEOUT_MS,
+        null as any
+      );
+      if (!response) return fallback;
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to load system settings');
+      const merged = normalizeSettings(data.settings || {});
       cachedSettings = merged;
       cachedAt = Date.now();
-
-      if (!snap.exists()) {
-        void setDoc(ref, DEFAULT_SYSTEM_SETTINGS).catch((err) => console.warn('Unable to initialize settings document:', err));
-      }
       return merged;
     } catch (err) {
       console.warn('Failed to fetch system settings, using cached/default configuration:', err);
-      return cachedSettings || DEFAULT_SYSTEM_SETTINGS;
+      return fallback;
     }
   };
 
@@ -115,50 +122,44 @@ export async function refreshSystemSettings(): Promise<SystemSettings> {
 
 export async function updateSystemSettings(
   adminUserId: string,
-  adminEmail: string | undefined,
+  _adminEmail: string | undefined,
   updates: Partial<SystemSettings> & Record<string, any>
 ): Promise<SystemSettings> {
   const current = cachedSettings || await getSystemSettings();
-  const updated = {
+  const updated = normalizeSettings({
     ...current,
     ...updates,
-    depositNetworkLabel: 'BNB Smart Chain (BEP20)',
-    basicPackageEnabled: true,
-    fdPackageEnabled: true,
-    rechargeEnabled: false,
-    withdrawalEnabled: false,
     updatedAt: new Date().toISOString(),
     updatedBy: adminUserId
-  } as SystemSettings;
+  } as Partial<SystemSettings> & Record<string, any>);
 
-  // Optimistic cache update keeps admin UI responsive while Firestore persists.
+  const previous = cachedSettings;
   cachedSettings = updated;
   cachedAt = Date.now();
 
-  const ref = doc(db, 'system_settings', SETTINGS_DOC_ID);
-  const writeResult = await withTimeout(
-    setDoc(ref, updated, { merge: true }).then(() => true),
-    WRITE_TIMEOUT_MS,
-    false
-  );
-  if (!writeResult) throw new Error('Settings save timed out. Please retry.');
+  try {
+    const headers = await authHeaders();
+    const response = await withTimeout(
+      fetch('/api/system-settings', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ settings: updated }),
+      }),
+      WRITE_TIMEOUT_MS,
+      null as any
+    );
+    if (!response) throw new Error('Settings save timed out. Please retry.');
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Unable to save system settings');
 
-  // Audit logging should never hold the settings screen open.
-  void recordAuditLog(adminUserId, adminEmail, 'System Settings Updated', 'settings', SETTINGS_DOC_ID, {
-    changedFields: Object.keys(updates),
-    maintenanceMode: updated.maintenanceMode,
-    rechargeEnabled: false,
-    withdrawalEnabled: false,
-    p2pEnabled: updated.p2pEnabled,
-    cryptoDepositConfigurationUpdated: [
-      'usdtBep20DepositAddress',
-      'depositWalletLink',
-      'depositQrImageUrl',
-      'depositNetworkNotice',
-      'depositDisplayEnabled'
-    ].some((key) => Object.prototype.hasOwnProperty.call(updates, key)),
-    depositNetwork: 'BEP20'
-  }).catch((err) => console.warn('Settings audit log delayed:', err));
-
-  return updated;
+    const persisted = normalizeSettings(data.settings || updated);
+    cachedSettings = persisted;
+    cachedAt = Date.now();
+    return persisted;
+  } catch (err) {
+    cachedSettings = previous || current;
+    cachedAt = Date.now();
+    throw err;
+  }
 }
