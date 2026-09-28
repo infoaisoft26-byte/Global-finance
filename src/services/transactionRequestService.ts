@@ -60,6 +60,7 @@ export async function createTransactionRequest(params: {
   userNote?: string;
   metadata?: Record<string, any>;
 }): Promise<{ success: boolean; request: TransactionRequest; message: string }> {
+  if (params.requestType === 'recharge') throw new Error('Use the secure USDT recharge submission flow.');
   const {
     userId,
     userEmail,
@@ -201,15 +202,6 @@ export async function createTransactionRequest(params: {
       break;
     }
 
-    case 'recharge': {
-      if (amountRupees < settings.minRecharge) {
-        throw new Error(`Minimum deposit recharge amount is ₹${settings.minRecharge.toFixed(2)}.`);
-      }
-      if (amountRupees > settings.maxRecharge) {
-        throw new Error(`Maximum deposit recharge amount is ₹${settings.maxRecharge.toFixed(2)}.`);
-      }
-      break;
-    }
   }
 
   const netAmountPaise = amountPaise - feePaise;
@@ -361,7 +353,7 @@ export async function adminGetAllTransactionRequests(filters?: {
     const ref = collection(db, 'transaction_requests');
     const q = query(ref, orderBy('createdAt', 'desc'), limit(150));
     const snap = await getDocs(q);
-    let list = snap.docs.map(d => d.data() as TransactionRequest);
+    let list = snap.docs.map(d => d.data() as TransactionRequest).filter(r => r.requestType !== 'recharge');
 
     if (filters?.requestType && filters.requestType !== 'all') {
       list = list.filter(r => r.requestType === filters.requestType);
@@ -405,6 +397,7 @@ export async function adminUpdateTransactionRequestStatus(
   }
 
   const current = snap.data() as TransactionRequest;
+  if (current.requestType === 'recharge') throw new Error('Legacy recharge review is closed. Use the secure USDT recharge accounting queue.');
   const currentStatus = current.status;
 
   // Enforce strict state machine transitions
@@ -432,37 +425,6 @@ export async function adminUpdateTransactionRequestStatus(
   } else if (targetStatus === 'completed') {
     updates.completedAt = now;
     if (providerReference) updates.providerReference = providerReference;
-
-    // If recharge request was approved and completed: execute verified ledger credit to fund wallet
-    if (current.requestType === 'recharge' && currentStatus !== 'completed') {
-      const ledgerDocRef = doc(db, 'transactions', current.reference);
-      await setDoc(ledgerDocRef, {
-        id: current.reference,
-        userId: current.userId,
-        type: 'recharge',
-        category: 'fund_wallet',
-        flow: 'credit',
-        amount: current.amountRupees,
-        fee: 0,
-        netAmount: current.amountRupees,
-        description: `Verified Deposit Credit [Ref: ${current.reference}]`,
-        referenceId: current.reference,
-        status: 'completed',
-        metadata: { adminUserId, providerReference, amountPaise: current.amountPaise },
-        createdAt: now
-      });
-
-      // Update wallet snapshot
-      const walletRef = doc(db, 'wallets', current.userId);
-      const wSnap = await getDoc(walletRef);
-      if (wSnap.exists()) {
-        const curWallet = wSnap.data();
-        await updateDoc(walletRef, {
-          fundWallet: Number(((curWallet.fundWallet || 0) + current.amountRupees).toFixed(2)),
-          updatedAt: now
-        });
-      }
-    }
   }
 
   await updateDoc(reqDocRef, updates);

@@ -71,6 +71,30 @@ CREATE INDEX IF NOT EXISTS idx_ledger_txns_status ON ledger_transactions(status)
 CREATE INDEX IF NOT EXISTS idx_ledger_txns_created_at ON ledger_transactions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ledger_txns_type ON ledger_transactions(type);
 
+-- BEP20 deposits are server-owned. A TX hash can only be claimed once globally.
+CREATE TABLE IF NOT EXISTS usdt_bep20_recharges (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    tx_hash VARCHAR(66) NOT NULL UNIQUE CHECK (tx_hash ~ '^0x[0-9a-f]{64}$'),
+    deposit_address VARCHAR(42) NOT NULL CHECK (deposit_address ~ '^0x[0-9a-f]{40}$'),
+    amount_usdt NUMERIC(28,8) NOT NULL CHECK (amount_usdt > 0),
+    status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+    credit_inr NUMERIC(16,2) CHECK (credit_inr > 0),
+    ledger_id VARCHAR(64) UNIQUE REFERENCES ledger_transactions(id) ON DELETE RESTRICT,
+    proof_url TEXT,
+    review_note TEXT,
+    reviewed_by VARCHAR(64) REFERENCES users(id),
+    reviewed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status <> 'approved' OR (credit_inr IS NOT NULL AND ledger_id IS NOT NULL AND reviewed_by IS NOT NULL)),
+    CHECK (status <> 'rejected' OR reviewed_by IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_usdt_bep20_recharges_user ON usdt_bep20_recharges(user_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_usdt_bep20_recharges_queue ON usdt_bep20_recharges(status,created_at);
+-- Also exclude hashes credited by the retired self-service endpoint.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usdt_bep20_ledger_txhash ON ledger_transactions(lower(reference_id))
+  WHERE type IN ('crypto_deposit','usdt_bep20_recharge');
+
 -- 4. PACKAGES DEFINITIONS (Database-driven configuration)
 CREATE TABLE IF NOT EXISTS packages (
     id VARCHAR(64) PRIMARY KEY,

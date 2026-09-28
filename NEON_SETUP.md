@@ -62,3 +62,21 @@ Expected successful response:
 - Suspended users are refused a server session.
 - Referral codes are generated server-side and checked for uniqueness.
 - Real-money payment/payout execution remains disabled by default.
+
+## USDT BEP20 recharge rollout
+
+The recharge API uses the existing Neon `wallets.fund_wallet` as Available Fund and writes an immutable `ledger_transactions` credit. Apply the updated `src/db_schema.sql` to the linked production database before deploying the API. It creates `usdt_bep20_recharges` with a globally unique normalized TXID. Existing Firebase recharge requests are not migrated automatically; review any outstanding requests before enabling the new flow.
+
+The previous `/api/usdt-bep20-deposit` auto-credit route is retired with HTTP 410. It treated token units as INR wallet units without an approved conversion and bypassed the admin Pending/Approve/Reject queue. The member UI now submits to `/api/usdt-recharge`.
+
+Server-only Vercel variables for the BNB Smart Chain mainnet:
+
+- `BSC_RPC_URL` — trusted BSC mainnet JSON-RPC endpoint.
+- `USDT_BEP20_CONTRACT_ADDRESS` — independently verified USDT BEP20 contract address; never set this from an unverified token page.
+- `PAYMENTS_ENABLED=true` and `USDT_RECHARGE_ENABLED=true` — set only after the migration, token/RPC verification, wallet rule audit, and production review are complete.
+
+The receiving address is `0x062D87BE020291b34D08fdCfa7E432248680910E`. The QR asset is generated from that exact address. The approval endpoint checks chain ID 56, a successful receipt, at least 12 confirmations, the configured contract's transfer logs, recipient address and claimed amount. An admin supplies the INR credit and records the conversion basis in a review note; the API atomically records the ledger and wallet credit. No automatic exchange rate is assumed.
+
+Before enabling live deposits, close the legacy Firebase financial write paths. The current `firestore.rules` still permit an account owner to write their Firebase wallet and create transaction records, and other existing workflows depend on those writes. Migrating those workflows to trusted server endpoints and tightening the deployed Firestore rules is a separate required security step. A UI-only recharge restriction does not secure those legacy collections.
+
+After deploying to a preview environment with a migrated test database, verify member submission, duplicate TXID rejection, non-admin approval rejection, invalid-chain proof rejection, one successful admin approval, idempotent second approval rejection, a single ledger credit, and the updated member Available Fund. Do not run a live-funds approval as a test.

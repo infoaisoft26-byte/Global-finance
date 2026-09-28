@@ -245,7 +245,6 @@ export const AdminTransactions: React.FC = () => {
             className="px-3 py-2 text-xs rounded-xl bg-[#060b1c] border border-blue-500/30 text-white focus:outline-none focus:border-cyan-400"
           >
             <option value="all">All Request Types</option>
-            <option value="recharge">Recharge / Deposit</option>
             <option value="p2p_transfer">P2P Transfer</option>
             <option value="income_to_fund">Income to Fund</option>
             <option value="withdrawal">Withdrawal</option>
