@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Edit3, Package, Plus, RefreshCw, Sparkles, X } from 'lucide-react';
 import { adminGetPackageDefinitions, adminSavePackageDefinition } from '../../../services/financeService.ts';
-import { BASIC_PACKAGE_TEMPLATES, getBasicPlanDailyReturn, getBasicPlanTotalWithPrincipal } from '../../../data/basicPackageTemplates.ts';
+import {
+  BASIC_PACKAGE_TEMPLATES,
+  getBasicPlanDailyReturn,
+  getBasicPlanScheduledReturn,
+  getBasicPlanMaturityValue
+} from '../../../data/basicPackageTemplates.ts';
 import { useAuth } from '../../../context/AuthContext.tsx';
 import type { PackageDefinition } from '../../../types/index.ts';
 
@@ -92,22 +97,30 @@ export const AdminPackages: React.FC = () => {
       id: `pkg-${Date.now()}`,
       name: 'New Custom Package',
       code: `GF_CUSTOM_${Date.now().toString().slice(-4)}`,
-      type: 'basic', minAmount: 100, maxAmount: 100,
-      roiRate: 0, durationDays: 1,
+      type: 'basic',
+      minAmount: 200,
+      maxAmount: 200,
+      roiRate: 1,
+      durationDays: 25,
       description: 'Admin-configured package.',
       terms: 'Configure plan terms before publishing.',
-      active: false, createdAt: now, updatedAt: now
+      active: false,
+      createdAt: now,
+      updatedAt: now
     });
   };
 
   const basicCount = packages.filter(p => p.type === 'basic' && p.active).length;
+  const previewDaily = editingPkg ? getBasicPlanDailyReturn(editingPkg) : 0;
+  const previewProfit = editingPkg ? getBasicPlanScheduledReturn(editingPkg) : 0;
+  const previewMaturity = editingPkg ? getBasicPlanMaturityValue(editingPkg) : 0;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2"><Package className="w-5 h-5 text-cyan-400"/><h2 className="text-xl font-bold text-white">Package Management</h2></div>
-          <p className="text-xs text-slate-400 mt-1">Catalog opens instantly; database sync happens in the background.</p>
+          <p className="text-xs text-slate-400 mt-1">Edit plan amount, daily return and days. Daily income, total profit and final maturity are calculated automatically.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={seedReferencePlans} disabled={seeding || !currentAdmin} className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-2 disabled:opacity-50">
@@ -121,7 +134,7 @@ export const AdminPackages: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><div className="text-[10px] uppercase text-slate-500">Active Basic Plans</div><div className="text-2xl font-bold text-white">{basicCount}</div></div>
         <div className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><div className="text-[10px] uppercase text-slate-500">Reference Set</div><div className="text-2xl font-bold text-cyan-300">11</div></div>
-        <div className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><div className="text-[10px] uppercase text-slate-500">Payment Display</div><div className="text-sm font-bold text-white mt-1">TRX / USDT only</div></div>
+        <div className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><div className="text-[10px] uppercase text-slate-500">Calculation Mode</div><div className="text-sm font-bold text-white mt-1">Simple daily return</div></div>
       </div>
 
       {message && <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex gap-2"><Check className="w-4 h-4"/>{message}</div>}
@@ -130,7 +143,8 @@ export const AdminPackages: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {packages.map(pkg => {
           const daily = getBasicPlanDailyReturn(pkg);
-          const total = getBasicPlanTotalWithPrincipal(pkg);
+          const profit = getBasicPlanScheduledReturn(pkg);
+          const maturity = getBasicPlanMaturityValue(pkg);
           return <div key={pkg.id} className={`p-5 rounded-2xl border ${pkg.active ? 'bg-[#091129] border-blue-500/25' : 'bg-[#080d20] border-slate-700/40 opacity-70'}`}>
             <div className="flex items-start justify-between gap-2">
               <div><div className="text-base font-bold text-white">{pkg.name}</div><div className="text-[11px] text-cyan-400 font-mono">{pkg.code}</div></div>
@@ -138,9 +152,13 @@ export const AdminPackages: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Plan Amount</span><b className="text-white">{pkg.minAmount.toLocaleString('en-IN')}</b></div>
-              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Configured Daily</span><b className="text-emerald-400">{daily.toLocaleString('en-IN')}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Daily Return</span><b className="text-emerald-400">{pkg.roiRate}% = {daily.toLocaleString('en-IN')}</b></div>
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
-              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Scheduled Total</span><b className="text-white">{total.toLocaleString('en-IN')}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Total Profit</span><b className="text-emerald-300">{profit.toLocaleString('en-IN')}</b></div>
+            </div>
+            <div className="mt-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">Maturity Amount</span>
+              <b className="text-lg text-white">{maturity.toLocaleString('en-IN')}</b>
             </div>
             <div className="mt-3 text-[11px] text-slate-400">{pkg.active ? 'Active & visible to members' : 'Inactive / hidden from members'}</div>
           </div>;
@@ -153,8 +171,20 @@ export const AdminPackages: React.FC = () => {
           <form onSubmit={savePackage} className="space-y-3 text-xs">
             <div className="grid grid-cols-2 gap-3"><input value={editingPkg.name} onChange={e=>setEditingPkg({...editingPkg,name:e.target.value})} className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Package name"/><input value={editingPkg.code} onChange={e=>setEditingPkg({...editingPkg,code:e.target.value.toUpperCase()})} className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Code"/></div>
             <div className="grid grid-cols-2 gap-3"><select value={editingPkg.type} onChange={e=>setEditingPkg({...editingPkg,type:e.target.value as 'basic'|'fd'})} className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"><option value="basic">Basic</option><option value="fd">FD</option></select><select value={editingPkg.active?'yes':'no'} onChange={e=>setEditingPkg({...editingPkg,active:e.target.value==='yes'})} className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"><option value="yes">Active</option><option value="no">Inactive</option></select></div>
-            <div className="grid grid-cols-2 gap-3"><label className="text-slate-400">Min amount<input type="number" value={editingPkg.minAmount} onChange={e=>setEditingPkg({...editingPkg,minAmount:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label><label className="text-slate-400">Max amount<input type="number" value={editingPkg.maxAmount} onChange={e=>setEditingPkg({...editingPkg,maxAmount:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label></div>
-            <div className="grid grid-cols-2 gap-3"><label className="text-slate-400">Daily return %<input type="number" step="0.01" value={editingPkg.roiRate} onChange={e=>setEditingPkg({...editingPkg,roiRate:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label><label className="text-slate-400">Days<input type="number" value={editingPkg.durationDays} onChange={e=>setEditingPkg({...editingPkg,durationDays:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label></div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-slate-400">Plan amount<input type="number" min="0" step="0.01" value={editingPkg.minAmount} onChange={e=>{const amount=Number(e.target.value);setEditingPkg({...editingPkg,minAmount:amount,maxAmount:amount});}} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label>
+              <label className="text-slate-400">Daily return %<input type="number" min="0" step="0.01" value={editingPkg.roiRate} onChange={e=>setEditingPkg({...editingPkg,roiRate:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label>
+            </div>
+            <label className="text-slate-400 block">Days<input type="number" min="1" value={editingPkg.durationDays} onChange={e=>setEditingPkg({...editingPkg,durationDays:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label>
+
+            <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-[#060b1c] border border-cyan-500/20">
+              <div><span className="text-[10px] text-slate-500 block">Daily Income</span><b className="text-cyan-300">{previewDaily.toLocaleString('en-IN')}</b></div>
+              <div><span className="text-[10px] text-slate-500 block">Total Profit</span><b className="text-emerald-300">{previewProfit.toLocaleString('en-IN')}</b></div>
+              <div><span className="text-[10px] text-slate-500 block mt-2">Principal</span><b className="text-white">{Number(editingPkg.minAmount || 0).toLocaleString('en-IN')}</b></div>
+              <div><span className="text-[10px] text-slate-500 block mt-2">Maturity Amount</span><b className="text-lg text-white">{previewMaturity.toLocaleString('en-IN')}</b></div>
+              <div className="col-span-2 mt-2 text-[10px] text-slate-500">Formula: Amount + (Amount × Daily % ÷ 100 × Days)</div>
+            </div>
+
             <textarea rows={2} value={editingPkg.description} onChange={e=>setEditingPkg({...editingPkg,description:e.target.value})} className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Description"/>
             <textarea rows={2} value={editingPkg.terms} onChange={e=>setEditingPkg({...editingPkg,terms:e.target.value})} className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Terms"/>
             <button disabled={saving} className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50">{saving ? 'Saving...' : 'Save Package'}</button>
