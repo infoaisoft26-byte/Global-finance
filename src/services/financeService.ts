@@ -141,7 +141,8 @@ export async function getOrCreateUserProfile(
       role: isAdminEmail ? 'admin' : 'user',
       status: 'active',
       kycStatus: isAdminEmail ? 'verified' : 'unverified',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     wallet = defaultWallet(uid);

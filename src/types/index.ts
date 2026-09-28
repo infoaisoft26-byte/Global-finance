@@ -30,7 +30,33 @@ export interface WalletData {
   totalWithdrawal: number;
   directTeamCount: number;
   totalTeamCount: number;
+  joiningBonus?: number;
+  referralIncome?: number;
+  todayRoiIncome?: number;
+  todayLevelIncome?: number;
+  totalRoiIncome?: number;
+  totalLevelIncome?: number;
+  fdTodayRoiIncome?: number;
+  fdTodayLevelIncome?: number;
+  fdTotalRoiIncome?: number;
+  fdTotalLevelIncome?: number;
+  fdReferralIncome?: number;
+  fdReleased?: number;
+  totalSalary?: number;
   updatedAt?: string;
+}
+
+export interface AdminSettings {
+  id: string;
+  platformName: string;
+  paymentsEnabled: boolean;
+  payoutsEnabled: boolean;
+  maintenanceMode: boolean;
+  minWithdrawal: number;
+  withdrawalFeePercent: number;
+  supportEmail: string;
+  updatedAt: string;
+  updatedBy?: string;
 }
 
 export type TransactionType = 
@@ -42,7 +68,9 @@ export type TransactionType =
   | 'referral_bonus' 
   | 'level_bonus' 
   | 'package_activation' 
-  | 'admin_adjustment';
+  | 'admin_adjustment'
+  | 'basic_roi' | 'fd_roi' | 'basic_level' | 'fd_level' | 'rd_level'
+  | 'basic_referral' | 'fd_referral' | 'salary';
 
 export interface TransactionLedger {
   id: string;

@@ -1,96 +1,60 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock3, ExternalLink, Image as ImageIcon, RefreshCw, ReceiptText, WalletCards, XCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { RefreshCw, ExternalLink, CheckCircle2, XCircle, Clock3 } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext.tsx';
+import { listUsdtRecharges, reviewUsdtRecharge, type UsdtRechargeRequest } from '../../../services/usdtRechargeService.ts';
 import { AdminTransactions } from './AdminTransactions.tsx';
-import { adminGetAllTransactionRequests } from '../../../services/transactionRequestService.ts';
-import type { TransactionRequest } from '../../../types/index.ts';
-
-const money = (value: number) => Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const AdminTransactionsAccounting: React.FC = () => {
-  const [recharges, setRecharges] = useState<TransactionRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const [rows, setRows] = useState<UsdtRechargeRequest[]>([]);
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [note, setNote] = useState<Record<string,string>>({});
+  const [credit, setCredit] = useState<Record<string,string>>({});
 
-  const loadRecharges = async () => {
-    setLoading(true);
+  const load = async () => {
+    if (!user) return;
+    setBusy(true);
     try {
-      const rows = await adminGetAllTransactionRequests({ requestType: 'recharge', status: 'all' });
-      setRecharges(rows);
-    } catch (err) {
-      console.error('Admin recharge accounting load failed:', err);
-    } finally {
-      setLoading(false);
-    }
+      const result = await listUsdtRecharges(user,'admin');
+      setRows(result.requests); setEnabled(result.enabled); setError('');
+    } catch (err: any) { setError(err?.message || 'Unable to load recharge accounting'); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => { void load(); }, [user?.uid]);
+
+  const review = async (row: UsdtRechargeRequest, action: 'approve' | 'reject') => {
+    if (!user) return;
+    setBusy(true); setError('');
+    try {
+      await reviewUsdtRecharge(user,row.id,action,note[row.id] || '',credit[row.id]);
+      await load();
+    } catch (err: any) { setError(err?.message || 'Review failed'); }
+    finally { setBusy(false); }
   };
 
-  useEffect(() => { loadRecharges(); }, []);
-
-  const accounting = useMemo(() => {
-    const pendingStates = new Set(['pending', 'under_review', 'approved', 'processing']);
-    return recharges.reduce((acc, item) => {
-      const amount = Number(item.amountRupees || 0);
-      acc.totalSubmitted += amount;
-      if (pendingStates.has(item.status)) acc.pending += amount;
-      if (item.status === 'completed') acc.completed += amount;
-      if (item.status === 'rejected' || item.status === 'failed' || item.status === 'cancelled') acc.rejected += amount;
-      if ((item.metadata as any)?.proofUploaded) acc.proofCount += 1;
-      return acc;
-    }, { totalSubmitted: 0, pending: 0, completed: 0, rejected: 0, proofCount: 0 });
-  }, [recharges]);
-
-  return (
-    <div className="space-y-8">
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <ReceiptText className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-xl font-bold text-white">Payment Accounting</h2>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">Every member recharge submitted with a payment screenshot appears here for accounting and verification.</p>
-          </div>
-          <button onClick={loadRecharges} disabled={loading} className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-xs font-semibold text-white disabled:opacity-50">
-            <RefreshCw className={`w-4 h-4 text-cyan-400 ${loading ? 'animate-spin' : ''}`} /> Refresh Accounting
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="p-4 rounded-2xl bg-[#091129] border border-blue-500/25"><div className="text-[10px] uppercase tracking-wider text-slate-500">Submitted</div><div className="text-lg font-bold text-white mt-1">USDT {money(accounting.totalSubmitted)}</div><div className="text-[10px] text-slate-500 mt-1">{recharges.length} recharge requests</div></div>
-          <div className="p-4 rounded-2xl bg-[#091129] border border-amber-500/25"><div className="text-[10px] uppercase tracking-wider text-slate-500">Pending Verification</div><div className="text-lg font-bold text-amber-400 mt-1">USDT {money(accounting.pending)}</div></div>
-          <div className="p-4 rounded-2xl bg-[#091129] border border-emerald-500/25"><div className="text-[10px] uppercase tracking-wider text-slate-500">Completed / Credited</div><div className="text-lg font-bold text-emerald-400 mt-1">USDT {money(accounting.completed)}</div></div>
-          <div className="p-4 rounded-2xl bg-[#091129] border border-rose-500/25"><div className="text-[10px] uppercase tracking-wider text-slate-500">Rejected / Failed</div><div className="text-lg font-bold text-rose-400 mt-1">USDT {money(accounting.rejected)}</div></div>
-          <div className="p-4 rounded-2xl bg-[#091129] border border-cyan-500/25"><div className="text-[10px] uppercase tracking-wider text-slate-500">Proof Uploaded</div><div className="text-lg font-bold text-cyan-400 mt-1">{accounting.proofCount}</div><div className="text-[10px] text-slate-500 mt-1">screenshots attached</div></div>
-        </div>
-
-        <div className="rounded-2xl bg-[#091129] border border-blue-500/25 overflow-hidden">
-          <div className="px-4 py-3 border-b border-blue-500/20 flex items-center gap-2"><WalletCards className="w-4 h-4 text-cyan-400" /><span className="text-sm font-bold text-white">Recharge Payment Register</span></div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-xs">
-              <thead className="bg-[#060b1c] text-slate-400"><tr><th className="text-left px-4 py-3">Member</th><th className="text-left px-4 py-3">Reference</th><th className="text-right px-4 py-3">Amount</th><th className="text-left px-4 py-3">Payment Ref</th><th className="text-left px-4 py-3">Proof</th><th className="text-left px-4 py-3">Status</th><th className="text-left px-4 py-3">Submitted</th></tr></thead>
-              <tbody className="divide-y divide-blue-500/10">
-                {recharges.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">{loading ? 'Loading recharge accounting…' : 'No recharge payments submitted yet.'}</td></tr> : recharges.map(item => {
-                  const meta = (item.metadata || {}) as any;
-                  const proofUrl = meta.paymentProofUrl as string | undefined;
-                  const paymentRef = meta.paymentReference as string | undefined;
-                  return <tr key={item.id} className="hover:bg-blue-950/20">
-                    <td className="px-4 py-3"><div className="font-semibold text-white">{item.userName || 'Member'}</div><div className="text-[10px] text-cyan-400 font-mono">{item.userReferralCode || 'GF—'}</div><div className="text-[10px] text-slate-500">{item.userEmail}</div></td>
-                    <td className="px-4 py-3 font-mono text-cyan-300 font-bold">{item.reference}</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-white">USDT {money(item.amountRupees)}</td>
-                    <td className="px-4 py-3 font-mono text-slate-300 max-w-[180px] truncate" title={paymentRef || ''}>{paymentRef || '—'}</td>
-                    <td className="px-4 py-3">{proofUrl ? <a href={proofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 font-semibold"><ImageIcon className="w-3.5 h-3.5" /> View screenshot <ExternalLink className="w-3 h-3" /></a> : <span className="text-slate-500">No proof</span>}</td>
-                    <td className="px-4 py-3">{item.status === 'completed' ? <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold"><CheckCircle2 className="w-3.5 h-3.5" /> Completed</span> : item.status === 'rejected' || item.status === 'failed' ? <span className="inline-flex items-center gap-1 text-rose-400 font-semibold"><XCircle className="w-3.5 h-3.5" /> {item.status}</span> : <span className="inline-flex items-center gap-1 text-amber-400 font-semibold"><Clock3 className="w-3.5 h-3.5" /> {item.status.replace(/_/g, ' ')}</span>}</td>
-                    <td className="px-4 py-3 text-slate-400">{new Date(item.createdAt).toLocaleString('en-IN')}</td>
-                  </tr>;
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-4 py-3 border-t border-blue-500/20 text-[10px] text-slate-500">Accounting rule: screenshot submission creates a pending record only. Fund wallet is credited only when the admin completes the recharge verification workflow below.</div>
-        </div>
-      </section>
-
-      <div className="border-t border-blue-500/20 pt-7">
-        <AdminTransactions />
-      </div>
-    </div>
-  );
+  const total = (status?: string) => rows.filter(r => !status || r.status === status).reduce((sum,r) => sum + Number(r.amountUsdt),0).toFixed(2);
+  return <div className="space-y-8">
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-bold text-white">USDT BEP20 Recharge Accounting</h2><p className="text-xs text-slate-400">Server-side BSC verification, admin review, and INR fund credit.</p></div><button onClick={load} disabled={busy} className="px-3 py-2 rounded-xl border border-blue-500/30 text-xs text-white flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${busy?'animate-spin':''}`}/>Refresh</button></div>
+      {error && <div role="alert" className="p-3 rounded-xl border border-rose-500/40 text-rose-300 text-xs">{error}</div>}
+      {!enabled && <div className="p-3 rounded-xl border border-amber-500/40 text-amber-300 text-xs">Recharge approval is disabled until the server payment settings and BSC RPC are configured.</div>}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[['Submitted',total()],['Pending',total('pending')],['Approved',total('approved')],['Rejected',total('rejected')]].map(([label,value])=><div key={label} className="p-4 rounded-xl bg-[#091129] border border-blue-500/25"><div className="text-xs text-slate-400">{label}</div><div className="mt-1 font-bold text-white">USDT {value}</div></div>)}</div>
+      <div className="space-y-3">{rows.map(row=><div key={row.id} className="p-4 rounded-2xl bg-[#091129] border border-blue-500/25 text-xs">
+        <div className="flex flex-wrap justify-between gap-3"><div className="text-white font-bold">{row.userName || row.userEmail} <span className="text-cyan-400">{row.referralCode}</span></div><span className={row.status==='approved'?'text-emerald-400':row.status==='rejected'?'text-rose-400':'text-amber-400'}>{row.status==='approved'?<CheckCircle2 className="w-4 h-4 inline mr-1"/>:row.status==='rejected'?<XCircle className="w-4 h-4 inline mr-1"/>:<Clock3 className="w-4 h-4 inline mr-1"/>}{row.status.toUpperCase()}</span></div>
+        <div className="mt-2 text-slate-300">{row.id} • USDT {row.amountUsdt} • {new Date(row.createdAt).toLocaleString('en-IN')}{row.creditInr?` • ₹${row.creditInr} credited`:''}</div>
+        <a href={`https://bscscan.com/tx/${row.txHash}`} target="_blank" rel="noreferrer" className="mt-2 break-all font-mono text-cyan-300 underline inline-flex items-center gap-1">{row.txHash}<ExternalLink className="w-3 h-3"/></a>
+        {row.proofUrl && <a href={row.proofUrl} target="_blank" rel="noreferrer" className="ml-3 text-cyan-300 underline">View screenshot</a>}
+        {row.status==='pending' && enabled && <div className="mt-4 grid gap-2 md:grid-cols-[1fr_160px_auto_auto]">
+          <input aria-label="Review note and conversion basis" value={note[row.id]||''} onChange={e=>setNote(p=>({...p,[row.id]:e.target.value}))} placeholder="Verification note and INR rate basis" className="p-2 rounded-lg bg-[#060b1c] border border-blue-500/30 text-white"/>
+          <input aria-label="INR fund credit" value={credit[row.id]||''} onChange={e=>setCredit(p=>({...p,[row.id]:e.target.value}))} placeholder="INR credit e.g. 850.00" className="p-2 rounded-lg bg-[#060b1c] border border-blue-500/30 text-white"/>
+          <button disabled={busy} onClick={()=>review(row,'approve')} className="px-3 py-2 rounded-lg bg-emerald-700 text-white disabled:opacity-50">Approve + Credit</button>
+          <button disabled={busy} onClick={()=>review(row,'reject')} className="px-3 py-2 rounded-lg bg-rose-700 text-white disabled:opacity-50">Reject</button>
+        </div>}
+        {row.reviewNote && <div className="mt-2 text-slate-400">Review: {row.reviewNote}</div>}
+      </div>)}{!rows.length && <div className="p-8 text-center text-slate-500 text-xs">{busy?'Loading…':'No USDT recharge requests.'}</div>}</div>
+    </section>
+    <div className="border-t border-blue-500/20 pt-7"><AdminTransactions /></div>
+  </div>;
 };
