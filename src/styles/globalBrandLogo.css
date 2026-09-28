@@ -1,21 +1,22 @@
-/* Official Global Finance branding — use the production logo asset everywhere. */
+/* Official Global Finance branding. The exact supplied logo is injected from main.tsx. */
 :root { --gf-logo: url('/global-finance-logo.webp?v=20260929-0134'); }
 
-/* Force all existing logo <img> elements to reload the official asset instead of a stale browser copy. */
-img[src*="global-finance-logo.webp"] {
-  content: url('/global-finance-logo.webp?v=20260929-0134');
+img[src*="global-finance-logo.webp"],
+img[data-global-finance-logo] {
   object-fit: contain;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
-/* Member sidebar brand: replace the placeholder shield/text lockup with the official logo. */
+/* Member/admin sidebar: replace legacy shield/text lockup with official logo. */
 aside[class*="w-72"] > div:first-child > div:first-child {
   width: 100%;
   min-width: 0;
   height: 58px;
-  background-image: var(--gf-logo);
-  background-repeat: no-repeat;
-  background-position: left center;
-  background-size: contain;
+  background-image: var(--gf-logo) !important;
+  background-repeat: no-repeat !important;
+  background-position: left center !important;
+  background-size: contain !important;
 }
 aside[class*="w-72"] > div:first-child > div:first-child > * {
   visibility: hidden !important;
