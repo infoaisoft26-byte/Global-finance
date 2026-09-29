@@ -1,179 +1,321 @@
 import { randomUUID } from 'node:crypto';
 import { getPool, withTransaction } from './_lib/db.js';
 import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, getAutoCreditRate, verifyBep20 } from './_lib/bep20.js';
+import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
 
-function json(res, status, body) { res.statusCode=status; res.setHeader('Content-Type','application/json'); res.setHeader('Cache-Control','no-store'); return res.end(JSON.stringify(body)); }
+function json(res, status, body) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
+  return res.end(JSON.stringify(body));
+}
+
 const hashPattern = /^0x[0-9a-fA-F]{64}$/;
 const amountPattern = /^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/;
-function parseBody(req) { return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}); }
-function map(row) { return { id:row.id, userId:row.user_id, userName:row.name, userEmail:row.email, referralCode:row.referral_code,
-  txHash:row.tx_hash, amountUsdt:String(row.amount_usdt), status:row.status, creditInr:row.credit_inr == null ? null : String(row.credit_inr),
-  reviewNote:row.review_note, proofUrl:row.proof_url, createdAt:row.created_at, reviewedAt:row.reviewed_at }; }
+
+function parseBody(req) {
+  return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+}
+
+function map(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    userName: row.name,
+    userEmail: row.email,
+    referralCode: row.referral_code,
+    txHash: row.tx_hash,
+    amountUsdt: String(row.amount_usdt),
+    status: row.status,
+    creditInr: row.credit_inr == null ? null : String(row.credit_inr),
+    reviewNote: row.review_note,
+    proofUrl: row.proof_url,
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at,
+  };
+}
 
 async function autoCreditRecharge({ id, actor, txHash, amount }) {
-  if (!autoCreditConfigured()) return { attempted:false, status:'pending' };
+  if (!autoCreditConfigured()) return { attempted: false, status: 'pending' };
 
   let proof;
   try {
     proof = await verifyBep20(txHash, amount);
   } catch (error) {
     const message = String(error?.message || '');
-    // Keep the request pending so admin can review later. Never auto-reject a payment.
-    if (['TRANSACTION_NOT_CONFIRMED','TRANSFER_MISMATCH','WRONG_NETWORK','INVALID_TOKEN','BSC_RPC_FAILED'].includes(message)) {
-      await getPool().query(`UPDATE usdt_bep20_recharges SET review_note=$2 WHERE id=$1 AND status='pending'`,
-        [id,`Auto-credit deferred: ${message}`]).catch(()=>{});
-      return { attempted:true, status:'pending', deferred:message };
+    if (['TRANSACTION_NOT_CONFIRMED', 'TRANSFER_MISMATCH', 'WRONG_NETWORK', 'INVALID_TOKEN', 'BSC_RPC_FAILED'].includes(message)) {
+      await getPool().query(
+        `UPDATE usdt_bep20_recharges SET review_note=$2 WHERE id=$1 AND status='pending'`,
+        [id, `Auto-credit deferred: ${message}`]
+      ).catch(() => {});
+      return { attempted: true, status: 'pending', deferred: message };
     }
     throw error;
   }
 
-  const rate = getAutoCreditRate();
-  return withTransaction(async client => {
-    const locked = await client.query('SELECT * FROM usdt_bep20_recharges WHERE id=$1 FOR UPDATE',[id]);
+  return withTransaction(async (client) => {
+    const locked = await client.query('SELECT * FROM usdt_bep20_recharges WHERE id=$1 FOR UPDATE', [id]);
     const row = locked.rows[0];
     if (!row) throw new Error('RECHARGE_NOT_FOUND');
-    if (row.status !== 'pending') return { attempted:true, status:row.status, alreadyProcessed:true, creditInr:row.credit_inr == null ? null : String(row.credit_inr) };
+    if (row.status !== 'pending') {
+      return {
+        attempted: true,
+        status: row.status,
+        alreadyProcessed: true,
+        creditInr: row.credit_inr == null ? null : String(row.credit_inr),
+      };
+    }
     if (row.tx_hash !== txHash || String(row.amount_usdt) !== String(amount)) throw new Error('REVIEW_CHANGED');
 
-    const already = await client.query(`SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
-      AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,[txHash]);
+    const already = await client.query(
+      `SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
+       AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,
+      [txHash]
+    );
     if (already.rowCount) throw new Error('ALREADY_CREDITED');
 
-    const member = await client.query("SELECT id,status FROM users WHERE id=$1 AND role='user'",[actor.id]);
-    const wallet = await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE',[actor.id]);
+    const member = await client.query("SELECT id,status FROM users WHERE id=$1 AND role='user'", [actor.id]);
+    await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [actor.id]);
+    const wallet = await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE', [actor.id]);
     if (!wallet.rowCount || member.rows[0]?.status !== 'active') throw new Error('MEMBER_UNAVAILABLE');
 
-    const rateResult = await client.query(`SELECT ROUND(($1::numeric * $2::numeric),2)::text AS credit`,[amount,rate]);
-    const creditInr = String(rateResult.rows[0]?.credit || '0.00');
-    if (!/^(?:0|[1-9][0-9]{0,12})\.[0-9]{2}$/.test(creditInr) || Number(creditInr) <= 0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
+    // Fund Wallet is USDT-denominated: 1 verified USDT = 1 wallet unit.
+    // Wallet schema stores 2 decimals, so auto-credit rounds to 2 decimals.
+    const creditResult = await client.query(`SELECT ROUND($1::numeric,2)::text AS credit`, [amount]);
+    const walletCredit = String(creditResult.rows[0]?.credit || '0.00');
+    if (!/^(?:0|[1-9][0-9]{0,12})\.[0-9]{2}$/.test(walletCredit) || Number(walletCredit) <= 0) {
+      throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
+    }
 
-    const ledgerId = `DEP_${randomUUID().replaceAll('-','').slice(0,26)}`;
-    await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
-      VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
-      [ledgerId,actor.id,creditInr,`Auto-verified USDT BEP20 recharge ${id}`,txHash,
-        JSON.stringify({rechargeId:id,amountUsdt:amount,creditInr,usdtToInrRate:rate,chainProof:proof,autoCredit:true})]);
+    const ledgerId = `DEP_${randomUUID().replaceAll('-', '').slice(0, 26)}`;
+    await client.query(
+      `INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
+       VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
+      [
+        ledgerId,
+        actor.id,
+        walletCredit,
+        `Auto-verified USDT BEP20 recharge ${id}`,
+        txHash,
+        JSON.stringify({ rechargeId: id, amountUsdt: amount, walletCreditUsdt: walletCredit, chainProof: proof, autoCredit: true }),
+      ]
+    );
 
-    await client.query('UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',[creditInr,actor.id]);
-    await client.query(`UPDATE usdt_bep20_recharges SET status='approved',credit_inr=$2,ledger_id=$3,
-      review_note='Auto-approved after on-chain verification',reviewed_at=NOW() WHERE id=$1`,[id,creditInr,ledgerId]);
-    await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
-      VALUES($1,$2,$3,'USDT_RECHARGE_AUTO_CREDITED','usdt_recharge',$4,$5::jsonb)`,
-      [randomUUID(),actor.id,actor.email,id,JSON.stringify({txHash,amountUsdt:amount,creditInr,usdtToInrRate:rate,ledgerId,chainProof:proof})]);
+    await client.query('UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2', [walletCredit, actor.id]);
+    await client.query(
+      `UPDATE usdt_bep20_recharges
+       SET status='approved',credit_inr=$2,ledger_id=$3,review_note='Auto-approved after on-chain verification',
+           reviewed_by=$4,reviewed_at=NOW()
+       WHERE id=$1`,
+      [id, walletCredit, ledgerId, actor.id]
+    );
+    await client.query(
+      `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+       VALUES($1,$2,$3,'USDT_RECHARGE_AUTO_CREDITED','usdt_recharge',$4,$5::jsonb)`,
+      [
+        randomUUID(),
+        actor.id,
+        actor.email,
+        id,
+        JSON.stringify({ txHash, amountUsdt: amount, walletCreditUsdt: walletCredit, ledgerId, chainProof: proof, autoCredit: true }),
+      ]
+    );
 
-    return { attempted:true, status:'approved', autoCredited:true, creditInr, ledgerId };
+    return { attempted: true, status: 'approved', autoCredited: true, creditInr: walletCredit, ledgerId };
   });
 }
 
 export default async function handler(req, res) {
-  if (!['GET','POST'].includes(req.method)) return json(res,405,{error:'Method not allowed'});
+  if (!['GET', 'POST'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
+
   try {
     const auth = String(req.headers.authorization || '');
-    if (!auth.startsWith('Bearer ')) return json(res,401,{error:'Authentication required'});
+    if (!auth.startsWith('Bearer ')) return json(res, 401, { error: 'Authentication required' });
+
     let decoded;
-    try { decoded = await verifyFirebaseIdToken(auth.slice(7)); }
-    catch { return json(res,401,{error:'Invalid or expired authentication'}); }
-    const userResult = await getPool().query('SELECT id,email,role,status FROM users WHERE id=$1 AND email=$2 LIMIT 1',
-      [decoded.uid,String(decoded.email || '').trim().toLowerCase()]);
+    try {
+      decoded = await verifyFirebaseIdToken(auth.slice(7));
+    } catch {
+      return json(res, 401, { error: 'Invalid or expired authentication' });
+    }
+
+    const userResult = await getPool().query(
+      'SELECT id,email,role,status FROM users WHERE id=$1 AND email=$2 LIMIT 1',
+      [decoded.uid, String(decoded.email || '').trim().toLowerCase()]
+    );
     const actor = userResult.rows[0];
-    if (!actor || actor.status !== 'active') return json(res,403,{error:'Active account required'});
+    if (!actor || actor.status !== 'active') return json(res, 403, { error: 'Active account required' });
     const admin = actor.role === 'admin';
+
     if (req.method === 'GET') {
-      const scope = new URL(req.url,'http://localhost').searchParams.get('scope');
-      if (scope === 'admin' && !admin) return json(res,403,{error:'Admin access required'});
+      const scope = new URL(req.url, 'http://localhost').searchParams.get('scope');
+      if (scope === 'admin' && !admin) return json(res, 403, { error: 'Admin access required' });
       const query = scope === 'admin'
         ? `SELECT r.*,u.name,u.email,u.referral_code FROM usdt_bep20_recharges r JOIN users u ON u.id=r.user_id ORDER BY CASE WHEN r.status='pending' THEN 0 ELSE 1 END,r.created_at DESC LIMIT 150`
         : `SELECT r.* FROM usdt_bep20_recharges r WHERE r.user_id=$1 ORDER BY r.created_at DESC LIMIT 30`;
-      const { rows } = await getPool().query(query,scope === 'admin' ? [] : [actor.id]);
-      return json(res,200,{requests:rows.map(map),enabled:rechargeConfigured(),autoCreditEnabled:autoCreditConfigured(),depositAddress:BEP20_WALLET});
+      const { rows } = await getPool().query(query, scope === 'admin' ? [] : [actor.id]);
+      return json(res, 200, {
+        requests: rows.map(map),
+        enabled: rechargeConfigured(),
+        autoCreditEnabled: autoCreditConfigured(),
+        depositAddress: BEP20_WALLET,
+      });
     }
+
     let body;
-    try { body = parseBody(req); }
-    catch { return json(res,400,{error:'Invalid JSON request'}); }
+    try {
+      body = parseBody(req);
+    } catch {
+      return json(res, 400, { error: 'Invalid JSON request' });
+    }
+
     if (body.action === 'submit') {
-      if (admin) return json(res,403,{error:'Member account required'});
-      if (!rechargeConfigured()) return json(res,503,{error:'Recharge is not available yet'});
+      if (admin) return json(res, 403, { error: 'Member account required' });
+      if (!rechargeConfigured()) return json(res, 503, { error: 'Recharge is not available yet' });
+
       const amount = String(body.amountUsdt || '').trim();
       const txHash = String(body.txHash || '').trim().toLowerCase();
-      if (!amountPattern.test(amount) || Number(amount) <= 0 || !hashPattern.test(txHash)) return json(res,400,{error:'Enter a valid USDT amount and BSC TXID'});
+      if (!amountPattern.test(amount) || Number(amount) <= 0 || !hashPattern.test(txHash)) {
+        return json(res, 400, { error: 'Enter a valid USDT amount and BSC TXID' });
+      }
+
       const proofUrl = String(body.paymentProofUrl || '').trim();
       if (proofUrl) {
         let url;
-        try { url = new URL(proofUrl); } catch { return json(res,400,{error:'Invalid payment screenshot URL'}); }
-        if (url.protocol !== 'https:' || url.hostname !== 'firebasestorage.googleapis.com' ||
-          !decodeURIComponent(url.pathname).includes(`/payment_proofs/${actor.id}/${txHash}/`))
-          return json(res,400,{error:'Payment screenshot must belong to this account and TXID'});
+        try {
+          url = new URL(proofUrl);
+        } catch {
+          return json(res, 400, { error: 'Invalid payment screenshot URL' });
+        }
+        if (
+          url.protocol !== 'https:' ||
+          url.hostname !== 'firebasestorage.googleapis.com' ||
+          !decodeURIComponent(url.pathname).includes(`/payment_proofs/${actor.id}/${txHash}/`)
+        ) {
+          return json(res, 400, { error: 'Payment screenshot must belong to this account and TXID' });
+        }
       }
-      const id = `RCH_${randomUUID().replaceAll('-','').slice(0,24)}`;
-      await withTransaction(async client => {
-        const credited = await client.query(`SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
-          AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,[txHash]);
+
+      const id = `RCH_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
+      await withTransaction(async (client) => {
+        const credited = await client.query(
+          `SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
+           AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,
+          [txHash]
+        );
         if (credited.rowCount) throw new Error('ALREADY_CREDITED');
-        const existing = await client.query('SELECT id FROM usdt_bep20_recharges WHERE lower(tx_hash)=$1 LIMIT 1',[txHash]);
+
+        const existing = await client.query('SELECT id FROM usdt_bep20_recharges WHERE lower(tx_hash)=$1 LIMIT 1', [txHash]);
         if (existing.rowCount) throw new Error('TXID_ALREADY_SUBMITTED');
-        await client.query(`INSERT INTO usdt_bep20_recharges(id,user_id,tx_hash,deposit_address,amount_usdt,proof_url)
-          VALUES($1,$2,$3,$4,$5,$6)`,[id,actor.id,txHash,BEP20_WALLET.toLowerCase(),amount,proofUrl || null]);
-        await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
-          VALUES($1,$2,$3,'USDT_RECHARGE_SUBMITTED','usdt_recharge',$4,$5::jsonb)`,
-          [randomUUID(),actor.id,actor.email,id,JSON.stringify({txHash,amountUsdt:amount,network:'BSC',autoCreditEnabled:autoCreditConfigured()})]);
+
+        await client.query(
+          `INSERT INTO usdt_bep20_recharges(id,user_id,tx_hash,deposit_address,amount_usdt,proof_url)
+           VALUES($1,$2,$3,$4,$5,$6)`,
+          [id, actor.id, txHash, BEP20_WALLET.toLowerCase(), amount, proofUrl || null]
+        );
+        await client.query(
+          `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+           VALUES($1,$2,$3,'USDT_RECHARGE_SUBMITTED','usdt_recharge',$4,$5::jsonb)`,
+          [randomUUID(), actor.id, actor.email, id, JSON.stringify({ txHash, amountUsdt: amount, network: 'BSC', autoCreditEnabled: autoCreditConfigured() })]
+        );
       });
 
       const autoResult = await autoCreditRecharge({ id, actor, txHash, amount });
-      return json(res,201,{success:true,id,status:autoResult.status || 'pending',autoCredit:autoResult});
+      return json(res, 201, { success: true, id, status: autoResult.status || 'pending', autoCredit: autoResult });
     }
-    if (body.action !== 'approve' && body.action !== 'reject') return json(res,400,{error:'Invalid action'});
-    if (!admin) return json(res,403,{error:'Admin access required'});
-    if (!rechargeConfigured()) return json(res,503,{error:'Recharge approval is disabled'});
+
+    if (body.action !== 'approve' && body.action !== 'reject') return json(res, 400, { error: 'Invalid action' });
+    if (!admin) return json(res, 403, { error: 'Admin access required' });
+    if (!rechargeConfigured()) return json(res, 503, { error: 'Recharge approval is disabled' });
+
     const id = String(body.id || '');
     const note = String(body.note || '').trim();
-    if (!/^RCH_[0-9a-f]{24}$/.test(id) || note.length < 5 || note.length > 1000) return json(res,400,{error:'A valid request and review note are required'});
+    if (!/^RCH_[0-9a-f]{24}$/.test(id) || note.length < 5 || note.length > 1000) {
+      return json(res, 400, { error: 'A valid request and review note are required' });
+    }
+
     const isApproval = body.action === 'approve';
     const credit = String(body.creditInr || '').trim();
-    if (isApproval && (!/^(?:0|[1-9][0-9]{0,12})\.[0-9]{2}$/.test(credit) || Number(credit) <= 0)) return json(res,400,{error:'Enter the reviewed INR credit with two decimals'});
-    const requested = await getPool().query('SELECT tx_hash,amount_usdt FROM usdt_bep20_recharges WHERE id=$1',[id]);
-    if (!requested.rows[0]) return json(res,404,{error:'Recharge not found'});
-    const proof = isApproval ? await verifyBep20(requested.rows[0].tx_hash,String(requested.rows[0].amount_usdt)) : null;
-    const result = await withTransaction(async client => {
-      const locked = await client.query('SELECT * FROM usdt_bep20_recharges WHERE id=$1 FOR UPDATE',[id]);
+    if (isApproval && (!/^(?:0|[1-9][0-9]{0,12})\.[0-9]{2}$/.test(credit) || Number(credit) <= 0)) {
+      return json(res, 400, { error: 'Enter the reviewed wallet credit with two decimals' });
+    }
+
+    const requested = await getPool().query('SELECT tx_hash,amount_usdt FROM usdt_bep20_recharges WHERE id=$1', [id]);
+    if (!requested.rows[0]) return json(res, 404, { error: 'Recharge not found' });
+    const proof = isApproval ? await verifyBep20(requested.rows[0].tx_hash, String(requested.rows[0].amount_usdt)) : null;
+
+    const result = await withTransaction(async (client) => {
+      const locked = await client.query('SELECT * FROM usdt_bep20_recharges WHERE id=$1 FOR UPDATE', [id]);
       const row = locked.rows[0];
       if (!row || row.status !== 'pending') throw new Error('ALREADY_REVIEWED');
-      if (isApproval && (row.tx_hash !== requested.rows[0].tx_hash || String(row.amount_usdt) !== String(requested.rows[0].amount_usdt))) throw new Error('REVIEW_CHANGED');
+      if (isApproval && (row.tx_hash !== requested.rows[0].tx_hash || String(row.amount_usdt) !== String(requested.rows[0].amount_usdt))) {
+        throw new Error('REVIEW_CHANGED');
+      }
+
       let ledgerId = null;
       if (isApproval) {
-        const wallet = await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE',[row.user_id]);
-        const member = await client.query("SELECT id,status FROM users WHERE id=$1 AND role='user'",[row.user_id]);
+        await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [row.user_id]);
+        const wallet = await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE', [row.user_id]);
+        const member = await client.query("SELECT id,status FROM users WHERE id=$1 AND role='user'", [row.user_id]);
         if (!wallet.rowCount || member.rows[0]?.status !== 'active') throw new Error('MEMBER_UNAVAILABLE');
-        const already = await client.query(`SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
-          AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,[row.tx_hash]);
+
+        const already = await client.query(
+          `SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
+           AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,
+          [row.tx_hash]
+        );
         if (already.rowCount) throw new Error('ALREADY_CREDITED');
-        ledgerId = `DEP_${randomUUID().replaceAll('-','').slice(0,26)}`;
-        await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
-          VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
-          [ledgerId,row.user_id,credit,`Verified USDT BEP20 recharge ${id}`,row.tx_hash,
-            JSON.stringify({rechargeId:id,amountUsdt:String(row.amount_usdt),creditInr:credit,chainProof:proof,reviewNote:note,adminId:actor.id})]);
-        await client.query('UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',[credit,row.user_id]);
+
+        ledgerId = `DEP_${randomUUID().replaceAll('-', '').slice(0, 26)}`;
+        await client.query(
+          `INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
+           VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
+          [
+            ledgerId,
+            row.user_id,
+            credit,
+            `Verified USDT BEP20 recharge ${id}`,
+            row.tx_hash,
+            JSON.stringify({ rechargeId: id, amountUsdt: String(row.amount_usdt), walletCreditUsdt: credit, chainProof: proof, reviewNote: note, adminId: actor.id }),
+          ]
+        );
+        await client.query('UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2', [credit, row.user_id]);
       }
-      await client.query(`UPDATE usdt_bep20_recharges SET status=$2,credit_inr=$3,ledger_id=$4,review_note=$5,reviewed_by=$6,reviewed_at=NOW() WHERE id=$1`,
-        [id,isApproval?'approved':'rejected',isApproval?credit:null,ledgerId,note,actor.id]);
-      await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
-        VALUES($1,$2,$3,$4,'usdt_recharge',$5,$6::jsonb)`,
-        [randomUUID(),actor.id,actor.email,isApproval?'USDT_RECHARGE_APPROVED':'USDT_RECHARGE_REJECTED',id,
-          JSON.stringify({txHash:row.tx_hash,amountUsdt:String(row.amount_usdt),creditInr:isApproval?credit:null,ledgerId,chainProof:proof,note})]);
-      return {status:isApproval?'approved':'rejected',ledgerId};
+
+      await client.query(
+        `UPDATE usdt_bep20_recharges SET status=$2,credit_inr=$3,ledger_id=$4,review_note=$5,reviewed_by=$6,reviewed_at=NOW() WHERE id=$1`,
+        [id, isApproval ? 'approved' : 'rejected', isApproval ? credit : null, ledgerId, note, actor.id]
+      );
+      await client.query(
+        `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+         VALUES($1,$2,$3,$4,'usdt_recharge',$5,$6::jsonb)`,
+        [
+          randomUUID(),
+          actor.id,
+          actor.email,
+          isApproval ? 'USDT_RECHARGE_APPROVED' : 'USDT_RECHARGE_REJECTED',
+          id,
+          JSON.stringify({ txHash: row.tx_hash, amountUsdt: String(row.amount_usdt), walletCreditUsdt: isApproval ? credit : null, ledgerId, chainProof: proof, note }),
+        ]
+      );
+      return { status: isApproval ? 'approved' : 'rejected', ledgerId };
     });
-    return json(res,200,{success:true,...result});
+
+    return json(res, 200, { success: true, ...result });
   } catch (error) {
     const message = String(error?.message || '');
-    if (error?.code === '23505') return json(res,409,{error:'This TXID has already been submitted or credited'});
-    if (message === 'TXID_ALREADY_SUBMITTED') return json(res,409,{error:'This TXID has already been submitted'});
-    if (message === 'ALREADY_CREDITED') return json(res,409,{error:'This TXID was already credited'});
-    if (message === 'ALREADY_REVIEWED') return json(res,409,{error:'Recharge has already been reviewed'});
-    if (message === 'REVIEW_CHANGED') return json(res,409,{error:'Recharge changed during review'});
-    if (message === 'MEMBER_UNAVAILABLE') return json(res,409,{error:'Member wallet or account is unavailable'});
-    if (message === 'INVALID_AUTO_CREDIT_AMOUNT') return json(res,422,{error:'Automatic credit amount is invalid; request remains for admin review'});
-    if (['TRANSACTION_NOT_CONFIRMED','TRANSFER_MISMATCH','WRONG_NETWORK','INVALID_TOKEN','BSC_RPC_FAILED'].includes(message)) return json(res,422,{error:`On-chain verification failed: ${message}`});
-    if (message === 'RECHARGE_DISABLED') return json(res,503,{error:'Recharge approval is disabled'});
-    console.error('usdt-recharge failed:',message);
-    return json(res,500,{error:'Recharge request could not be processed'});
+    if (error?.code === '23505') return json(res, 409, { error: 'This TXID has already been submitted or credited' });
+    if (message === 'TXID_ALREADY_SUBMITTED') return json(res, 409, { error: 'This TXID has already been submitted' });
+    if (message === 'ALREADY_CREDITED') return json(res, 409, { error: 'This TXID was already credited' });
+    if (message === 'ALREADY_REVIEWED') return json(res, 409, { error: 'Recharge has already been reviewed' });
+    if (message === 'REVIEW_CHANGED') return json(res, 409, { error: 'Recharge changed during review' });
+    if (message === 'MEMBER_UNAVAILABLE') return json(res, 409, { error: 'Member wallet or account is unavailable' });
+    if (message === 'INVALID_AUTO_CREDIT_AMOUNT') return json(res, 422, { error: 'Automatic credit amount is invalid; request remains for admin review' });
+    if (['TRANSACTION_NOT_CONFIRMED', 'TRANSFER_MISMATCH', 'WRONG_NETWORK', 'INVALID_TOKEN', 'BSC_RPC_FAILED'].includes(message)) {
+      return json(res, 422, { error: `On-chain verification failed: ${message}` });
+    }
+    if (message === 'RECHARGE_DISABLED') return json(res, 503, { error: 'Recharge approval is disabled' });
+    console.error('usdt-recharge failed:', message);
+    return json(res, 500, { error: 'Recharge request could not be processed' });
   }
 }
