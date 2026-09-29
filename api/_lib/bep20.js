@@ -10,6 +10,13 @@ export function autoCreditConfigured() {
   return rechargeConfigured() && process.env.PAYMENT_AUTO_CREDIT_ENABLED === 'true';
 }
 
+// Compatibility helper for the recharge API. Auto-credit is intentionally 1:1:
+// 1 USDT verified on-chain credits 1 Fund Wallet unit. No FX-rate env is used.
+export function getAutoCreditRate() {
+  if (!autoCreditConfigured()) throw new Error('AUTO_CREDIT_DISABLED');
+  return '1';
+}
+
 export async function verifyBep20(txHash, claimedAmount) {
   if (!rechargeConfigured()) throw new Error('RECHARGE_DISABLED');
   const token = process.env.USDT_BEP20_CONTRACT_ADDRESS.toLowerCase();
