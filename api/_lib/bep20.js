@@ -6,6 +6,17 @@ export function rechargeConfigured() {
     /^0x[0-9a-fA-F]{40}$/.test(process.env.USDT_BEP20_CONTRACT_ADDRESS || '') && !!process.env.BSC_RPC_URL;
 }
 
+export function autoCreditConfigured() {
+  const rate = String(process.env.USDT_TO_INR_RATE || '').trim();
+  return rechargeConfigured() && process.env.PAYMENT_AUTO_CREDIT_ENABLED === 'true' &&
+    /^(?:0|[1-9][0-9]{0,8})(?:\.[0-9]{1,6})?$/.test(rate) && Number(rate) > 0;
+}
+
+export function getAutoCreditRate() {
+  if (!autoCreditConfigured()) throw new Error('AUTO_CREDIT_DISABLED');
+  return String(process.env.USDT_TO_INR_RATE).trim();
+}
+
 export async function verifyBep20(txHash, claimedAmount) {
   if (!rechargeConfigured()) throw new Error('RECHARGE_DISABLED');
   const token = process.env.USDT_BEP20_CONTRACT_ADDRESS.toLowerCase();
