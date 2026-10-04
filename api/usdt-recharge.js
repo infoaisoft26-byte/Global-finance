@@ -3,6 +3,7 @@ import { getPool, withTransaction } from './_lib/db.js';
 import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
 import { applyActivationIncome, ensureIncomeSchema } from './_lib/incomeEngine.js';
+import { GoogleGenAI } from '@google/genai';
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -229,6 +230,49 @@ export default async function handler(req, res) {
       body = parseBody(req);
     } catch {
       return json(res, 400, { error: 'Invalid JSON request' });
+    }
+
+    if (body.action === 'support_ai') {
+      const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
+      if (!apiKey) return json(res, 503, { error: 'Support AI is not configured yet. Please open a support ticket.' });
+
+      const incoming = Array.isArray(body.messages) ? body.messages.slice(-12) : [];
+      const messages = incoming
+        .filter((item) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
+        .map((item) => ({ role: item.role, content: item.content.slice(0, 1200) }));
+
+      const systemInstruction = [
+        'You are Global Finance Support AI, the in-app customer support assistant for the Global Finance platform.',
+        'ONLY answer questions about Global Finance and its platform operations.',
+        'Allowed topics: package purchase/activation, wallet balances, USDT deposit/recharge, withdrawal, OTP/login/authentication issues, KYC, referrals/downline/commission, transactions/ledger, notifications, profile/settings, and support tickets.',
+        'If the user asks about unrelated topics, politely say you can only help with Global Finance platform support.',
+        'Never provide investment, trading, legal, tax, medical, gambling, or unrelated financial advice.',
+        'Never invent account balances, transaction status, deposit confirmations, withdrawal approvals, OTPs, fees, limits, package returns, or policies that are not explicitly present in the user message.',
+        'Do not ask for or expose passwords, OTP codes, private keys, seed phrases, API keys, or other secrets.',
+        'For a transaction-specific issue that requires staff verification, tell the member to open a support ticket and include the transaction/reference ID; do not claim that you changed anything.',
+        'Be concise, clear, and helpful. You may answer in the language used by the member (including Hindi/Hinglish).',
+      ].join(' ');
+
+      const ai = new GoogleGenAI({ apiKey });
+      const contents = messages.length
+        ? messages.map((item) => ({
+            role: item.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: item.content }],
+          }))
+        : [{ role: 'user', parts: [{ text: 'Hello' }] }];
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.2,
+          maxOutputTokens: 500,
+        },
+      });
+
+      const reply = String(response.text || '').trim();
+      return json(res, 200, { reply: reply || 'Please open a support ticket so our team can assist you.' });
     }
 
     if (body.action === 'downline') {
