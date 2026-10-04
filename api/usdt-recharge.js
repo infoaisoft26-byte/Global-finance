@@ -231,6 +231,41 @@ export default async function handler(req, res) {
       return json(res, 400, { error: 'Invalid JSON request' });
     }
 
+    if (body.action === 'downline') {
+      const { rows } = await client.query(`
+        WITH RECURSIVE downline AS (
+          SELECT s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
+                 1 AS level, ARRAY[s.id]::varchar[] AS path, s.created_at
+            FROM users root JOIN users s ON s.sponsor_id=root.referral_code
+           WHERE root.id=$1
+          UNION ALL
+          SELECT s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
+                 d.level+1, d.path||s.id, s.created_at
+            FROM downline d JOIN users s ON s.sponsor_id=d.referral_code
+           WHERE d.level < 15 AND NOT (s.id=ANY(d.path))
+        )
+        SELECT d.*,
+          COALESCE(SUM(CASE WHEN l.flow='credit' AND l.category='income_wallet'
+            AND COALESCE((l.metadata->>'referredUserId'),'')=d.id::text
+            AND COALESCE((l.metadata->>'referralLevel')::int,0)=d.level
+            THEN l.amount ELSE 0 END),0)::numeric(16,2) AS commission_from_member,
+          COALESCE(SUM(CASE WHEN l.flow='credit' AND l.category='income_wallet'
+            AND COALESCE((l.metadata->>'referredUserId'),'')=d.id::text
+            THEN l.amount ELSE 0 END),0)::numeric(16,2) AS total_commission_from_member
+        FROM downline d
+        LEFT JOIN ledger_transactions l ON l.user_id=$1
+        GROUP BY d.id,d.uid,d.name,d.email,d.phone,d.referral_code,d.sponsor_id,d.status,d.level,d.path,d.created_at
+        ORDER BY d.level,d.created_at
+      `, [actor.id]);
+      return json(res, 200, { success:true, members:rows.map(r=>({
+        id:r.id,userId:r.uid,name:r.name||'',email:r.email||'',phone:r.phone||'—',
+        referralCode:r.referral_code||'',sponsorId:r.sponsor_id||'',level:Number(r.level),
+        joinDate:r.created_at,status:r.status==='suspended'?'inactive':'active',
+        activePackage:0,commissionFromMember:Number(r.commission_from_member||0),
+        totalCommissionFromMember:Number(r.total_commission_from_member||0)
+      }))});
+    }
+
     if (body.action === 'activate_package') {
       if (admin) return json(res, 403, { error: 'Member account required' });
 
