@@ -51,8 +51,8 @@ async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, f
           idToken,
           name: currentUser.displayName || '',
           sponsorCode: sponsorCode || undefined,
-          phone: profileUpdates?.phone,
-          secondPhone: profileUpdates?.secondPhone,
+          ...(profileUpdates?.phone !== undefined ? { phone: profileUpdates.phone } : {}),
+          ...(profileUpdates?.secondPhone !== undefined ? { secondPhone: profileUpdates.secondPhone } : {}),
         }),
       });
       const data = await response.json().catch(() => ({}));
