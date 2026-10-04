@@ -334,7 +334,10 @@ export default async function handler(req, res) {
 
     const requested = await getPool().query('SELECT tx_hash,amount_usdt FROM usdt_bep20_recharges WHERE id=$1', [id]);
     if (!requested.rows[0]) return json(res, 404, { error: 'Recharge not found' });
-    const proof = isApproval ? await verifyBep20(requested.rows[0].tx_hash, String(requested.rows[0].amount_usdt)) : null;
+    // Phase 1: admin approval is manual. Admin verifies the TX on-chain
+    // before approving, so approval does not depend on RPC/token-contract
+    // auto-verification. Phase 2/3 can re-enable verifyBep20 for automation.
+    const proof = null;
 
     const result = await withTransaction(async (client) => {
       const locked = await client.query('SELECT * FROM usdt_bep20_recharges WHERE id=$1 FOR UPDATE', [id]);
