@@ -59,12 +59,19 @@ function previousIndiaBusinessDate(now = new Date()) {
 
 async function uplines(client, userId) {
   const { rows } = await client.query(`WITH RECURSIVE u AS (
-    SELECT s.id,s.referral_code,s.sponsor_id,s.status,1 level,ARRAY[m.id,s.id]::varchar[] path
-      FROM users m JOIN users s ON s.referral_code=m.sponsor_id WHERE m.id=$1
+    SELECT s.id,s.referral_code,s.sponsor_id,s.status,1 AS level,ARRAY[m.id,s.id]::varchar[] AS path
+      FROM users m
+      JOIN users s
+        ON LOWER(TRIM(COALESCE(s.referral_code,''))) = LOWER(TRIM(COALESCE(m.sponsor_id,'')))
+        OR LOWER(TRIM(COALESCE(s.id::text,''))) = LOWER(TRIM(COALESCE(m.sponsor_id,'')))
+      WHERE m.id=$1
     UNION ALL
     SELECT s.id,s.referral_code,s.sponsor_id,s.status,u.level+1,u.path||s.id
-      FROM u JOIN users s ON s.referral_code=u.sponsor_id
-     WHERE u.level<$2 AND NOT (s.id=ANY(u.path)))
+      FROM u
+      JOIN users s
+        ON LOWER(TRIM(COALESCE(s.referral_code,''))) = LOWER(TRIM(COALESCE(u.sponsor_id,'')))
+        OR LOWER(TRIM(COALESCE(s.id::text,''))) = LOWER(TRIM(COALESCE(u.sponsor_id,'')))
+      WHERE u.level<$2 AND NOT (s.id=ANY(u.path)))
     SELECT * FROM u ORDER BY level`, [userId, MAX_LEVEL]);
   return rows;
 }
@@ -84,7 +91,21 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
   const sourceUser=(await client.query('SELECT id,name,email,referral_code FROM users WHERE id=$1 LIMIT 1',[source])).rows[0];
   const recipientUser=(await client.query('SELECT id,name,email,referral_code FROM users WHERE id=$1 LIMIT 1',[recipient])).rows[0];
   const ledgerId='LED-'+id;
-  const metadata={sourceUserId:source,referredUserId:source,referredUserName:sourceUser?.name||null,referredUserEmail:sourceUser?.email||null,referrerUserId:recipient,referrerReferralCode:recipientUser?.referral_code||null,referralLevel:level,level,percentage:rate,commissionPercentage:rate,referralAmount:amount,baseAmount:money(base),businessDate:businessDate||null};
+  const metadata={
+    sourceUserId:source,
+    referredUserId:source,
+    referredUserName:sourceUser?.name||null,
+    referredUserEmail:sourceUser?.email||null,
+    referrerUserId:recipient,
+    referrerReferralCode:recipientUser?.referral_code||null,
+    referralLevel:level,
+    level,
+    percentage:rate,
+    commissionPercentage:rate,
+    referralAmount:amount,
+    baseAmount:money(base),
+    businessDate:businessDate||null,
+  };
   await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
     VALUES($1,$2,$3,'income_wallet','credit',$4,0,$4,$5,$6,'completed',$7::jsonb)`,[ledgerId,recipient,incomeType,amount,description,eventKey,JSON.stringify(metadata)]);
 
@@ -121,7 +142,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   const count=await client.query('SELECT COUNT(*)::int n FROM package_activations WHERE user_id=$1',[userId]);
   const first=Number(count.rows[0]?.n||0)<=1;
   const type=first?'joining':'retopup'; const key=`ACT:${activationId}:${type}`;
-  if(!await eventOnce(client,key,type,userId,activationId,amount,null,{packageName,packageType})) return {skipped:true,credited:0};
+  const eventCreated=await eventOnce(client,key,type,userId,activationId,amount,null,{packageName,packageType});
   const ups=await uplines(client,userId); let credited=0; let creditedAmount=0;
   const recipients=[];
   for(const u of ups){
@@ -129,7 +150,9 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
     const level=Number(u.level); let rate=0;
     rate=levelRate(level);
     if(rate<=0) continue;
-    const incomeType=packageType==='fd'?'fd_referral':'basic_referral';
+    const incomeType=packageType==='fd'
+      ? (level===1 ? 'fd_referral' : 'fd_level')
+      : (level===1 ? 'basic_referral' : 'basic_level');
     const distributionAmount=pct(amount,rate);
     if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining':'Re-topup'} referral income L${level} (${rate}%) from ${userId}`})){
       credited++;
@@ -137,7 +160,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
       recipients.push({userId:u.id,level,rate,amount:distributionAmount});
     }
   }
-  return {skipped:false,credited,creditedAmount,recipients};
+  return {skipped:!eventCreated && credited===0,credited,creditedAmount,recipients};
 }
 
 export async function runDailyIncome(client,businessDate) {
