@@ -269,8 +269,50 @@ export default async function handler(req, res) {
         );
       });
 
-      const autoResult = await autoCreditRecharge({ id, actor, txHash, amount });
-      return json(res, 201, { success: true, id, status: autoResult.status || 'pending', autoCredit: autoResult });
+      // The recharge request is already safely stored as pending.
+      // Automatic on-chain verification must never turn a successful submission
+      // into a generic 500 response. If verification fails, keep it pending
+      // and let admin review/retry it.
+      let autoResult = { attempted: false, status: 'pending' };
+
+      if (autoCreditConfigured()) {
+        try {
+          autoResult = await autoCreditRecharge({ id, actor, txHash, amount });
+        } catch (error) {
+          console.error('Recharge auto-credit failed:', {
+            rechargeId: id,
+            userId: actor.id,
+            txHash,
+            amount,
+            error: error instanceof Error ? error.stack || error.message : error,
+          });
+
+          await getPool().query(
+            `UPDATE usdt_bep20_recharges
+             SET review_note=$2
+             WHERE id=$1 AND status='pending'`,
+            [
+              id,
+              'Automatic verification failed. Recharge remains pending admin review.',
+            ]
+          ).catch((dbError) => {
+            console.error('Failed to save auto-credit failure note:', dbError);
+          });
+
+          autoResult = {
+            attempted: true,
+            status: 'pending',
+            deferred: true,
+          };
+        }
+      }
+
+      return json(res, 201, {
+        success: true,
+        id,
+        status: autoResult.status || 'pending',
+        autoCredit: autoResult,
+      });
     }
 
     if (body.action !== 'approve' && body.action !== 'reject') return json(res, 400, { error: 'Invalid action' });
