@@ -148,9 +148,20 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
 
 export async function applyActivationIncome(client,{activationId,userId,amount,packageName,packageType='basic'}) {
   await ensureIncomeSchema(client);
-  const count=await client.query('SELECT COUNT(*)::int n FROM package_activations WHERE user_id=$1',[userId]);
-  const first=Number(count.rows[0]?.n||0)<=1;
-  const type=first?'joining':'retopup'; const key=`ACT:${activationId}:${type}`;
+  const activationOrder = await client.query(
+    `SELECT COUNT(*)::int AS n
+       FROM package_activations a
+      WHERE a.user_id=$1
+        AND (a.activated_at, a.id) <= (
+          SELECT activated_at, id
+          FROM package_activations
+          WHERE id=$2
+        )`,
+    [userId, activationId]
+  );
+  const first=Number(activationOrder.rows[0]?.n||0)===1;
+  const type=first?'joining':'retopup';
+  const key=`ACT:${activationId}:${type}`;
   const businessDate=currentIndiaBusinessDate();
   const eventCreated=await eventOnce(client,key,type,userId,activationId,amount,businessDate,{packageName,packageType});
   const ups=await uplines(client,userId); let credited=0; let creditedAmount=0;
