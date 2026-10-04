@@ -683,13 +683,13 @@ export async function getTransactions(
  */
 export async function getDownlineMembers(referralCode: string): Promise<DownlineMember[]> {
   const currentUser = auth.currentUser;
-  if (!currentUser || !referralCode) return [];
+  if (!currentUser) return [];
   const token = await currentUser.getIdToken();
   const response = await fetch('/api/usdt-recharge', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ action: 'downline', referralCode }),
+    body: JSON.stringify({ action: 'downline', referralCode: referralCode || null }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Unable to load downline');
