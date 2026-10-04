@@ -90,7 +90,7 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
             <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-emerald-400">{pkg.roiRate}% = USDT {daily.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
             <div className="flex justify-between"><span>Total Profit</span><b className="font-mono text-emerald-300">USDT {profit.toFixed(2)}</b></div>
-            <div className={`flex justify-between pt-3 mt-1 border-t ${prime ? 'border-violet-500/20' : 'border-blue-500/20'}`}><span className="font-semibold">Maturity Amount</span><b className="font-mono text-base">USDT {maturity.toFixed(2)}</b></div>
+            <div className={`flex justify-between pt-3 mt-1 border-t ${prime ? 'border-violet-500/20' : 'border-blue-500/20'}`}><span className="font-semibold">Maturity Amount</span><b className="font-mono text-base">$2</b></div>
           </div>
           <button onClick={() => purchase(pkg)} disabled={waiting} className={`w-full py-3 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2 ${prime ? 'bg-violet-600 hover:bg-violet-500' : 'bg-blue-600 hover:bg-blue-500'}`}>{waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing…</> : 'Purchase with USDT'}</button>
         </div>;
