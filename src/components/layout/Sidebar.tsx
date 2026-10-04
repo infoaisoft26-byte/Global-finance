@@ -84,8 +84,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Brand Header */}
         <div className="h-16 px-6 border-b border-blue-500/20 flex items-center justify-between bg-[#080d22]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-cyan-400/40">
-              <Shield className="w-5 h-5 text-white" />
+            <div className="w-11 h-11 rounded-xl bg-white/95 flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-cyan-400/40 overflow-hidden">
+              <img src="/global-finance-logo.webp" alt="Global Finance" className="w-full h-full object-contain p-1" />
             </div>
             <div>
               <span className="text-base font-extrabold tracking-wider bg-gradient-to-r from-white via-cyan-100 to-cyan-400 bg-clip-text text-transparent">
