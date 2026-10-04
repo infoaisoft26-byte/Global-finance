@@ -228,12 +228,14 @@ export const AdminTickets: React.FC = () => {
                     className={`p-3.5 rounded-xl text-xs space-y-1 ${
                       msg.senderRole === 'admin'
                         ? 'bg-[#0f1d48] border border-cyan-500/30 ml-4'
-                        : 'bg-[#060b1c] border border-blue-500/15 mr-4'
+                        : msg.senderRole === 'ai'
+                          ? 'bg-violet-950/20 border border-violet-500/30 ml-4'
+                          : 'bg-[#060b1c] border border-blue-500/15 mr-4'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`font-bold ${msg.senderRole === 'admin' ? 'text-cyan-300' : 'text-slate-300'}`}>
-                        {msg.senderName} {msg.senderRole === 'admin' && '(Helpdesk Desk)'}
+                      <span className={`font-bold ${msg.senderRole === 'admin' ? 'text-cyan-300' : msg.senderRole === 'ai' ? 'text-violet-300' : 'text-slate-300'}`}>
+                        {msg.senderName} {msg.senderRole === 'admin' && '(Helpdesk Desk)'}{msg.senderRole === 'ai' && '(AI Support)'}
                       </span>
                       <span className="text-[10px] text-slate-500 font-mono">
                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
