@@ -14,7 +14,11 @@ export const AdminTransactions: React.FC=()=>{
  const [loading,setLoading]=useState(true); const [search,setSearch]=useState(''); const [tab,setTab]=useState<'requests'|'ledger'>('requests');
  const [selected,setSelected]=useState<TransactionRequest|null>(null); const [note,setNote]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState('');
  const load=async()=>{setLoading(true);setError('');try{const [r,l]=await Promise.all([adminGetAllTransactionRequests({search}),getLedgerTransactions(undefined,1000)]);setRequests(r);setLedger(l);}catch(e:any){setError(e?.message||'Unable to load transaction control data.')}finally{setLoading(false)}};
- useEffect(()=>{load()},[]);
+ useEffect(()=>{
+  load();
+  const timer=window.setInterval(()=>{if(document.visibilityState==='visible')load()},10000);
+  return()=>window.clearInterval(timer);
+ },[]);
  const filteredLedger=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return ledger;return ledger.filter(t=>[t.id,t.referenceId,t.type,t.description,t.userName,t.userEmail,t.userReferralCode,t.referralLevel,t.referrerReferralCode,t.referredUserName].filter(Boolean).some(v=>String(v).toLowerCase().includes(q)))},[ledger,search]);
  const columns:Column<AdjudicationTransaction>[]=[
  {key:'createdAt',header:'Date',render:t=><span className="text-xs">{new Date(t.createdAt).toLocaleString('en-IN')}</span>},
