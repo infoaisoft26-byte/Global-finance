@@ -682,66 +682,18 @@ export async function getTransactions(
  * Fetch Downline Members
  */
 export async function getDownlineMembers(referralCode: string): Promise<DownlineMember[]> {
-  try {
-    // 1. Direct team
-    const usersRef = collection(db, 'users');
-    const directQ = query(usersRef, where('sponsorId', '==', referralCode));
-    const directSnap = await getDocs(directQ);
-
-    const directList: DownlineMember[] = [];
-    const directCodes: string[] = [];
-
-    for (const d of directSnap.docs) {
-      const u = d.data() as UserProfile;
-      directCodes.push(u.referralCode);
-      directList.push({
-        id: d.id,
-        userId: u.uid,
-        sponsorId: u.sponsorId || '',
-        referralCode: u.referralCode,
-        name: u.name,
-        email: u.email,
-        phone: u.phone || '—',
-        level: 1,
-        joinDate: u.createdAt,
-        activePackage: 0,
-        status: u.status === 'suspended' ? 'inactive' : 'active'
-      });
-    }
-
-    // 2. Level 2 members (referred by level 1)
-    if (directCodes.length > 0) {
-      const level2Batches = [];
-      for (let i = 0; i < Math.min(directCodes.length, 10); i++) {
-        const l2Q = query(usersRef, where('sponsorId', '==', directCodes[i]));
-        level2Batches.push(getDocs(l2Q));
-      }
-      const l2Snaps = await Promise.all(level2Batches);
-      for (const snap of l2Snaps) {
-        for (const d of snap.docs) {
-          const u = d.data() as UserProfile;
-          directList.push({
-            id: d.id,
-            userId: u.uid,
-            sponsorId: u.sponsorId || '',
-            referralCode: u.referralCode,
-            name: u.name,
-            email: u.email,
-            phone: u.phone || '—',
-            level: 2,
-            joinDate: u.createdAt,
-            activePackage: 0,
-            status: u.status === 'suspended' ? 'inactive' : 'active'
-          });
-        }
-      }
-    }
-
-    return directList;
-  } catch (err) {
-    console.error('Failed to get downline members:', err);
-    return [];
-  }
+  const currentUser = auth.currentUser;
+  if (!currentUser || !referralCode) return [];
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/usdt-recharge', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'downline', referralCode }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Unable to load downline');
+  return Array.isArray(data.members) ? data.members as DownlineMember[] : [];
 }
 
 /**
