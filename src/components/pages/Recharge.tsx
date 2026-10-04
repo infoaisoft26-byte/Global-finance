@@ -18,7 +18,7 @@ const FALLBACK_BEP20_ADDRESS = '0x062D87BE020291b34D08fdCfa7E432248680910E';
 const FALLBACK_BEP20_QR = '/usdt-bep20-qr.svg';
 
 export const Recharge: React.FC = () => {
-  const { wallet, user, profile } = useAuth();
+  const { wallet, user, profile, refreshWallet } = useAuth();
   const [settings, setSettings] = useState<CryptoSettings | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -81,7 +81,12 @@ export const Recharge: React.FC = () => {
     setSuccess('');
     try {
       const result = await submitUsdtRecharge(user, amount.trim(), txRef.trim(), '');
-      setSuccess(`Payment confirmation submitted. Request ${result.id} is PENDING admin review.`);
+      await refreshWallet();
+      setSuccess(
+        result.status === 'approved'
+          ? `Payment verified and ${amount.trim()} USDT credited to your Fund Wallet. Transaction ID: ${result.id}.`
+          : `Payment confirmation submitted. Request ${result.id} is pending verification.`
+      );
       setAmount('');
       setTxRef('');
       await load();
