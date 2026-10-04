@@ -47,3 +47,28 @@ export async function getLedgerTransactions(userId?: string, maxRows = 500): Pro
   if (userId) list = list.filter((t: AdjudicationTransaction) => t.userId === userId);
   return list.slice(0, maxRows).sort((a: AdjudicationTransaction,b: AdjudicationTransaction) => new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
 }
+
+
+export async function reconcileReferralIncome(): Promise<{
+  success: boolean;
+  activationsProcessed: number;
+  distributionsCreated: number;
+  amountCredited: number;
+  message: string;
+}> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Authentication required');
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/usdt-bep20-deposit', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'admin_reconcile_referral_income' }),
+    cache: 'no-store'
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Unable to reconcile referral income');
+  }
+  return data;
+}
