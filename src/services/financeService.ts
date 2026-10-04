@@ -1252,6 +1252,36 @@ export async function adminGetDashboardMetrics(): Promise<{
   totalFdActivations: number;
   ledgerTransactionCount: number;
 }> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Admin authentication required');
+
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/admin-network?mode=dashboard-metrics', {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Unable to load live dashboard metrics');
+  }
+
+  return {
+    totalUsers: Number(data.totalUsers || 0),
+    activeUsers: Number(data.activeUsers || 0),
+    suspendedUsers: Number(data.suspendedUsers || 0),
+    pendingKyc: Number(data.pendingKyc || 0),
+    verifiedKyc: Number(data.verifiedKyc || 0),
+    rejectedKyc: Number(data.rejectedKyc || 0),
+    openTickets: Number(data.openTickets || 0),
+    inProgressTickets: Number(data.inProgressTickets || 0),
+    closedTickets: Number(data.closedTickets || 0),
+    totalBasicActivations: Number(data.totalBasicActivations || 0),
+    totalFdActivations: Number(data.totalFdActivations || 0),
+    ledgerTransactionCount: Number(data.ledgerTransactionCount || 0),
+  };
+}> {
   const [usersSnap, kycSnap, ticketsSnap, packagesSnap, txnsSnap] = await Promise.all([
     getDocs(collection(db, 'users')),
     getDocs(collection(db, 'kyc_submissions')),
