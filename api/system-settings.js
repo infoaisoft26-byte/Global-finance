@@ -36,7 +36,11 @@ function normalizePayload(input = {}) {
   data.basicPackageEnabled = true;
   data.fdPackageEnabled = true;
   data.rechargeEnabled = false;
-  data.withdrawalEnabled = false;
+  data.withdrawalEnabled = true;
+  data.minWithdrawal = 2;
+  data.withdrawalWindowStart = '10:30';
+  data.withdrawalWindowEnd = '15:30';
+  data.withdrawalTimezone = 'Asia/Kolkata';
   delete data.updatedBy;
   return data;
 }
