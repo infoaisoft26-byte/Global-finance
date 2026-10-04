@@ -12,6 +12,7 @@ import { TeamList } from './components/pages/TeamList.tsx';
 import { getSystemSettings } from './services/settingsService.ts';
 import type { ActivePage, SystemSettings } from './types/index.ts';
 import { ShieldCheck, RefreshCw, ShieldAlert, LogOut, AlertTriangle, Wrench } from 'lucide-react';
+import { SupportAiChat } from './components/support/SupportAiChat.tsx';
 
 const Dashboard = lazy(() => import('./components/pages/Dashboard.tsx').then(m => ({ default: m.Dashboard })));
 const Recharge = lazy(() => import('./components/pages/Recharge.tsx').then(m => ({ default: m.Recharge })));
@@ -237,6 +238,7 @@ const MainLayout: React.FC = () => {
         <Footer />
       </div>
 
+      {!isAdminEntry && <SupportAiChat />}
       {!isAdminEntry && <ProfileKycModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} onNavigateToKyc={() => { setShowProfileModal(false); setActivePage('kyc'); }} />}
     </div>
   );
