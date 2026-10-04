@@ -239,7 +239,7 @@ export interface KycSubmission {
 export interface TicketMessage {
   id: string;
   senderId: string;
-  senderRole: 'user' | 'admin';
+  senderRole: 'user' | 'admin' | 'ai';
   senderName: string;
   message: string;
   createdAt: string;
@@ -257,6 +257,7 @@ export interface SupportTicket {
   priority: 'low' | 'normal' | 'high' | 'urgent';
   messages?: TicketMessage[];
   adminReply?: string;
+  aiReply?: string;
   assignedAdmin?: string;
   createdAt: string;
   updatedAt: string;
