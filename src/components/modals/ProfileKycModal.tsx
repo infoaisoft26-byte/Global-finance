@@ -12,6 +12,7 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
   const { profile, user, updateKycData, logout } = useAuth();
   const [name, setName] = useState(profile?.name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
+  const [secondPhone, setSecondPhone] = useState(profile?.secondPhone || '');
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
@@ -22,6 +23,7 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
     if (!isOpen) return;
     setName(profile?.name || '');
     setPhone(profile?.phone || '');
+    setSecondPhone(profile?.secondPhone || '');
   }, [isOpen, profile?.name, profile?.phone]);
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
     setSaving(true);
     setSuccessMsg('');
     try {
-      await updateKycData({ name: name.trim(), phone: phone.trim() });
+      await updateKycData({ name: name.trim(), phone: phone.trim(), secondPhone: secondPhone.trim() });
       setSuccessMsg('Profile information updated successfully.');
       setTimeout(() => setSuccessMsg(''), 3500);
     } catch (err) {
@@ -117,8 +119,12 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
               </div>
               <div>
-                <label className="block text-xs text-slate-600 mb-1">Phone Number</label>
-                <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-mono focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                <label className="block text-xs text-slate-600 mb-1">Primary Mobile Number</label>
+                <input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-mono focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-slate-600 mb-1">Second Mobile Number <span className="text-slate-400">(Optional)</span></label>
+                <input type="tel" inputMode="tel" value={secondPhone} onChange={(e) => setSecondPhone(e.target.value)} placeholder="+91XXXXXXXXXX" className="w-full px-3 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-mono focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
               </div>
             </div>
 
