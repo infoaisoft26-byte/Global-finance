@@ -13,7 +13,7 @@ import {
   serverTimestamp,
   addDoc
 } from 'firebase/firestore';
-import { db } from '../lib/firebase.ts';
+import { auth, db } from '../lib/firebase.ts';
 import type { 
   UserProfile, 
   WalletData, 
@@ -698,24 +698,35 @@ export async function requestWithdrawal(
  * Fetch Transactions Ledger
  */
 export async function getTransactions(
-  userId: string, 
+  userId: string,
   filterCategory?: 'fund_wallet' | 'income_wallet',
   filterType?: TransactionType
 ): Promise<TransactionLedger[]> {
   try {
-    const txnRef = collection(db, 'transactions');
-    let q = query(txnRef, where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(100));
+    const currentUser = auth.currentUser;
+    if (currentUser && currentUser.uid === userId) {
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/financial-ledger', {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.transactions)) {
+        let list = data.transactions as TransactionLedger[];
+        if (filterCategory) list = list.filter(t => t.category === filterCategory);
+        if (filterType) list = list.filter(t => t.type === filterType);
+        return list;
+      }
+    }
 
+    // Legacy Firestore fallback for non-migrated historical records.
+    const txnRef = collection(db, 'transactions');
+    const q = query(txnRef, where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(100));
     const snap = await getDocs(q);
     let list: TransactionLedger[] = snap.docs.map(d => d.data() as TransactionLedger);
-
-    if (filterCategory) {
-      list = list.filter(t => t.category === filterCategory);
-    }
-    if (filterType) {
-      list = list.filter(t => t.type === filterType);
-    }
-
+    if (filterCategory) list = list.filter(t => t.category === filterCategory);
+    if (filterType) list = list.filter(t => t.type === filterType);
     return list;
   } catch (error) {
     console.error('Error fetching transactions:', error);
