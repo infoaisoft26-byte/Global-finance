@@ -6,6 +6,7 @@ import {
   Key,
   User,
   Users,
+  Smartphone,
   ArrowRight,
   AlertCircle,
   RefreshCw
@@ -26,7 +27,11 @@ export const AuthScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [sponsorCode, setSponsorCode] = useState(sponsorReferralParam || 'GF788872');
+  const [phone, setPhone] = useState('');
+  const [secondPhone, setSecondPhone] = useState('');
+  const [sponsorCode, setSponsorCode] = useState(sponsorReferralParam || '');
+  const [sponsorName, setSponsorName] = useState('');
+  const [sponsorLookupLoading, setSponsorLookupLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -37,7 +42,37 @@ export const AuthScreen: React.FC = () => {
     }
   }, [sponsorReferralParam]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    const code = sponsorCode.trim().toUpperCase();
+    setSponsorName('');
+    if (!/^GF\d{6}$/.test(code)) {
+      setSponsorLookupLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setSponsorLookupLoading(true);
+      try {
+        const response = await fetch(`/api/referral-lookup?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (!cancelled && response.ok && data?.valid && data?.sponsor?.name) {
+          setSponsorName(String(data.sponsor.name));
+        }
+      } catch (error) {
+        if (!cancelled) console.warn('Sponsor lookup unavailable:', error);
+      } finally {
+        if (!cancelled) setSponsorLookupLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [sponsorCode]);
+
+  const handleSubmit = async (e: React.FormEvent) =>
     e.preventDefault();
     setErrorMsg('');
     setLoading(true);
@@ -45,7 +80,7 @@ export const AuthScreen: React.FC = () => {
       if (mode === 'signin') await loginWithEmail(email.trim(), password);
       else {
         if (!name.trim()) throw new Error('Please enter your full name');
-        await registerWithEmail(name.trim(), email.trim(), password, sponsorCode.trim());
+        await registerWithEmail(name.trim(), email.trim(), password, sponsorCode.trim(), phone.trim(), secondPhone.trim());
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication failed. Please verify credentials.');
@@ -103,7 +138,26 @@ export const AuthScreen: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && <>
               <div><label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label><div className="relative"><User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="Enter your name" value={name} onChange={(e)=>setName(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
-              <div><label className="block text-xs font-semibold text-slate-300 mb-1">Sponsor Member ID</label><div className="relative"><Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="e.g. GF788872" value={sponsorCode} readOnly={Boolean(sponsorReferralParam)} onChange={(e)=>setSponsorCode(e.target.value.toUpperCase())} className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-cyan-300 font-mono text-xs uppercase transition-shadow ${sponsorReferralParam ? 'bg-cyan-950/30 border-cyan-400/40 cursor-not-allowed' : 'bg-[#081632]/90 border-blue-400/25 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10'}`}/></div>{sponsorReferralParam && <p className="mt-1 text-[10px] text-cyan-300">Referral sponsor locked from the referral link.</p>}</div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Sponsor Member ID</label>
+                <div className="relative"><Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="GF123456" value={sponsorCode} readOnly={Boolean(sponsorReferralParam)} onChange={(e)=>setSponsorCode(e.target.value.toUpperCase())} className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-cyan-300 font-mono text-xs uppercase transition-shadow ${sponsorReferralParam ? 'bg-cyan-950/30 border-cyan-400/40 cursor-not-allowed' : 'bg-[#081632]/90 border-blue-400/25 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10'}`}/></div>
+                {sponsorReferralParam && <p className="mt-1 text-[10px] text-cyan-300">Referral sponsor locked from the referral link.</p>}
+                {/^GF\d{6}$/.test(sponsorCode.trim().toUpperCase()) && (
+                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-cyan-500/10 border border-cyan-400/20 px-3 py-2 text-[10px]">
+                    <Users className="w-3.5 h-3.5 text-cyan-400 shrink-0"/>
+                    <span className="text-slate-400">Referred by:</span>
+                    {sponsorLookupLoading ? <span className="text-cyan-300">Checking sponsor...</span> : sponsorName ? <span className="font-semibold text-white">{sponsorName}</span> : <span className="text-amber-300">Active sponsor not found</span>}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Primary Mobile Number</label>
+                <div className="relative"><Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="tel" inputMode="tel" placeholder="+91XXXXXXXXXX" value={phone} onChange={(e)=>setPhone(e.target.value)} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs font-mono focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10"/></div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Second Mobile Number <span className="text-slate-500 font-normal">(Optional)</span></label>
+                <div className="relative"><Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="tel" inputMode="tel" placeholder="+91XXXXXXXXXX" value={secondPhone} onChange={(e)=>setSecondPhone(e.target.value)} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs font-mono focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10"/></div>
+              </div>
             </>}
             <div><label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label><div className="relative"><Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="email" placeholder="name@example.com" value={email} onChange={(e)=>setEmail(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
             <div><label className="block text-xs font-semibold text-slate-300 mb-1">Password</label><div className="relative"><Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="password" placeholder="••••••••" value={password} onChange={(e)=>setPassword(e.target.value)} required minLength={6} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
