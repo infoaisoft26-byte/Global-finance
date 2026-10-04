@@ -3,8 +3,10 @@ export interface UserProfile {
   name: string;
   email: string;
   phone?: string;
+  secondPhone?: string;
   referralCode: string; // e.g. "GF152551"
   sponsorId?: string; // Referral code of the sponsor
+  sponsorName?: string; // Current active sponsor's real name
   role: 'user' | 'admin';
   status: 'active' | 'suspended';
   isSuspended?: boolean;
