@@ -210,3 +210,51 @@ CREATE TABLE IF NOT EXISTS platform_settings (
     support_email VARCHAR(255) NOT NULL DEFAULT 'support@globalfinance.digital',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+-- 3A. UNIQUE BSC USDT DEPOSIT ADDRESSES & AUTOMATIC CREDIT EVENTS
+CREATE SEQUENCE IF NOT EXISTS usdt_deposit_address_seq
+  AS bigint
+  START WITH 0
+  MINVALUE 0;
+
+CREATE TABLE IF NOT EXISTS usdt_deposit_addresses (
+    user_id VARCHAR(64) PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    derivation_index BIGINT NOT NULL UNIQUE,
+    address VARCHAR(42) NOT NULL UNIQUE CHECK (address ~ '^0x[0-9a-fA-F]{40}$'),
+    network VARCHAR(16) NOT NULL DEFAULT 'BSC',
+    token_symbol VARCHAR(16) NOT NULL DEFAULT 'USDT',
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS usdt_deposit_events (
+    id VARCHAR(96) PRIMARY KEY,
+    tx_hash VARCHAR(66) NOT NULL,
+    log_index BIGINT NOT NULL,
+    user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    deposit_address VARCHAR(42) NOT NULL,
+    token_address VARCHAR(42) NOT NULL,
+    amount_usdt NUMERIC(40,18) NOT NULL CHECK (amount_usdt > 0),
+    raw_amount NUMERIC(78,0) NOT NULL CHECK (raw_amount > 0),
+    block_number BIGINT NOT NULL,
+    confirmations INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(16) NOT NULL DEFAULT 'credited' CHECK (status IN ('credited','ignored','pending')),
+    ledger_id VARCHAR(64) UNIQUE REFERENCES ledger_transactions(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    credited_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_usdt_deposit_event_tx_log
+  ON usdt_deposit_events(tx_hash, log_index);
+CREATE INDEX IF NOT EXISTS idx_usdt_deposit_events_user
+  ON usdt_deposit_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_usdt_deposit_events_status_block
+  ON usdt_deposit_events(status, block_number);
+
+CREATE TABLE IF NOT EXISTS usdt_deposit_scan_state (
+    id SMALLINT PRIMARY KEY CHECK (id = 1),
+    last_scanned_block BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
