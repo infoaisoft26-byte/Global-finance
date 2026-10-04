@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Filter, WalletCards } from 'lucide-react';
+import { Users, WalletCards } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getDownlineMembers } from '../../services/financeService.ts';
 import { DataTable, type Column, type PdfColumn } from '../common/DataTable.tsx';
@@ -8,7 +8,6 @@ import type { DownlineMember } from '../../types/index.ts';
 export const TeamList: React.FC = () => {
   const { profile, wallet } = useAuth();
   const [allMembers, setAllMembers] = useState<DownlineMember[]>([]);
-  const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [loading, setLoading] = useState(false);
 
   const loadTeamList = async () => {
@@ -31,10 +30,6 @@ export const TeamList: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [profile?.referralCode]);
 
-  const filteredMembers = useMemo(() => {
-    if (selectedLevel === 'all') return allMembers;
-    return allMembers.filter(m => m.level === Number(selectedLevel));
-  }, [allMembers, selectedLevel]);
 
   const formatDate = (value: string) => new Date(value).toLocaleDateString('en-IN', { dateStyle: 'medium' });
 
@@ -106,21 +101,11 @@ export const TeamList: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-          <Filter className="w-4 h-4 text-cyan-400" />
-          <span>Filter by Generation:</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {['all', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'].map(lvl => (
-            <button
-              key={lvl}
-              onClick={() => setSelectedLevel(lvl)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedLevel === lvl ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold shadow-md shadow-cyan-900/30' : 'bg-[#0f173a] text-slate-400 hover:text-white border border-blue-500/20'}`}
-            >
-              {lvl === 'all' ? 'All Generations' : `Level ${lvl}`}
-            </button>
-          ))}
+      <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 flex items-center gap-3">
+        <Users className="w-5 h-5 text-cyan-400" />
+        <div>
+          <p className="text-xs font-semibold text-slate-300">Automatic Generation Tracking</p>
+          <p className="text-[11px] text-slate-500">Direct referrals appear as Level 1; their referrals automatically appear as Level 2, continuing up to Level 15.</p>
         </div>
       </div>
 
@@ -133,10 +118,10 @@ export const TeamList: React.FC = () => {
           title="Downline Team List"
           columns={columns}
           pdfColumns={pdfColumns}
-          data={filteredMembers}
+          data={allMembers}
           onRefresh={loadTeamList}
           isLoading={loading}
-          emptyMessage="No downline team members found for this level."
+          emptyMessage="No downline team members found for your referral network."
         />
       </div>
     </div>
