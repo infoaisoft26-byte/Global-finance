@@ -66,10 +66,12 @@ service cloud.firestore {
           && request.resource.data.category == resource.data.category
           && request.resource.data.priority == resource.data.priority
           && request.resource.data.status == resource.data.status
-          && request.resource.data.adminReply == resource.data.adminReply
+          && request.resource.data.get('adminReply', null) == resource.data.get('adminReply', null)
+          && request.resource.data.get('subject', '') == resource.data.get('subject', '')
           && request.resource.data.messages.size() == resource.data.messages.size() + 1
           && request.resource.data.messages[request.resource.data.messages.size() - 1].senderRole == 'ai'
           && request.resource.data.messages[request.resource.data.messages.size() - 1].senderId == 'SYSTEM_AI'
+          && request.resource.data.get('aiReply', '') == request.resource.data.messages[request.resource.data.messages.size() - 1].message
         )
       );
 
