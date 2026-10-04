@@ -80,31 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-[#060a19] border-r border-blue-500/20 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'
         } no-print`}
-      >
-        {/* Brand Header */}
-        <div className="h-16 px-6 border-b border-blue-500/20 flex items-center justify-between bg-[#080d22]">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/95 flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-cyan-400/40 overflow-hidden">
-              <img src="/global-finance-logo.webp" alt="Global Finance" className="w-full h-full object-contain p-1" />
-            </div>
-            <div>
-              <span className="text-base font-extrabold tracking-wider bg-gradient-to-r from-white via-cyan-100 to-cyan-400 bg-clip-text text-transparent">
-                GLOBAL FINANCE
-              </span>
-              <p className="text-[9px] uppercase tracking-wider text-cyan-400/80 font-medium">
-                Digital Finance Platform
-              </p>
-            </div>
-          </div>
-          <button 
-            onClick={onCloseMobile}
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#10193d]"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Navigation Menus List (Scrollable) */}
+      >        {/* Navigation Menus List (Scrollable) */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 text-xs text-slate-300">
           {/* Main: Dashboard */}
           <button
