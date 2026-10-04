@@ -1209,16 +1209,47 @@ export async function adminGetDashboardMetrics(): Promise<{
     throw new Error(data.error || 'Unable to load live dashboard metrics');
   }
 
+  // The Admin list screens for tickets/KYC are Firestore-backed. Reconcile their
+  // dashboard counters with the same live collections when records are available.
+  let openTickets = Number(data.openTickets || 0);
+  let inProgressTickets = Number(data.inProgressTickets || 0);
+  let closedTickets = Number(data.closedTickets || 0);
+  let pendingKyc = Number(data.pendingKyc || 0);
+  let verifiedKyc = Number(data.verifiedKyc || 0);
+  let rejectedKyc = Number(data.rejectedKyc || 0);
+
+  try {
+    const [tickets, kyc] = await Promise.all([
+      getSupportTickets(),
+      adminGetAllKycSubmissions()
+    ]);
+
+    if (tickets.length > 0) {
+      openTickets = tickets.filter(t => t.status === 'open').length;
+      inProgressTickets = tickets.filter(t => t.status === 'in_progress').length;
+      closedTickets = tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
+    }
+
+    if (kyc.length > 0) {
+      pendingKyc = kyc.filter(k => k.status === 'pending' || k.status === 'in_review').length;
+      verifiedKyc = kyc.filter(k => k.status === 'verified').length;
+      rejectedKyc = kyc.filter(k => k.status === 'rejected').length;
+    }
+  } catch (syncError) {
+    // Keep the server metrics when Firestore is temporarily unavailable.
+    console.warn('Admin dashboard Firestore counter sync unavailable:', syncError);
+  }
+
   return {
     totalUsers: Number(data.totalUsers || 0),
     activeUsers: Number(data.activeUsers || 0),
     suspendedUsers: Number(data.suspendedUsers || 0),
-    pendingKyc: Number(data.pendingKyc || 0),
-    verifiedKyc: Number(data.verifiedKyc || 0),
-    rejectedKyc: Number(data.rejectedKyc || 0),
-    openTickets: Number(data.openTickets || 0),
-    inProgressTickets: Number(data.inProgressTickets || 0),
-    closedTickets: Number(data.closedTickets || 0),
+    pendingKyc,
+    verifiedKyc,
+    rejectedKyc,
+    openTickets,
+    inProgressTickets,
+    closedTickets,
     totalBasicActivations: Number(data.totalBasicActivations || 0),
     totalFdActivations: Number(data.totalFdActivations || 0),
     ledgerTransactionCount: Number(data.ledgerTransactionCount || 0),
