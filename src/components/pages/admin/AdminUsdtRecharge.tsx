@@ -42,10 +42,6 @@ export const AdminUsdtRecharge: React.FC = () => {
   const review = async (r: UsdtRechargeRequest, action: 'approve' | 'reject') => {
     if (!user) return;
     const reviewNote = (note[r.id] || '').trim();
-    if (reviewNote.length < 5) {
-      setError('Please enter a review note (minimum 5 characters).');
-      return;
-    }
 
     let reviewedCredit = '';
     if (action === 'approve') {
