@@ -7,7 +7,7 @@ import { getLedgerTransactions, type AdjudicationTransaction } from '../../servi
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionLedger, TransactionRequest } from '../../types/index.ts';
 
-const money = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `USDT ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
 const referralType = (t: string) => ['referral_bonus','level_bonus','basic_referral','fd_referral','basic_level','fd_level','rd_level'].includes(t) || t.includes('referral') || t.includes('level');
 
 export const TransactionsPage: React.FC = () => {
