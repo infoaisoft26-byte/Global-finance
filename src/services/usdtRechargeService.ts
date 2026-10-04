@@ -9,25 +9,63 @@ export interface UsdtRechargeRequest {
 
 async function call(user: FirebaseUser, scope: 'member' | 'admin', method: 'GET' | 'POST', body?: object) {
   const response = await fetch(`/api/usdt-recharge${scope === 'admin' ? '?scope=admin' : ''}`, {
-    method, credentials: 'include', headers: {
+    method,
+    credentials: 'include',
+    headers: {
       Authorization: `Bearer ${await user.getIdToken()}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {})
-    }, body: body ? JSON.stringify(body) : undefined,
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
   });
+
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Unable to process recharge');
+
+  if (!response.ok) {
+    const message =
+      data?.error ||
+      data?.message ||
+      `Recharge request failed (HTTP ${response.status})`;
+
+    const error = new Error(String(message));
+    Object.assign(error, { status: response.status, data });
+    throw error;
+  }
+
   return data;
 }
 
-export async function listUsdtRecharges(user: FirebaseUser, scope: 'member' | 'admin' = 'member'):
-  Promise<{requests: UsdtRechargeRequest[]; enabled: boolean; depositAddress: string}> {
-  return call(user,scope,'GET');
+export async function listUsdtRecharges(
+  user: FirebaseUser,
+  scope: 'member' | 'admin' = 'member'
+): Promise<{ requests: UsdtRechargeRequest[]; enabled: boolean; depositAddress: string }> {
+  return call(user, scope, 'GET');
 }
 
-export async function submitUsdtRecharge(user: FirebaseUser, amountUsdt: string, txHash: string, paymentProofUrl?: string) {
-  return call(user,'member','POST',{action:'submit',amountUsdt,txHash,paymentProofUrl});
+export async function submitUsdtRecharge(
+  user: FirebaseUser,
+  amountUsdt: string,
+  txHash: string,
+  paymentProofUrl?: string
+) {
+  return call(user, 'member', 'POST', {
+    action: 'submit',
+    amountUsdt,
+    txHash,
+    paymentProofUrl: paymentProofUrl || '',
+  });
 }
 
-export async function reviewUsdtRecharge(user: FirebaseUser, id: string, action: 'approve' | 'reject', note: string, creditInr?: string) {
-  return call(user,'admin','POST',{action,id,note,creditInr});
+export async function reviewUsdtRecharge(
+  user: FirebaseUser,
+  id: string,
+  action: 'approve' | 'reject',
+  note: string,
+  creditInr?: string
+) {
+  return call(user, 'admin', 'POST', {
+    action,
+    id,
+    note,
+    creditInr,
+  });
 }
