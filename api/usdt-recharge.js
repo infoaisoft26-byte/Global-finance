@@ -232,7 +232,7 @@ export default async function handler(req, res) {
     }
 
     if (body.action === 'downline') {
-      const { rows } = await client.query(`
+      const { rows } = await getPool().query(`
         WITH RECURSIVE downline AS (
           SELECT s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
                  1 AS level, ARRAY[s.id]::varchar[] AS path, s.created_at
