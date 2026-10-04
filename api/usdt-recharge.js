@@ -321,9 +321,9 @@ export default async function handler(req, res) {
     if (!rechargeConfigured()) return json(res, 503, { error: 'Recharge approval is disabled' });
 
     const id = String(body.id || '');
-    const note = String(body.note || '').trim();
-    if (!/^RCH_[0-9a-f]{24}$/.test(id) || note.length < 5 || note.length > 1000) {
-      return json(res, 400, { error: 'A valid request and review note are required' });
+    const note = String(body.note || '').trim() || (body.action === 'approve' ? 'Approved by admin after manual payment verification.' : 'Rejected by admin after manual payment review.');
+    if (!/^RCH_[0-9a-f]{24}$/.test(id) || note.length > 1000) {
+      return json(res, 400, { error: 'A valid recharge request is required' });
     }
 
     const isApproval = body.action === 'approve';
