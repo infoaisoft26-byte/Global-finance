@@ -85,7 +85,7 @@ export function DataTable<T extends Record<string, any>>({
   };
 
   const handleExportPdf = () => {
-    const popup = window.open('', '_blank', 'noopener,noreferrer,width=1000,height=760');
+    const popup = window.open('', '_blank', 'width=1000,height=760');
     if (!popup) {
       window.alert('Please allow pop-ups to download the PDF report.');
       return;
