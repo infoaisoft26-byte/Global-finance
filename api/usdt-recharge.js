@@ -235,13 +235,13 @@ export default async function handler(req, res) {
       const { rows } = await getPool().query(`
         WITH RECURSIVE downline AS (
           SELECT
-            s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
+            s.id,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
             1 AS level, ARRAY[s.id::text]::text[] AS path, s.created_at
           FROM users root
           JOIN users s
             ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.referral_code,'')))
              OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
-             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.uid,'')))
+             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
           WHERE root.id=$1
           UNION ALL
           SELECT
@@ -251,7 +251,7 @@ export default async function handler(req, res) {
           JOIN users s
             ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.referral_code,'')))
              OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.id::text,'')))
-             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.uid,'')))
+             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.id::text,'')))
           WHERE d.level < 15 AND NOT (s.id::text = ANY(d.path))
         )
         SELECT d.*,
@@ -268,7 +268,7 @@ export default async function handler(req, res) {
         ORDER BY d.level,d.created_at
       `, [actor.id]);
       return json(res, 200, { success:true, members:rows.map(r=>({
-        id:r.id,userId:r.uid,name:r.name||'',email:r.email||'',phone:r.phone||'—',
+        id:r.id,userId:r.id,name:r.name||'',email:r.email||'',phone:r.phone||'—',
         referralCode:r.referral_code||'',sponsorId:r.sponsor_id||'',level:Number(r.level),
         joinDate:r.created_at,status:r.status==='suspended'?'inactive':'active',
         activePackage:0,commissionFromMember:Number(r.commission_from_member||0),
