@@ -7,7 +7,10 @@ import { getLedgerTransactions, type AdjudicationTransaction } from '../../servi
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionLedger, TransactionRequest } from '../../types/index.ts';
 
-const money = (n: number) => `USDT ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+const money = (n: number, type?: string) => {
+  const prefix = type === 'salary' ? '₹' : 'USDT ';
+  return `${prefix}${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+};
 const referralType = (t: string) => ['referral_bonus','level_bonus','basic_referral','fd_referral','basic_level','fd_level','rd_level'].includes(t) || t.includes('referral') || t.includes('level');
 
 export const TransactionsPage: React.FC = () => {
@@ -56,8 +59,8 @@ export const TransactionsPage: React.FC = () => {
     { key:'createdAt', header:'Date & Time', render:t=><span className="text-xs text-slate-300 font-mono">{new Date(t.createdAt).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</span> },
     { key:'referenceId', header:'Transaction ID', render:t=><div><div className="font-mono text-xs font-bold text-cyan-300">{t.referenceId || t.id}</div><div className="text-[10px] text-slate-500">{t.id}</div></div> },
     { key:'type', header:'Type', render:t=><span className="text-xs font-semibold text-slate-200 capitalize">{String(t.type).replace(/_/g,' ')}</span> },
-    { key:'description', header:'Details', render:t=><div className="max-w-md"><div className="text-xs text-slate-300">{t.description}</div>{referralType(String(t.type)) && <div className="mt-1 flex flex-wrap gap-2 text-[10px]"><span className="px-2 py-0.5 rounded bg-violet-500/10 text-violet-300">Level {t.referralLevel ?? '—'}</span><span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300">Level Amount {money(t.referralAmount || t.amount)}</span>{t.referredUserName && <span className="text-slate-400">From: {t.referredUserName}</span>}</div>}</div> },
-    { key:'flow', header:'Flow', render:t=><span className={`inline-flex items-center gap-1 text-xs font-bold ${t.flow==='credit'?'text-emerald-400':'text-rose-400'}`}>{t.flow==='credit'?<ArrowDownLeft className="w-3 h-3"/>:<ArrowUpRight className="w-3 h-3"/>}{t.flow==='credit'?'+':'-'}{money(t.amount)}</span> },
+    { key:'description', header:'Details', render:t=><div className="max-w-md"><div className="text-xs text-slate-300">{t.description}</div>{referralType(String(t.type)) && <div className="mt-1 flex flex-wrap gap-2 text-[10px]"><span className="px-2 py-0.5 rounded bg-violet-500/10 text-violet-300">Level {t.referralLevel ?? '—'}</span><span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300">Level Amount {money(t.referralAmount || t.amount, String(t.type))}</span>{t.referredUserName && <span className="text-slate-400">From: {t.referredUserName}</span>}</div>}</div> },
+    { key:'flow', header:'Flow', render:t=><span className={`inline-flex items-center gap-1 text-xs font-bold ${t.flow==='credit'?'text-emerald-400':'text-rose-400'}`}>{t.flow==='credit'?<ArrowDownLeft className="w-3 h-3"/>:<ArrowUpRight className="w-3 h-3"/>}{t.flow==='credit'?'+':'-'}{money(t.amount, String(t.type))}</span> },
     { key:'status', header:'Status', render:t=><span className="text-[10px] font-bold uppercase text-emerald-400">{t.status}</span> }
   ];
 
@@ -65,7 +68,7 @@ export const TransactionsPage: React.FC = () => {
     { key:'createdAt',header:'Date & Time',render:r=><span className="text-xs text-slate-300">{new Date(r.createdAt).toLocaleString('en-IN')}</span> },
     { key:'reference',header:'Request ID',render:r=><span className="font-mono text-xs text-cyan-300">{r.reference}</span> },
     { key:'requestType',header:'Type',render:r=><span className="text-xs capitalize">{r.requestType.replace(/_/g,' ')}</span> },
-    { key:'amountRupees',header:'Amount',render:r=><span className="font-mono text-xs font-bold">{money(r.amountRupees)}</span> },
+    { key:'amountRupees',header:'Amount',render:r=><span className="font-mono text-xs font-bold">{money(r.amountRupees, r.requestType)}</span> },
     { key:'status',header:'Status',render:r=><span className="text-xs font-bold uppercase">{r.status}</span> }
   ];
 
