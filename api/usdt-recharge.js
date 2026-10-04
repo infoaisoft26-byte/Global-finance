@@ -37,7 +37,7 @@ function map(row) {
   };
 }
 
-async function autoCreditRecharge({ id, actor, txHash, amount }) {
+export async function autoCreditRecharge({ id, actor, txHash, amount }) {
   if (!autoCreditConfigured()) return { attempted: false, status: 'pending' };
 
   let proof;
