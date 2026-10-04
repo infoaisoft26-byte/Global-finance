@@ -18,57 +18,26 @@ import {
   Award,
   RefreshCw,
   QrCode,
-  ListOrdered,
-  Table as TableIcon
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { getTransactions } from '../../services/financeService.ts';
-import { DataTable, type Column } from '../common/DataTable.tsx';
-import { RecentActivityFeed, renderStatusBadge } from '../dashboard/RecentActivityFeed.tsx';
-import { ActivityFilter, type ActivityFilterType } from '../dashboard/ActivityFilter.tsx';
-import type { TransactionLedger, ActivePage } from '../../types/index.ts';
+import type { ActivePage } from '../../types/index.ts';
 
 interface DashboardProps {
   onNavigate: (page: ActivePage) => void;
   onOpenProfile: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile }) => {
-  const { profile, wallet, refreshWallet } = useAuth();
-  const [transactions, setTransactions] = useState<TransactionLedger[]>([]);
-  const [loadingTxns, setLoadingTxns] = useState(false);
+export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+  const { profile, wallet } = useAuth();
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
-  const [activityView, setActivityView] = useState<'feed' | 'table'>('feed');
-  const [activityTypeFilter, setActivityTypeFilter] = useState<ActivityFilterType>('all');
 
   const referralCode = profile?.referralCode || 'GF152551';
   const referralUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/register?r=${referralCode}`
     : `https://globalfinance.digital/register?r=${referralCode}`;
 
-  const loadTransactions = async () => {
-    if (!profile) return;
-    setLoadingTxns(true);
-    try {
-      const data = await getTransactions(profile.uid);
-      setTransactions(data);
-    } catch (err) {
-      console.error('Error fetching dashboard transactions:', err);
-    } finally {
-      setLoadingTxns(false);
-    }
-  };
-
-  useEffect(() => {
-    loadTransactions();
-  }, [profile?.uid]);
-
-  const handleRefresh = async () => {
-    await refreshWallet();
-    await loadTransactions();
-  };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralUrl);
@@ -87,53 +56,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     return `USDT ${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  // Recent ledger columns
-  const ledgerColumns: Column<TransactionLedger>[] = [
-    {
-      key: 'createdAt',
-      header: 'Date & Time',
-      render: (item) => (
-        <span className="text-xs text-slate-300 font-mono">
-          {new Date(item.createdAt).toLocaleString('en-IN', {
-            dateStyle: 'medium',
-            timeStyle: 'short'
-          })}
-        </span>
-      )
-    },
-    {
-      key: 'id',
-      header: 'Reference ID',
-      render: (item) => (
-        <span className="font-mono text-cyan-400 text-xs font-semibold">
-          {item.id}
-        </span>
-      )
-    },
-    {
-      key: 'description',
-      header: 'Description',
-      render: (item) => (
-        <span className="text-xs text-slate-200">
-          {item.description}
-        </span>
-      )
-    },
-    {
-      key: 'category',
-      header: 'Wallet',
-      render: (item) => (
-        <span className="capitalize text-xs text-slate-400">
-          {item.category === 'fund_wallet' ? 'Fund Wallet' : 'Income Wallet'}
-        </span>
-      )
-    },
-    {
-      key: 'amount',
-      header: 'Amount',
-      render: (item) => {
-        const isCredit = item.flow === 'credit';
-        return (
+  return (
           <span className={`font-mono text-xs font-bold ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
             {isCredit ? '+' : '-'}{formatInr(item.amount)}
           </span>
@@ -567,76 +490,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             </div>
           </div>
         </div>
-      </div>
-
-      {/* RECENT ACTIVITY & TRANSACTION LEDGER SECTION */}
-      <div className="space-y-4">
-        {/* View Switcher Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
-              Recent Financial Activity & Ledger
-            </h3>
-            <p className="text-xs text-slate-500">
-              Live chronological activity feed with color-coded status verification
-            </p>
-          </div>
-
-          {/* Toggle buttons between Activity Feed and Audit Ledger Table */}
-          <div className="inline-flex p-1 rounded-xl bg-[#091129] border border-blue-500/25">
-            <button
-              onClick={() => setActivityView('feed')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activityView === 'feed'
-                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <ListOrdered className="w-3.5 h-3.5" />
-              <span>Activity Feed</span>
-            </button>
-            <button
-              onClick={() => setActivityView('table')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activityView === 'table'
-                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-              <span>Audit Table</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Dynamic Display: RecentActivityFeed or DataTable */}
-        {activityView === 'feed' ? (
-          <div className="space-y-3">
-            {/* Filter component above the 'Recent Activity' feed: All, Deposits, Withdrawals, Transfers */}
-            <ActivityFilter
-              activeFilter={activityTypeFilter}
-              onFilterChange={setActivityTypeFilter}
-              transactions={transactions}
-            />
-
-            <RecentActivityFeed
-              transactions={transactions}
-              onRefresh={handleRefresh}
-              isLoading={loadingTxns}
-              activeTypeFilter={activityTypeFilter}
-              onFilterChange={setActivityTypeFilter}
-            />
-          </div>
-        ) : (
-          <DataTable
-            title="Recent Transactions Ledger"
-            columns={ledgerColumns}
-            data={transactions}
-            onRefresh={handleRefresh}
-            isLoading={loadingTxns}
-            emptyMessage="No ledger transactions recorded yet. Recharge or activate a package to start."
-          />
-        )}
       </div>
 
       {/* QR Code Modal for Referral */}
