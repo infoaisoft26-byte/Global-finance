@@ -100,7 +100,7 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
             <div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Total Profit</span><b className="font-mono text-emerald-400">USDT {totalProfit.toFixed(2)}</b></div>
             <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-3">
               <div className="text-[10px] uppercase tracking-wide text-cyan-300">Maturity Amount</div>
-              <div className="mt-1 text-xl font-bold font-mono text-white">USDT {maturityAmount.toFixed(2)}</div>
+              <div className="mt-1 text-xl font-bold font-mono text-white">$2</div>
               <div className="mt-1 text-[10px] text-slate-400">Principal + total profit after {pkg.durationDays} days</div>
             </div>
           </div>
