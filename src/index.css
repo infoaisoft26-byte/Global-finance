@@ -249,19 +249,19 @@ html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:h
 
 /* Global Finance cinematic opening screen */
 .gf-opening-screen{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 50% 45%,#10245a 0%,#070b19 42%,#030611 100%);color:#fff}
-.gf-opening-screen::before{content:"";position:absolute;inset:-40%;background:conic-gradient(from 0deg,transparent 0deg,rgba(6,182,212,.12) 70deg,transparent 145deg,rgba(37,99,235,.12) 220deg,transparent 300deg);animation:gfOpeningSpin 12s linear infinite}
-.gf-opening-glow{position:absolute;width:38vw;height:38vw;min-width:280px;min-height:280px;border-radius:50%;background:radial-gradient(circle,rgba(6,182,212,.22),rgba(37,99,235,.08) 42%,transparent 70%);filter:blur(8px);animation:gfOpeningPulse 2.8s ease-in-out infinite}
-.gf-opening-brand{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;animation:gfOpeningEnter 1s cubic-bezier(.2,.8,.2,1) both}
+.gf-opening-screen::before{content:"";position:absolute;inset:-40%;background:conic-gradient(from 0deg,transparent 0deg,rgba(6,182,212,.12) 70deg,transparent 145deg,rgba(37,99,235,.12) 220deg,transparent 300deg);animation:gfOpeningSpin 24s linear infinite}
+.gf-opening-glow{position:absolute;width:38vw;height:38vw;min-width:280px;min-height:280px;border-radius:50%;background:radial-gradient(circle,rgba(6,182,212,.22),rgba(37,99,235,.08) 42%,transparent 70%);filter:blur(8px);animation:gfOpeningPulse 5s ease-in-out infinite}
+.gf-opening-brand{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;animation:gfOpeningEnter 1.8s cubic-bezier(.2,.8,.2,1) both}
 .gf-opening-logo-wrap{position:relative;width:150px;height:150px;display:flex;align-items:center;justify-content:center}
-.gf-opening-logo{position:relative;z-index:3;width:116px;height:116px;object-fit:contain;filter:drop-shadow(0 0 22px rgba(6,182,212,.45));animation:gfOpeningLogo 2.6s ease-in-out infinite}
-.gf-opening-ring{position:absolute;border:1px solid rgba(6,182,212,.45);border-radius:50%;inset:14px;animation:gfOpeningRing 3s linear infinite}
-.gf-opening-ring-two{inset:2px;border-color:rgba(37,99,235,.32);animation-direction:reverse;animation-duration:4.5s}
-.gf-opening-title{margin-top:12px;font-size:clamp(20px,4vw,30px);font-weight:900;letter-spacing:.22em;text-indent:.22em;text-shadow:0 0 24px rgba(6,182,212,.35);animation:gfOpeningTitle 1.2s .35s both}
-.gf-opening-tagline{margin-top:8px;font-size:11px;letter-spacing:.12em;color:rgba(148,163,184,.9);animation:gfOpeningTitle 1.2s .5s both}
+.gf-opening-logo{position:relative;z-index:3;width:116px;height:116px;object-fit:contain;filter:drop-shadow(0 0 22px rgba(6,182,212,.45));animation:gfOpeningLogo 5s ease-in-out infinite}
+.gf-opening-ring{position:absolute;border:1px solid rgba(6,182,212,.45);border-radius:50%;inset:14px;animation:gfOpeningRing 7s linear infinite}
+.gf-opening-ring-two{inset:2px;border-color:rgba(37,99,235,.32);animation-direction:reverse;animation-duration:10s}
+.gf-opening-title{margin-top:12px;font-size:clamp(20px,4vw,30px);font-weight:900;letter-spacing:.22em;text-indent:.22em;text-shadow:0 0 24px rgba(6,182,212,.35);animation:gfOpeningTitle 2s .7s both}
+.gf-opening-tagline{margin-top:8px;font-size:11px;letter-spacing:.12em;color:rgba(148,163,184,.9);animation:gfOpeningTitle 2s 1s both}
 .gf-opening-loader{width:180px;height:2px;margin-top:28px;border-radius:999px;background:rgba(148,163,184,.14);overflow:hidden}
-.gf-opening-loader span{display:block;width:45%;height:100%;border-radius:inherit;background:linear-gradient(90deg,transparent,#06b6d4,#60a5fa,transparent);animation:gfOpeningLoad 1.5s ease-in-out infinite}
+.gf-opening-loader span{display:block;width:45%;height:100%;border-radius:inherit;background:linear-gradient(90deg,transparent,#06b6d4,#60a5fa,transparent);animation:gfOpeningLoad 3s ease-in-out infinite}
 .gf-opening-status{display:flex;align-items:center;gap:7px;margin-top:12px;font-size:10px;color:rgba(103,232,249,.72);letter-spacing:.04em}
-.gf-opening-orbit{position:absolute;width:10px;height:10px;border-radius:50%;background:#22d3ee;box-shadow:0 0 20px #22d3ee;animation:gfOpeningOrbit 6s linear infinite}
+.gf-opening-orbit{position:absolute;width:10px;height:10px;border-radius:50%;background:#22d3ee;box-shadow:0 0 20px #22d3ee;animation:gfOpeningOrbit 12s linear infinite}
 .gf-opening-orbit-one{transform:translateX(220px)}
 .gf-opening-orbit-two{transform:translateX(-220px);background:#60a5fa;box-shadow:0 0 20px #60a5fa;animation-delay:-3s}
 @keyframes gfOpeningSpin{to{transform:rotate(360deg)}}
