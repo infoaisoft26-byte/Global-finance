@@ -164,7 +164,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       header: 'Amount Credited',
       render: (item) => (
         <span className="font-mono text-xs font-bold text-emerald-400">
-          +USDT {item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+          {config.txnType === 'salary' ? '₹' : '+USDT '}{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
         </span>
       )
     },
@@ -206,7 +206,10 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     ? Number(((realizedProfitLoss / investedCapital) * 100).toFixed(2))
     : 0;
 
-  const money = (value: number) => `USDT ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+  const money = (value: number) => {
+    const prefix = config.txnType === 'salary' ? '₹' : 'USDT ';
+    return `${prefix}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+  };
 
   return (
     <div className="space-y-6">
