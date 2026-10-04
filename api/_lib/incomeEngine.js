@@ -237,11 +237,16 @@ export async function runDailyIncome(client,businessDate) {
     if(already>=max){await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1 AND status='active'`,[a.id]);continue;}
     const roi=money(Math.min(pct(a.amount,a.roi_daily_rate),max-already)); if(roi<=0) continue;
     const key=`ROI:${a.id}:${date}`;
-    if(!await eventOnce(client,key,'daily_roi',a.user_id,a.id,roi,date,{principal:Number(a.amount),rate:Number(a.roi_daily_rate),packageType:a.package_type})) continue;
+    const roiEventCreated=await eventOnce(client,key,'daily_roi',a.user_id,a.id,roi,date,{principal:Number(a.amount),rate:Number(a.roi_daily_rate),packageType:a.package_type});
     const roiType=a.package_type==='fd'?'fd_roi':'basic_roi';
     const levelType=a.package_type==='fd'?'fd_level':'basic_level';
-    if(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date})) roiCredits++;
-    await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roi]);
+
+    // ROI is credited only once, but level income is evaluated on every run
+    // so missing level credits can be safely recovered without duplicating ROI.
+    if(roiEventCreated){
+      if(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date})) roiCredits++;
+      await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roi]);
+    }
     for(const u of await uplines(client,a.user_id)){
       if(u.status!=='active') continue;
       const level=Number(u.level), rate=levelRate(level);
