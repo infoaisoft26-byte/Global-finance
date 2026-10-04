@@ -234,27 +234,25 @@ export default async function handler(req, res) {
     if (body.action === 'downline') {
       const { rows } = await getPool().query(`
         WITH RECURSIVE downline AS (
-          SELECT s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
-                 1 AS level, ARRAY[s.id]::varchar[] AS path, s.created_at
-            FROM users root
-            JOIN users s
-              ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) IN (
-                   LOWER(TRIM(COALESCE(root.referral_code,''))),
-                   LOWER(TRIM(COALESCE(root.id::text,''))),
-                   LOWER(TRIM(COALESCE(root.uid,'')))
-                 )
-           WHERE root.id=$1
+          SELECT
+            s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
+            1 AS level, ARRAY[s.id::text]::text[] AS path, s.created_at
+          FROM users root
+          JOIN users s
+            ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.referral_code,'')))
+             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
+             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.uid,'')))
+          WHERE root.id=$1
           UNION ALL
-          SELECT s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
-                 d.level+1, d.path||s.id, s.created_at
-            FROM downline d
-            JOIN users s
-              ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) IN (
-                   LOWER(TRIM(COALESCE(d.referral_code,''))),
-                   LOWER(TRIM(COALESCE(d.id::text,''))),
-                   LOWER(TRIM(COALESCE(d.uid,'')))
-                 )
-           WHERE d.level < 15 AND NOT (s.id=ANY(d.path))
+          SELECT
+            s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
+            d.level+1, d.path || s.id::text, s.created_at
+          FROM downline d
+          JOIN users s
+            ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.referral_code,'')))
+             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.id::text,'')))
+             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.uid,'')))
+          WHERE d.level < 15 AND NOT (s.id::text = ANY(d.path))
         )
         SELECT d.*,
           COALESCE(SUM(CASE WHEN l.flow='credit' AND l.category='income_wallet'
