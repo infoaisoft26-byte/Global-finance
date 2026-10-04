@@ -404,79 +404,27 @@ export async function activatePackage(
   roiRate: number,
   durationDays: number
 ): Promise<{ success: boolean; packageId: string }> {
-  const walletRef = doc(db, 'wallets', userId);
-  const pkgId = generateReferenceId(packageType === 'basic' ? 'PKG' : 'FD');
+  const currentUser = auth.currentUser;
+  if (!currentUser || currentUser.uid !== userId) throw new Error('Authentication required');
 
-  await runTransaction(db, async (transaction) => {
-    const walletDoc = await transaction.get(walletRef);
-    if (!walletDoc.exists()) {
-      throw new Error('Wallet record not found');
-    }
-    const currentWallet = walletDoc.data() as WalletData;
-    const currentFunds = currentWallet.fundWallet || 0;
-
-    if (currentFunds < amount) {
-      throw new Error(`Insufficient Available Fund balance. Required: ₹${amount.toFixed(2)}, Available: ₹${currentFunds.toFixed(2)}`);
-    }
-
-    const updatedFunds = currentFunds - amount;
-    const updates: Partial<WalletData> = {
-      fundWallet: Number(updatedFunds.toFixed(2)),
-      updatedAt: new Date().toISOString()
-    };
-
-    if (packageType === 'basic') {
-      updates.basicPackageActive = (currentWallet.basicPackageActive || 0) + amount;
-    } else {
-      updates.fdPackageActive = (currentWallet.fdPackageActive || 0) + amount;
-    }
-
-    // Update wallet balance
-    transaction.update(walletRef, updates);
-
-    // Save Package record
-    const pkgDocRef = doc(db, 'packages', pkgId);
-    const pkgRecord: PackageActivationRecord = {
-      id: pkgId,
-      userId,
-      packageType,
-      packageName,
-      amount,
-      roiDailyRate: roiRate,
-      durationDays,
-      totalEarned: 0,
-      status: 'active',
-      activatedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
-    };
-    transaction.set(pkgDocRef, pkgRecord);
-
-    // Immutable ledger record
-    const ledgerRef = doc(db, 'transactions', pkgId);
-    const ledgerRecord: TransactionLedger = {
-      id: pkgId,
-      userId,
-      type: 'package_activation',
-      category: 'fund_wallet',
-      flow: 'debit',
-      amount,
-      fee: 0,
-      netAmount: amount,
-      description: `Activated ${packageName} (${packageType.toUpperCase()}) for ₹${amount.toFixed(2)}`,
-      referenceId: pkgId,
-      status: 'completed',
-      createdAt: new Date().toISOString()
-    };
-    transaction.set(ledgerRef, ledgerRecord);
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/package-activate', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ userId, packageType, packageName, amount, roiRate, durationDays }),
   });
 
-  await recordAuditLog(userId, undefined, 'Package Activated', 'package', pkgId, {
-    packageName,
-    packageType,
-    amount
-  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Package activation could not be completed');
 
-  return { success: true, packageId: pkgId };
+  return {
+    success: Boolean(data.success),
+    packageId: String(data.packageId || ''),
+  };
 }
 
 /**
