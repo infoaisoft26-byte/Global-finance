@@ -115,16 +115,22 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   const first=Number(count.rows[0]?.n||0)<=1;
   const type=first?'joining':'retopup'; const key=`ACT:${activationId}:${type}`;
   if(!await eventOnce(client,key,type,userId,activationId,amount,null,{packageName,packageType})) return {skipped:true,credited:0};
-  const ups=await uplines(client,userId); let credited=0;
+  const ups=await uplines(client,userId); let credited=0; let creditedAmount=0;
+  const recipients=[];
   for(const u of ups){
     if(u.status!=='active') continue;
     const level=Number(u.level); let rate=0;
     if(first){ if(level!==1) continue; rate=5; }
     else rate=level===1?1:0.25;
     const incomeType=packageType==='fd'?'fd_referral':'basic_referral';
-    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:pct(amount,rate),description:`${first?'Joining referral':'Re-topup'} income L${level} from ${userId}`})) credited++;
+    const distributionAmount=pct(amount,rate);
+    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining referral':'Re-topup'} income L${level} from ${userId}`})){
+      credited++;
+      creditedAmount=money(creditedAmount+distributionAmount);
+      recipients.push({userId:u.id,level,rate,amount:distributionAmount});
+    }
   }
-  return {skipped:false,credited};
+  return {skipped:false,credited,creditedAmount,recipients};
 }
 
 export async function runDailyIncome(client,businessDate) {
