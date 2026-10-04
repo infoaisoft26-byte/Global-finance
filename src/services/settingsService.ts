@@ -19,14 +19,17 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   rechargeEnabled: false,
   p2pEnabled: true,
   incomeToFundEnabled: true,
-  withdrawalEnabled: false,
+  withdrawalEnabled: true,
   minRecharge: 1,
   maxRecharge: 1000000,
   minP2p: 1,
   maxP2p: 1000000,
   minIncomeTransfer: 1,
   maxIncomeTransfer: 1000000,
-  minWithdrawal: 1,
+  minWithdrawal: 2,
+  withdrawalWindowStart: '10:30',
+  withdrawalWindowEnd: '15:30',
+  withdrawalTimezone: 'Asia/Kolkata',
   maxWithdrawal: 1000000,
   withdrawalFeePercent: 0,
   basicPackageEnabled: true,
@@ -66,7 +69,7 @@ const normalizeSettings = (stored: Partial<SystemSettings> & Record<string, any>
   basicPackageEnabled: true,
   fdPackageEnabled: true,
   rechargeEnabled: false,
-  withdrawalEnabled: false
+  withdrawalEnabled: true
 } as SystemSettings);
 
 async function authHeaders(): Promise<Record<string, string>> {
