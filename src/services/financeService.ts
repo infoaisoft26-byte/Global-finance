@@ -408,23 +408,19 @@ export async function activatePackage(
   if (!currentUser || currentUser.uid !== userId) throw new Error('Authentication required');
 
   const token = await currentUser.getIdToken();
-  const response = await fetch('/api/package-activate', {
+  const response = await fetch('/api/usdt-recharge', {
     method: 'POST',
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ userId, packageType, packageName, amount, roiRate, durationDays }),
+    body: JSON.stringify({ action:'activate_package', userId, packageType, packageName, amount, roiRate, durationDays }),
   });
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Package activation could not be completed');
-
-  return {
-    success: Boolean(data.success),
-    packageId: String(data.packageId || ''),
-  };
+  return { success:Boolean(data.success), packageId:String(data.packageId || '') };
 }
 
 /**
