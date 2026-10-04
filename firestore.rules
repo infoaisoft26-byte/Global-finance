@@ -2,83 +2,286 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /system_settings/global_finance_system_settings {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email.lower() == 'admin@gf.app';
+
+    // Canonical admin check:
+    // 1) Firebase custom admin claim when present
+    // 2) Global Finance admin document role
+    // 3) Known legacy/primary admin emails used by this deployment
+    function isAdmin() {
+      return request.auth != null
+        && (
+          request.auth.token.get('admin', false) == true
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+          )
+          || (
+            request.auth.token.email != null
+            && request.auth.token.email.lower() in [
+              'admin@gf.app',
+              'info@gf.app',
+              'infoaisoft26@gmail.com'
+            ]
+          )
+        );
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // User profiles.
+    // Members can read/update only their own safe profile fields.
+    // Admin can read/update all profiles.
+    match /users/{userId} {
+      allow read: if signedIn()
+        && (userId == request.auth.uid || isAdmin());
+
+      allow create: if signedIn()
+        && userId == request.auth.uid
+        && (
+          request.resource.data.role == 'user'
+          || (
+            isAdmin()
+            && request.resource.data.role == 'admin'
+          )
+        )
+        && request.resource.data.status == 'active'
+        && request.resource.data.email is string;
+
+      allow update: if signedIn()
+        && (
+          isAdmin()
+          ||
+          (
+            userId == request.auth.uid
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.referralCode == resource.data.referralCode
+            && request.resource.data.sponsorId == resource.data.sponsorId
+            && request.resource.data.email == resource.data.email
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'name',
+              'phone',
+              'panNumber',
+              'bankAccount',
+              'bankName',
+              'ifscCode',
+              'upiId',
+              'kycStatus',
+              'updatedAt'
+            ])
+          )
+        );
+
       allow delete: if false;
     }
 
-    // Transaction history is append-only from the application/server side.
-    // Members may read only their own ledger entries.
-    // Admin may read the full ledger for Transaction Adjudication Control.
+    // Wallets are server-controlled financial records.
+    // Members/admins may read only; no client-side balance mutation.
+    match /wallets/{userId} {
+      allow read: if signedIn()
+        && (userId == request.auth.uid || isAdmin());
+
+      allow create, update, delete: if false;
+    }
+
+    // Immutable transaction ledger.
     match /transactions/{transactionId} {
-      allow read: if request.auth != null
+      allow read: if signedIn()
         && (
           resource.data.userId == request.auth.uid
-          || (
-            request.auth.token.email != null
-            && request.auth.token.email.lower() == 'admin@gf.app'
-          )
+          || isAdmin()
         );
+
       allow create, update, delete: if false;
     }
 
-    // Wallets are server-controlled. Clients must not mutate balances directly.
-    match /wallets/{userId} {
-      allow read: if request.auth != null
-        && (
-          userId == request.auth.uid
-          || (
-            request.auth.token.email != null
-            && request.auth.token.email.lower() == 'admin@gf.app'
-          )
-        );
-      allow create, update, delete: if false;
-    }
-
-    // Support tickets: members can create and read only their own tickets.
-    // Admins can read/update all tickets. AI acknowledgement is an owner-only append.
+    // Support tickets.
     match /tickets/{ticketId} {
-      function isAdmin() {
-        return request.auth != null
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-      }
-
-      allow create: if request.auth != null
+      allow create: if signedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'open'
         && request.resource.data.userEmail is string
         && request.resource.data.subject is string
         && request.resource.data.message is string;
 
-      allow read: if request.auth != null
-        && (resource.data.userId == request.auth.uid || isAdmin());
-
-      allow update: if request.auth != null && (
-        isAdmin()
-        ||
-        (
+      allow read: if signedIn()
+        && (
           resource.data.userId == request.auth.uid
-          && request.resource.data.userId == resource.data.userId
-          && request.resource.data.subject == resource.data.subject
-          && request.resource.data.category == resource.data.category
-          && request.resource.data.priority == resource.data.priority
-          && request.resource.data.status == resource.data.status
-          && request.resource.data.get('adminReply', null) == resource.data.get('adminReply', null)
-          && request.resource.data.get('subject', '') == resource.data.get('subject', '')
-          && request.resource.data.messages.size() == resource.data.messages.size() + 1
-          && request.resource.data.messages[request.resource.data.messages.size() - 1].senderRole == 'ai'
-          && request.resource.data.messages[request.resource.data.messages.size() - 1].senderId == 'SYSTEM_AI'
-          && request.resource.data.get('aiReply', '') == request.resource.data.messages[request.resource.data.messages.size() - 1].message
-        )
-      );
+          || isAdmin()
+        );
+
+      // Admin can manage the ticket.
+      // The member can only append one server-generated AI acknowledgement.
+      allow update: if signedIn()
+        && (
+          isAdmin()
+          ||
+          (
+            resource.data.userId == request.auth.uid
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.subject == resource.data.subject
+            && request.resource.data.category == resource.data.category
+            && request.resource.data.priority == resource.data.priority
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.get('adminReply', null)
+              == resource.data.get('adminReply', null)
+            && request.resource.data.messages.size()
+              == resource.data.messages.size() + 1
+            && request.resource.data.messages[
+              request.resource.data.messages.size() - 1
+            ].senderRole == 'ai'
+            && request.resource.data.messages[
+              request.resource.data.messages.size() - 1
+            ].senderId == 'SYSTEM_AI'
+            && request.resource.data.get('aiReply', '')
+              == request.resource.data.messages[
+                request.resource.data.messages.size() - 1
+              ].message
+          )
+        );
 
       allow delete: if false;
     }
 
-    // All other documents remain server-controlled.
+    // KYC submissions.
+    match /kyc_submissions/{submissionId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userEmail is string
+        && request.resource.data.userName is string
+        && request.resource.data.legalName is string
+        && request.resource.data.status == 'pending';
+
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow update: if signedIn()
+        && isAdmin();
+
+      allow delete: if false;
+    }
+
+    // Transaction requests: user creates/reads own request;
+    // Admin reviews/updates all requests.
+    match /transaction_requests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow update: if signedIn()
+        && isAdmin();
+
+      allow delete: if false;
+    }
+
+    // Package activation requests.
+    match /package_activation_requests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow update: if signedIn()
+        && isAdmin();
+
+      allow delete: if false;
+    }
+
+    // Active package records remain server/admin controlled.
+    match /packages/{packageId} {
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Package configuration is readable by authenticated members,
+    // but writable only by Admin.
+    match /package_definitions/{packageId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Notifications: members read/mark their own notifications;
+    // admins may manage notifications for operational purposes.
+    match /notifications/{notificationId} {
+      allow create: if signedIn()
+        && (
+          request.resource.data.userId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow read: if signedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow update: if signedIn()
+        && (
+          isAdmin()
+          ||
+          (
+            resource.data.userId == request.auth.uid
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.isRead == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'isRead',
+              'readAt'
+            ])
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // Audit logs are append-only.
+    match /audit_logs/{logId} {
+      allow create: if signedIn()
+        && request.resource.data.actorUserId == request.auth.uid;
+
+      allow read: if signedIn()
+        && (
+          resource.data.actorUserId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow update, delete: if false;
+    }
+
+    // Legacy/global settings document.
+    match /settings/global {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // System settings document used by older client flows.
+    match /system_settings/global_finance_system_settings {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Everything else remains denied.
     match /{document=**} {
       allow read, write: if false;
     }
