@@ -241,16 +241,14 @@ export default async function handler(req, res) {
           JOIN users s
             ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.referral_code,'')))
              OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
-             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
           WHERE root.id=$1
           UNION ALL
           SELECT
-            s.id,s.uid,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
+            s.id,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
             d.level+1, d.path || s.id::text, s.created_at
           FROM downline d
           JOIN users s
             ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.referral_code,'')))
-             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.id::text,'')))
              OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.id::text,'')))
           WHERE d.level < 15 AND NOT (s.id::text = ANY(d.path))
         )
@@ -264,7 +262,7 @@ export default async function handler(req, res) {
             THEN l.amount ELSE 0 END),0)::numeric(16,2) AS total_commission_from_member
         FROM downline d
         LEFT JOIN ledger_transactions l ON l.user_id=$1
-        GROUP BY d.id,d.uid,d.name,d.email,d.phone,d.referral_code,d.sponsor_id,d.status,d.level,d.path,d.created_at
+        GROUP BY d.id,d.name,d.email,d.phone,d.referral_code,d.sponsor_id,d.status,d.level,d.path,d.created_at
         ORDER BY d.level,d.created_at
       `, [actor.id]);
       return json(res, 200, { success:true, members:rows.map(r=>({
