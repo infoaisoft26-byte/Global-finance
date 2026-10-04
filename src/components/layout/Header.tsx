@@ -89,10 +89,13 @@ export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onO
         <div className="flex items-center gap-3 min-w-0">
           <button onClick={onToggleSidebar} className="lg:hidden p-2 rounded-lg bg-[#0e1738] border border-blue-500/30" aria-label="Toggle navigation menu"><Menu className="w-5 h-5 text-cyan-400" /></button>
           <div className="min-w-0">
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex w-8 h-8 rounded-lg bg-white/95 border border-cyan-400/30 overflow-hidden items-center justify-center"><img src="/global-finance-logo.webp" alt="Global Finance" className="w-full h-full object-contain p-0.5" /></div>
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
               <span className="text-cyan-400 font-semibold">GLOBAL FINANCE</span><ChevronRight className="w-3.5 h-3.5" /><span>{pageInfo.category}</span><ChevronRight className="w-3.5 h-3.5" /><span className="text-slate-200 truncate">{pageInfo.title}</span>
             </div>
-            <h1 className="text-base sm:text-lg font-bold text-white truncate">{pageInfo.title}</h1>
+              <h1 className="text-base sm:text-lg font-bold text-white truncate">{pageInfo.title}</h1>
+            </div>
           </div>
         </div>
 
