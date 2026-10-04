@@ -10,7 +10,6 @@ import {
   updateProfile,
   type FirebaseUser
 } from '../lib/firebase.ts';
-import { updateUserKyc } from '../services/financeService.ts';
 import type { UserProfile, WalletData } from '../types/index.ts';
 
 interface AuthContextType {
@@ -22,7 +21,7 @@ interface AuthContextType {
   isSuspended: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
-  registerWithEmail: (name: string, email: string, pass: string, sponsorCode?: string) => Promise<void>;
+  registerWithEmail: (name: string, email: string, pass: string, sponsorCode?: string, phone?: string, secondPhone?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshWallet: () => Promise<void>;
   updateKycData: (data: Partial<UserProfile>) => Promise<void>;
@@ -33,8 +32,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const syncInFlight = new Map<string, Promise<{ profile: UserProfile; wallet: WalletData }>>();
 const AUTH_SYNC_TIMEOUT_MS = 15_000;
 
-async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, forceToken = false) {
-  const key = `${currentUser.uid}:${sponsorCode || ''}`;
+async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, forceToken = false, profileUpdates?: { phone?: string; secondPhone?: string }) {
+  const key = `${currentUser.uid}:${sponsorCode || ''}:${profileUpdates?.phone || ''}:${profileUpdates?.secondPhone || ''}`;
   const existing = syncInFlight.get(key);
   if (existing) return existing;
 
@@ -52,6 +51,8 @@ async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, f
           idToken,
           name: currentUser.displayName || '',
           sponsorCode: sponsorCode || undefined,
+          phone: profileUpdates?.phone,
+          secondPhone: profileUpdates?.secondPhone,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -91,9 +92,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const loadUserData = async (currentUser: FirebaseUser, sponsorCode?: string, forceToken = false) => {
+  const loadUserData = async (currentUser: FirebaseUser, sponsorCode?: string, forceToken = false, profileUpdates?: { phone?: string; secondPhone?: string }) => {
     const sponsor = sponsorCode || pendingSponsorRef.current || sponsorReferralParam;
-    const data = await syncWithServer(currentUser, sponsor, forceToken);
+    const data = await syncWithServer(currentUser, sponsor, forceToken, profileUpdates);
     setProfile(data.profile);
     setWallet(data.wallet);
     return data;
@@ -178,7 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const registerWithEmail = async (name: string, email: string, pass: string, sponsorCode?: string) => {
+  const registerWithEmail = async (name: string, email: string, pass: string, sponsorCode?: string, phone?: string, secondPhone?: string) => {
     setLoading(true);
     const sponsor = sponsorCode || sponsorReferralParam;
     pendingSponsorRef.current = sponsor;
@@ -187,7 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.user) {
         await updateProfile(res.user, { displayName: name });
         setUser(res.user);
-        await loadUserData(res.user, sponsor, true);
+        await loadUserData(res.user, sponsor, true, { phone, secondPhone });
       }
     } catch (err: any) {
       console.error('Email Registration failed:', err);
@@ -212,10 +213,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateKycData = async (data: Partial<UserProfile>) => {
-    if (user && profile) {
-      await updateUserKyc(user.uid, data);
-      setProfile({ ...profile, ...data, kycStatus: 'pending' });
+    if (!user || !profile) return;
+
+    const token = await user.getIdToken();
+    const response = await fetch('/api/member-profile', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        idToken: token,
+        name: data.name,
+        phone: data.phone,
+        secondPhone: data.secondPhone,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.profile) {
+      throw new Error(result.error || 'Unable to update profile.');
     }
+
+    const nextProfile = result.profile as UserProfile;
+    if (data.name && data.name.trim() && data.name !== user.displayName) {
+      await updateProfile(user, { displayName: data.name.trim() });
+    }
+    setProfile(nextProfile);
   };
 
   const isAdmin = profile?.role === 'admin';
