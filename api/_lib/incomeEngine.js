@@ -85,6 +85,37 @@ async function uplines(client, userId) {
   return rows;
 }
 
+
+async function hasActiveReferralAtLevel(client, recipientId, targetLevel) {
+  const { rows } = await client.query(
+    `WITH RECURSIVE d AS (
+       SELECT s.id, s.referral_code, s.sponsor_id, s.status, 1 AS level, ARRAY[s.id]::varchar[] AS path
+       FROM users root
+       JOIN users s
+         ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.referral_code,'')))
+         OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
+       WHERE root.id=$1
+
+       UNION ALL
+
+       SELECT s.id, s.referral_code, s.sponsor_id, s.status, d.level+1, d.path || s.id
+       FROM d
+       JOIN users s
+         ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.referral_code,'')))
+         OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.id::text,'')))
+       WHERE d.level < $2
+         AND NOT (s.id=ANY(d.path))
+     )
+     SELECT 1
+     FROM d
+     WHERE d.level=$2
+       AND d.status='active'
+     LIMIT 1`,
+    [recipientId, targetLevel]
+  );
+  return rows.length > 0;
+}
+
 async function eventOnce(client, key, type, sourceUserId, activationId, baseAmount, businessDate, metadata={}) {
   const r = await client.query(`INSERT INTO income_events(event_key,event_type,source_user_id,source_activation_id,base_amount,business_date,metadata)
     VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT(event_key) DO NOTHING RETURNING event_key`,
@@ -171,6 +202,11 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
     const level=Number(u.level); let rate=0;
     rate=levelRate(level);
     if(rate<=0) continue;
+
+    // Daily level income is ROI-based. A member must have at least
+    // one active downline at the exact level being paid.
+    if(level > 0 && !(await hasActiveReferralAtLevel(client, u.id, level))) continue;
+
     const incomeType=packageType==='fd'
       ? (level===1 ? 'fd_referral' : 'fd_level')
       : (level===1 ? 'basic_referral' : 'basic_level');
@@ -184,6 +220,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   return {skipped:!eventCreated && credited===0,credited,creditedAmount,recipients};
 }
 
+// Daily level income is calculated only on recorded ROI income, never on invested principal.
 export async function runDailyIncome(client,businessDate) {
   await ensureIncomeSchema(client);
   const date=businessDate || previousIndiaBusinessDate();
@@ -209,7 +246,23 @@ export async function runDailyIncome(client,businessDate) {
       if(u.status!=='active') continue;
       const level=Number(u.level), rate=levelRate(level);
       if(rate<=0) continue;
-      if(await credit(client,{eventKey:key,recipient:u.id,source:a.user_id,incomeType:levelType,level,rate,base:roi,amount:pct(roi,rate),description:`Daily level L${level} (${rate}%) on ROI from ${a.user_id}`,businessDate:date})) levelCredits++;
+
+      // 1:1 level qualification: at least one active member must exist
+      // in the recipient's exact downline generation for this level.
+      if(!(await hasActiveReferralAtLevel(client, u.id, level))) continue;
+
+      if(await credit(client,{
+        eventKey:key,
+        recipient:u.id,
+        source:a.user_id,
+        incomeType:levelType,
+        level,
+        rate,
+        base:roi,
+        amount:pct(roi,rate),
+        description:`Daily level L${level} (${rate}%) calculated on ROI ${roi.toFixed(2)} USDT from ${a.user_id}`,
+        businessDate:date
+      })) levelCredits++;
     }
     packagesProcessed++;
     if(money(already+roi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1`,[a.id]);
