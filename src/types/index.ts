@@ -312,6 +312,9 @@ export interface SystemSettings {
 
   minWithdrawal: number;
   maxWithdrawal: number;
+  withdrawalWindowStart?: string;
+  withdrawalWindowEnd?: string;
+  withdrawalTimezone?: string;
   withdrawalFeePercent: number;
 
   // Package Controls
