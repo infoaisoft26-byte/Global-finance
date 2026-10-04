@@ -1,6 +1,10 @@
 import crypto from 'node:crypto';
 
-const MAX_LEVEL = 12;
+const MAX_LEVEL = 15;
+
+// Authoritative 15-level referral/level commission schedule.
+const LEVEL_COMMISSION_RATES = Object.freeze({1:5,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:0.5,14:0.5,15:0.5});
+const levelRate = (level) => Number(LEVEL_COMMISSION_RATES[Number(level)] || 0);
 const money = (v) => Number(Number(v || 0).toFixed(2));
 const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100);
 
@@ -120,11 +124,11 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   for(const u of ups){
     if(u.status!=='active') continue;
     const level=Number(u.level); let rate=0;
-    if(first){ if(level!==1) continue; rate=5; }
-    else rate=level===1?1:0.25;
+    rate=levelRate(level);
+    if(rate<=0) continue;
     const incomeType=packageType==='fd'?'fd_referral':'basic_referral';
     const distributionAmount=pct(amount,rate);
-    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining referral':'Re-topup'} income L${level} from ${userId}`})){
+    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining':'Re-topup'} referral income L${level} (${rate}%) from ${userId}`})){
       credited++;
       creditedAmount=money(creditedAmount+distributionAmount);
       recipients.push({userId:u.id,level,rate,amount:distributionAmount});
@@ -156,8 +160,9 @@ export async function runDailyIncome(client,businessDate) {
     await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roi]);
     for(const u of await uplines(client,a.user_id)){
       if(u.status!=='active') continue;
-      const level=Number(u.level), rate=level===1?5:1;
-      if(await credit(client,{eventKey:key,recipient:u.id,source:a.user_id,incomeType:levelType,level,rate,base:roi,amount:pct(roi,rate),description:`Daily level L${level} on ROI from ${a.user_id}`,businessDate:date})) levelCredits++;
+      const level=Number(u.level), rate=levelRate(level);
+      if(rate<=0) continue;
+      if(await credit(client,{eventKey:key,recipient:u.id,source:a.user_id,incomeType:levelType,level,rate,base:roi,amount:pct(roi,rate),description:`Daily level L${level} (${rate}%) on ROI from ${a.user_id}`,businessDate:date})) levelCredits++;
     }
     packagesProcessed++;
     if(money(already+roi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1`,[a.id]);
