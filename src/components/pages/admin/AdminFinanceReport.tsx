@@ -19,7 +19,7 @@ type Report = {
   wallets: any[];
 };
 
-const money = (v: any) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (v: any) => `USDT ${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
 
 export const AdminFinanceReport: React.FC = () => {
   const { user } = useAuth();
