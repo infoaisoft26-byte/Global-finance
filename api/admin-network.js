@@ -29,6 +29,47 @@ async function financeReport(pool) {
   return { generatedAt:new Date().toISOString(), summary:{ totalDeposits:Number(s.total_deposits||0), totalPackagePurchases:Number(s.total_package_purchases||0), depositCount:Number(s.deposit_count||0), purchaseCount:Number(s.purchase_count||0), ...walletTotals }, ledger:ledgerQ.rows, purchases:purchasesQ.rows, wallets:walletsQ.rows };
 }
 
+async function dashboardMetrics(pool) {
+  const [usersQ, kycQ, ticketsQ, packagesQ, ledgerQ] = await Promise.all([
+    pool.query(`SELECT
+      COUNT(*)::int AS total_users,
+      COUNT(*) FILTER (WHERE status='active')::int AS active_users,
+      COUNT(*) FILTER (WHERE status='suspended')::int AS suspended_users
+      FROM users WHERE role='user'`),
+    pool.query(`SELECT
+      COUNT(*) FILTER (WHERE status IN ('pending','in_review'))::int AS pending_kyc,
+      COUNT(*) FILTER (WHERE status='verified')::int AS verified_kyc,
+      COUNT(*) FILTER (WHERE status='rejected')::int AS rejected_kyc
+      FROM kyc_submissions`),
+    pool.query(`SELECT
+      COUNT(*) FILTER (WHERE status='open')::int AS open_tickets,
+      COUNT(*) FILTER (WHERE status='in_progress')::int AS in_progress_tickets,
+      COUNT(*) FILTER (WHERE status IN ('resolved','closed'))::int AS closed_tickets
+      FROM support_tickets`),
+    pool.query(`SELECT
+      COUNT(*) FILTER (WHERE package_type='basic')::int AS basic_activations,
+      COUNT(*) FILTER (WHERE package_type='fd')::int AS fd_activations
+      FROM package_activations`),
+    pool.query(`SELECT COUNT(*)::int AS ledger_count FROM ledger_transactions`)
+  ]);
+  const u=usersQ.rows[0]||{}, k=kycQ.rows[0]||{}, t=ticketsQ.rows[0]||{}, p=packagesQ.rows[0]||{}, l=ledgerQ.rows[0]||{};
+  return {
+    generatedAt:new Date().toISOString(),
+    totalUsers:Number(u.total_users||0),
+    activeUsers:Number(u.active_users||0),
+    suspendedUsers:Number(u.suspended_users||0),
+    pendingKyc:Number(k.pending_kyc||0),
+    verifiedKyc:Number(k.verified_kyc||0),
+    rejectedKyc:Number(k.rejected_kyc||0),
+    openTickets:Number(t.open_tickets||0),
+    inProgressTickets:Number(t.in_progress_tickets||0),
+    closedTickets:Number(t.closed_tickets||0),
+    totalBasicActivations:Number(p.basic_activations||0),
+    totalFdActivations:Number(p.fd_activations||0),
+    ledgerTransactionCount:Number(l.ledger_count||0)
+  };
+}
+
 async function networkReport(pool) {
   const { rows } = await pool.query(`
     WITH direct_counts AS (SELECT sponsor_id,COUNT(*)::int AS direct_count FROM users WHERE sponsor_id IS NOT NULL GROUP BY sponsor_id),
@@ -49,7 +90,7 @@ export default async function handler(req,res) {
     await requireAdmin(req);
     const pool=getPool();
     const mode=String(req.query?.mode||'network');
-    return json(res,200,mode==='finance-report'?await financeReport(pool):await networkReport(pool));
+    return json(res,200,mode==='finance-report'?await financeReport(pool):mode==='dashboard-metrics'?await dashboardMetrics(pool):await networkReport(pool));
   } catch (error) {
     if (String(error?.message)==='ADMIN_REQUIRED') return json(res,403,{error:'Admin access required'});
     console.error('admin-network failed:', error instanceof Error?error.message:error);
