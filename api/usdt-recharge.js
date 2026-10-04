@@ -269,6 +269,7 @@ export default async function handler(req, res) {
         );
       });
 
+      // AUTO-CREDIT FLOW: store first, then verify on-chain and credit atomically.
       // The recharge request is already safely stored as pending.
       // Automatic on-chain verification must never turn a successful submission
       // into a generic 500 response. If verification fails, keep it pending
