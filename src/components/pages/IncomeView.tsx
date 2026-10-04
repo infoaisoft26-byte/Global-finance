@@ -179,8 +179,19 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     }
   ];
 
-  const todayAmount = config.getTodayAmount(wallet);
-  const totalAmount = config.getTotalAmount(wallet);
+  const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const ledgerTodayAmount = records
+    .filter((t) => t.status === 'completed' && t.flow === 'credit')
+    .filter((t) => new Date(t.createdAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === todayLocal)
+    .reduce((sum, t) => sum + Number(t.netAmount || t.amount || 0), 0);
+
+  const isCommissionView = ['basic_referral', 'basic_level', 'fd_referral', 'fd_level'].includes(String(config.txnType));
+  const todayAmount = isCommissionView ? ledgerTodayAmount : config.getTodayAmount(wallet);
+  const ledgerTotalAmount = records
+    .filter((t) => t.status === 'completed' && t.flow === 'credit')
+    .reduce((sum, t) => sum + Number(t.netAmount || t.amount || 0), 0);
+  const configuredTotalAmount = config.getTotalAmount(wallet);
+  const totalAmount = isCommissionView ? Math.max(Number(configuredTotalAmount || 0), ledgerTotalAmount) : configuredTotalAmount;
 
   const investedCapital = Number(wallet?.basicPackageActive || 0) + Number(wallet?.fdPackageActive || 0);
   const ledgerIncome = allIncomeRecords
