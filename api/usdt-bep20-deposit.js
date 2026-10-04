@@ -95,6 +95,64 @@ async function handleAdminPackageHistory(member, res) {
   return json(res, 200, { items: rows });
 }
 
+async function handleAdminReconcileReferralIncome(member, res) {
+  requireAdmin(member);
+  const result = await withTransaction(async (client) => {
+    await ensureIncomeSchema(client);
+    const { rows } = await client.query(`
+      SELECT id,user_id,package_name,package_type,amount
+      FROM package_activations
+      ORDER BY activated_at ASC
+    `);
+
+    let activationsProcessed = 0;
+    let distributionsCreated = 0;
+    let amountCredited = 0;
+
+    for (const activation of rows) {
+      const result = await applyActivationIncome(client, {
+        activationId: activation.id,
+        userId: activation.user_id,
+        amount: Number(activation.amount || 0),
+        packageName: activation.package_name,
+        packageType: activation.package_type === 'fd' ? 'fd' : 'basic',
+      });
+      activationsProcessed += 1;
+      distributionsCreated += Number(result.credited || 0);
+      amountCredited += Number(result.creditedAmount || 0);
+    }
+
+    await client.query(
+      `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+       VALUES($1,$2,$3,'REFERRAL_INCOME_RECONCILED','ledger','REFERRAL_RECONCILIATION',$4::jsonb)`,
+      [
+        crypto.randomUUID(),
+        member.uid,
+        member.email,
+        JSON.stringify({
+          activationsProcessed,
+          distributionsCreated,
+          amountCredited: Number(amountCredited.toFixed(2)),
+          commissionSchedule: 'L1=5%, L2-L12=1%, L13-L15=0.5%',
+          asset: 'USDT',
+        }),
+      ]
+    );
+
+    return {
+      activationsProcessed,
+      distributionsCreated,
+      amountCredited: Number(amountCredited.toFixed(2)),
+    };
+  });
+
+  return json(res, 200, {
+    success: true,
+    ...result,
+    message: 'Referral income reconciliation completed from real package activations.',
+  });
+}
+
 async function handlePackagePurchase(member, body, res) {
   const packageId = String(body.packageId || '').trim();
   if (!packageId) return json(res, 400, { error: 'Package is required' });
@@ -145,6 +203,7 @@ export default async function handler(req,res) {
     const action = String(body.action||'verify_deposit');
     if (action==='package_history') return await handlePackageHistory(member,res);
     if (action==='admin_package_history') return await handleAdminPackageHistory(member,res);
+    if (action==='admin_reconcile_referral_income') return await handleAdminReconcileReferralIncome(member,res);
     if (action==='package_purchase') return await handlePackagePurchase(member,body,res);
     if (action==='verify_deposit') return json(res,410,{error:'Direct deposit credit is retired. Submit a recharge request for admin review.'});
     return json(res,400,{error:'Invalid action'});
