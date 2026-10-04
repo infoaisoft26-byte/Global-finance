@@ -18,6 +18,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
   const [copied, setCopied] = useState(false);
   const [requests, setRequests] = useState<TransactionRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [withdrawalWindowOpen, setWithdrawalWindowOpen] = useState(false);
 
   const loadData = async () => {
     if (!profile) return;
@@ -43,19 +44,50 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
   const feePercent = settings?.withdrawalFeePercent || 5;
   const feeAmount = Number(((amount * feePercent) / 100).toFixed(6));
   const netPayout = Number((amount - feeAmount).toFixed(6));
-  const isWithdrawalEnabled = settings?.withdrawalEnabled ?? false;
+  const isWithdrawalEnabled = settings?.withdrawalEnabled ?? true;
+
+  const isWithinWithdrawalWindow = () => {
+    const timezone = settings?.withdrawalTimezone || 'Asia/Kolkata';
+    const start = settings?.withdrawalWindowStart || '10:30';
+    const end = settings?.withdrawalWindowEnd || '15:30';
+    try {
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).formatToParts(new Date());
+      const hour = Number(parts.find((p) => p.type === 'hour')?.value || 0);
+      const minute = Number(parts.find((p) => p.type === 'minute')?.value || 0);
+      const current = hour * 60 + minute;
+      const [startHour, startMinute] = start.split(':').map(Number);
+      const [endHour, endMinute] = end.split(':').map(Number);
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = endHour * 60 + endMinute;
+      return current >= startMinutes && current <= endMinutes;
+    } catch {
+      return true;
+    }
+  };
+
+  useEffect(() => {
+    const syncWindow = () => setWithdrawalWindowOpen(isWithinWithdrawalWindow());
+    syncWindow();
+    const timer = window.setInterval(syncWindow, 30_000);
+    return () => window.clearInterval(timer);
+  }, [settings?.withdrawalWindowStart, settings?.withdrawalWindowEnd, settings?.withdrawalTimezone]);
 
   const handleWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile || !wallet) return;
 
-    if (!isWithdrawalEnabled) {
-      setErrorMsg('USDT withdrawals are currently disabled in platform settings (PAYOUTS_ENABLED=false).');
+    if (!isWithdrawalEnabled || !withdrawalWindowOpen) {
+      setErrorMsg('Withdrawal requests are accepted daily from 10:30 AM to 3:30 PM IST.');
       return;
     }
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setErrorMsg('Please enter a valid USDT withdrawal amount.');
+    if (!Number.isFinite(amount) || amount < 2) {
+      setErrorMsg('Minimum withdrawal amount is 2 USDT.');
       return;
     }
 
@@ -179,12 +211,10 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
         </div>
       </div>
 
-      {!isWithdrawalEnabled && (
-        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-3 text-xs">
-          <Lock className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-          <div><strong className="font-semibold block">USDT payouts are currently disabled</strong><span>Withdrawal requests cannot be executed while PAYOUTS_ENABLED=false.</span></div>
-        </div>
-      )}
+      <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-3 text-xs">
+        <Clock className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+        <div><strong className="font-semibold block">Daily withdrawal window</strong><span>10:30 AM – 3:30 PM IST • Minimum 2 USDT</span></div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 rounded-2xl bg-white border border-blue-200 p-5 sm:p-6 shadow-sm space-y-5">
@@ -219,7 +249,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
               <textarea value={userNote} onChange={(e) => setUserNote(e.target.value)} rows={3} placeholder="Optional note for admin" className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm focus:outline-none focus:border-cyan-500" />
             </div>
 
-            <button type="submit" disabled={withdrawing || !isWithdrawalEnabled} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={withdrawing || !isWithdrawalEnabled || !withdrawalWindowOpen} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2">
               {withdrawing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowDownLeft className="w-4 h-4" />}
               {withdrawing ? 'Submitting…' : 'Submit USDT Withdrawal'}
             </button>
