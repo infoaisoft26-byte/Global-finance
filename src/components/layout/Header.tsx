@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Menu, Copy, Check, ChevronRight, ShieldAlert, Sun, Moon, Type } from 'lucide-react';
+import { Menu, Copy, Check, ChevronRight, ShieldAlert, Sun, Moon, Type, Clock3 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import type { ActivePage } from '../../types/index.ts';
 import '../../styles/memberPreferences.css';
@@ -58,6 +58,7 @@ export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onO
   const [copied, setCopied] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(() => (localStorage.getItem('gf-theme') as ThemeMode) || 'light');
   const [fontMode, setFontMode] = useState<FontMode>(() => (localStorage.getItem('gf-font') as FontMode) || 'normal');
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const referralCode = profile?.referralCode || 'GF152551';
   const referralUrl = typeof window !== 'undefined'
@@ -68,6 +69,11 @@ export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onO
     document.documentElement.dataset.gfTheme = theme;
     localStorage.setItem('gf-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.gfFont = fontMode;
@@ -82,6 +88,17 @@ export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onO
   };
 
   const pageInfo = pageTitles[activePage] || { title: 'Dashboard', category: 'Overview' };
+  const formattedDateTime = new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+    timeZoneName: 'short'
+  }).format(currentTime);
 
   return (
     <header className="sticky top-0 z-30 bg-[#080e22]/90 backdrop-blur-md border-b border-blue-500/20 px-4 sm:px-6 py-3.5 no-print transition-all">
@@ -89,13 +106,12 @@ export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onO
         <div className="flex items-center gap-3 min-w-0">
           <button onClick={onToggleSidebar} className="lg:hidden p-2 rounded-lg bg-[#0e1738] border border-blue-500/30" aria-label="Toggle navigation menu"><Menu className="w-5 h-5 text-cyan-400" /></button>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
-                <span>{pageInfo.category}</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-                <span className="text-slate-200 truncate">{pageInfo.title}</span>
-              </div>
+            <div className="flex items-center gap-2 min-w-0">
               <h1 className="text-base sm:text-lg font-bold text-white truncate">{pageInfo.title}</h1>
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] sm:text-xs text-slate-400 whitespace-nowrap" title="Current India date and time">
+                <Clock3 className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{formattedDateTime}</span>
+              </span>
             </div>
           </div>
         </div>
