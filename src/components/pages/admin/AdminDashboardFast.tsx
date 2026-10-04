@@ -3,8 +3,7 @@ import {
   Users, ShieldCheck, Clock, Package, FileText, TrendingUp, RefreshCw,
   ChevronRight, ShieldAlert
 } from 'lucide-react';
-import { collection, getCountFromServer, query, where } from 'firebase/firestore';
-import { db } from '../../../lib/firebase.ts';
+import { adminGetDashboardMetrics } from '../../../services/financeService.ts';
 import type { ActivePage } from '../../../types/index.ts';
 
 interface AdminDashboardProps {
@@ -41,65 +40,11 @@ const EMPTY: Metrics = {
   ledgerTransactionCount: 0,
 };
 
-const CACHE_KEY = 'gf_admin_metrics_v1';
+const CACHE_KEY = 'gf_admin_metrics_v2';
 const CACHE_TTL = 30_000;
 
-async function count(ref: any) {
-  const snap = await getCountFromServer(ref);
-  return snap.data().count;
-}
-
 async function loadMetrics(): Promise<Metrics> {
-  const users = collection(db, 'users');
-  const kyc = collection(db, 'kyc_submissions');
-  const tickets = collection(db, 'tickets');
-  const packages = collection(db, 'packages');
-  const txns = collection(db, 'transactions');
-
-  const [
-    totalUsers,
-    activeUsers,
-    suspendedUsers,
-    pendingKyc,
-    inReviewKyc,
-    verifiedKyc,
-    rejectedKyc,
-    openTickets,
-    inProgressTickets,
-    closedTickets,
-    totalBasicActivations,
-    totalFdActivations,
-    ledgerTransactionCount,
-  ] = await Promise.all([
-    count(users),
-    count(query(users, where('status', '==', 'active'))),
-    count(query(users, where('status', '==', 'suspended'))),
-    count(query(kyc, where('status', '==', 'pending'))),
-    count(query(kyc, where('status', '==', 'in_review'))),
-    count(query(kyc, where('status', '==', 'verified'))),
-    count(query(kyc, where('status', '==', 'rejected'))),
-    count(query(tickets, where('status', '==', 'open'))),
-    count(query(tickets, where('status', '==', 'in_progress'))),
-    count(query(tickets, where('status', '==', 'closed'))),
-    count(query(packages, where('packageType', '==', 'basic'))),
-    count(query(packages, where('packageType', '==', 'fd'))),
-    count(txns),
-  ]);
-
-  return {
-    totalUsers,
-    activeUsers,
-    suspendedUsers,
-    pendingKyc: pendingKyc + inReviewKyc,
-    verifiedKyc,
-    rejectedKyc,
-    openTickets,
-    inProgressTickets,
-    closedTickets,
-    totalBasicActivations,
-    totalFdActivations,
-    ledgerTransactionCount,
-  };
+  return adminGetDashboardMetrics();
 }
 
 export const AdminDashboardFast: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
