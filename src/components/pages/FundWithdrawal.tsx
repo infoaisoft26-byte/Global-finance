@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, ArrowDownLeft, CheckCircle2, Clock, Copy, Lock, RefreshCw, Wallet, XCircle } from 'lucide-react';
+import { AlertCircle, ArrowDownLeft, CheckCircle2, Clock, Copy, RefreshCw, Wallet, XCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { createTransactionRequest, getUserTransactionRequests } from '../../services/transactionRequestService.ts';
 import { getSystemSettings } from '../../services/settingsService.ts';
@@ -230,7 +230,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
             <div>
               <label className="block text-xs font-semibold mb-1">Withdrawal Amount (USDT) *</label>
               <div className="relative">
-                <input type="number" min="0.000001" step="0.000001" value={amount} onChange={(e) => setAmount(Number(e.target.value))} required className="w-full pr-16 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 font-mono text-sm focus:outline-none focus:border-cyan-500" />
+                <input type="number" min="2" step="0.000001" value={amount} onChange={(e) => setAmount(Number(e.target.value))} required className="w-full pr-16 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 font-mono text-sm focus:outline-none focus:border-cyan-500" />
                 <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold">USDT</span>
               </div>
             </div>
