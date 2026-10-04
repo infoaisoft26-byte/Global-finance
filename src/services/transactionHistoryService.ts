@@ -1,5 +1,4 @@
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
-import { db } from '../lib/firebase.ts';
+import { auth } from '../lib/firebase.ts';
 import type { TransactionLedger } from '../types/index.ts';
 
 export type AdjudicationTransaction = TransactionLedger & {
@@ -12,18 +11,22 @@ export type AdjudicationTransaction = TransactionLedger & {
   referredUserName?: string;
   referrerUserId?: string;
   referrerReferralCode?: string;
+  commissionPercentage?: number;
+  baseAmount?: number;
 };
 
-const mapLedger = (d: any): AdjudicationTransaction => {
-  const x = d.data() as TransactionLedger;
+const mapLedger = (x: any): AdjudicationTransaction => {
   const m = x.metadata || {};
+  const isReferral = String(x.type || '').includes('referral') || String(x.type || '').includes('level');
   return {
     ...x,
     userName: m.userName || m.memberName,
     userEmail: m.userEmail || m.memberEmail,
     userReferralCode: m.userReferralCode || m.memberReferralCode,
     referralLevel: m.referralLevel ?? m.level ?? m.levelNumber,
-    referralAmount: Number(m.referralAmount ?? m.levelAmount ?? (x.type === 'referral_bonus' || String(x.type).includes('referral') || String(x.type).includes('level') ? x.amount : 0)) || 0,
+    referralAmount: Number(m.referralAmount ?? m.levelAmount ?? (isReferral ? x.amount : 0)) || 0,
+    commissionPercentage: Number(m.percentage ?? m.commissionPercentage ?? 0) || 0,
+    baseAmount: Number(m.baseAmount ?? 0) || 0,
     referredUserId: m.referredUserId || m.downlineUserId || m.sourceUserId,
     referredUserName: m.referredUserName || m.downlineName,
     referrerUserId: m.referrerUserId || m.sponsorUserId,
@@ -32,12 +35,15 @@ const mapLedger = (d: any): AdjudicationTransaction => {
 };
 
 export async function getLedgerTransactions(userId?: string, maxRows = 500): Promise<AdjudicationTransaction[]> {
-  const ref = collection(db, 'transactions');
-  const q = userId
-    ? query(ref, where('userId', '==', userId), limit(maxRows))
-    : query(ref, limit(maxRows));
-  const snap = await getDocs(q);
-  return snap.docs
-    .map(mapLedger)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Authentication required');
+  const token = await currentUser.getIdToken();
+  const response = await fetch('/api/usdt-recharge?scope=ledger', {
+    method: 'GET', credentials: 'include', headers: { Authorization: `Bearer ${token}` }, cache: 'no-store'
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !Array.isArray(data.transactions)) throw new Error(data.error || 'Unable to load transaction ledger');
+  let list = data.transactions.map(mapLedger);
+  if (userId) list = list.filter((t: AdjudicationTransaction) => t.userId === userId);
+  return list.slice(0, maxRows).sort((a: AdjudicationTransaction,b: AdjudicationTransaction) => new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
 }
