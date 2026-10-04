@@ -210,6 +210,8 @@ export interface DownlineMember {
   joinDate: string;
   activePackage: number;
   status: 'active' | 'inactive';
+  commissionFromMember?: number;
+  totalCommissionFromMember?: number;
 }
 
 export interface KycSubmission {
