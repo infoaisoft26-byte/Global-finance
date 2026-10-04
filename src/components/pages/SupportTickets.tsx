@@ -108,7 +108,12 @@ export const SupportTickets: React.FC = () => {
         <div>
           <div className="text-xs font-semibold text-white">{item.subject}</div>
           <div className="text-[11px] text-slate-400 truncate max-w-xs">{item.message}</div>
-          {item.adminReply && (
+          {item.aiReply && (
+            <div className="mt-1 p-2 rounded bg-violet-950/30 border border-violet-500/30 text-[11px] text-violet-200">
+              <strong className="text-violet-300">Global Finance AI:</strong> {item.aiReply}
+            </div>
+          )}
+          {!item.aiReply && item.adminReply && (
             <div className="mt-1 p-2 rounded bg-cyan-950/40 border border-cyan-500/30 text-[11px] text-cyan-200">
               <strong className="text-cyan-400">Desk Reply:</strong> {item.adminReply}
             </div>
