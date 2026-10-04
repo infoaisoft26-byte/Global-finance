@@ -183,8 +183,28 @@ export default async function handler(req, res) {
         ? `SELECT r.*,u.name,u.email,u.referral_code FROM usdt_bep20_recharges r JOIN users u ON u.id=r.user_id ORDER BY CASE WHEN r.status='pending' THEN 0 ELSE 1 END,r.created_at DESC LIMIT 150`
         : `SELECT r.* FROM usdt_bep20_recharges r WHERE r.user_id=$1 ORDER BY r.created_at DESC LIMIT 30`;
       const { rows } = await getPool().query(query, scope === 'admin' ? [] : [actor.id]);
+
+      // When automatic verification is enabled, retry pending requests whenever
+      // the member opens/refreshes Recharge. This makes a previously submitted
+      // confirmed transaction settle without requiring a second manual submit.
+      if (scope !== 'admin' && autoCreditConfigured()) {
+        for (const pending of rows.filter((row) => row.status === 'pending')) {
+          try {
+            await autoCreditRecharge({
+              id: pending.id,
+              actor,
+              txHash: pending.tx_hash,
+              amount: String(pending.amount_usdt),
+            });
+          } catch (error) {
+            console.error('Pending recharge auto-credit retry failed:', error instanceof Error ? error.message : error);
+          }
+        }
+      }
+
+      const { rows: refreshedRows } = await getPool().query(query, scope === 'admin' ? [] : [actor.id]);
       return json(res, 200, {
-        requests: rows.map(map),
+        requests: refreshedRows.map(map),
         enabled: rechargeConfigured(),
         autoCreditEnabled: autoCreditConfigured(),
         depositAddress: BEP20_WALLET,
