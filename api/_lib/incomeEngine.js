@@ -49,6 +49,15 @@ export async function ensureIncomeSchema(client) {
   await client.query(`CREATE INDEX IF NOT EXISTS idx_income_events_type_date ON income_events(event_type,business_date)`);
 }
 
+function currentIndiaBusinessDate(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
 function previousIndiaBusinessDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
   const y = Number(parts.find(p => p.type === 'year')?.value || 1970);
@@ -142,7 +151,8 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   const count=await client.query('SELECT COUNT(*)::int n FROM package_activations WHERE user_id=$1',[userId]);
   const first=Number(count.rows[0]?.n||0)<=1;
   const type=first?'joining':'retopup'; const key=`ACT:${activationId}:${type}`;
-  const eventCreated=await eventOnce(client,key,type,userId,activationId,amount,null,{packageName,packageType});
+  const businessDate=currentIndiaBusinessDate();
+  const eventCreated=await eventOnce(client,key,type,userId,activationId,amount,businessDate,{packageName,packageType});
   const ups=await uplines(client,userId); let credited=0; let creditedAmount=0;
   const recipients=[];
   for(const u of ups){
@@ -154,7 +164,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
       ? (level===1 ? 'fd_referral' : 'fd_level')
       : (level===1 ? 'basic_referral' : 'basic_level');
     const distributionAmount=pct(amount,rate);
-    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining':'Re-topup'} referral income L${level} (${rate}%) from ${userId}`})){
+    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining':'Re-topup'} referral income L${level} (${rate}%) from ${userId}`,businessDate})){
       credited++;
       creditedAmount=money(creditedAmount+distributionAmount);
       recipients.push({userId:u.id,level,rate,amount:distributionAmount});
