@@ -1281,3 +1281,4 @@ export async function adminGetDashboardMetrics(): Promise<{
     totalFdActivations: Number(data.totalFdActivations || 0),
     ledgerTransactionCount: Number(data.ledgerTransactionCount || 0),
   };
+}
