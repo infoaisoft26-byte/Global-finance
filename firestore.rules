@@ -2,8 +2,6 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Global Finance runtime data remains server-controlled. Only the
-    // single system-settings document is exposed to authenticated clients.
     match /system_settings/global_finance_system_settings {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null
@@ -12,7 +10,35 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Keep every other Firestore document locked down.
+    // Transaction history is append-only from the application/server side.
+    // Members may read only their own ledger entries.
+    // Admin may read the full ledger for Transaction Adjudication Control.
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null
+        && (
+          resource.data.userId == request.auth.uid
+          || (
+            request.auth.token.email != null
+            && request.auth.token.email.lower() == 'admin@gf.app'
+          )
+        );
+      allow create, update, delete: if false;
+    }
+
+    // Wallets are server-controlled. Clients must not mutate balances directly.
+    match /wallets/{userId} {
+      allow read: if request.auth != null
+        && (
+          userId == request.auth.uid
+          || (
+            request.auth.token.email != null
+            && request.auth.token.email.lower() == 'admin@gf.app'
+          )
+        );
+      allow create, update, delete: if false;
+    }
+
+    // All other documents remain server-controlled.
     match /{document=**} {
       allow read, write: if false;
     }
