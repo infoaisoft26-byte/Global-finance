@@ -90,12 +90,19 @@ export const Recharge: React.FC = () => {
       setAmount('');
       setTxRef('');
       await load();
-    } catch (err: any) {
-      setError(err?.message || 'Unable to submit payment confirmation. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+   } catch (err: any) {
+  console.error('USDT recharge submission failed:', err);
+
+  const message =
+    err?.response?.data?.error ||
+    err?.response?.data?.message ||
+    err?.data?.error ||
+    err?.data?.message ||
+    err?.message ||
+    'Unable to submit payment confirmation. Please try again.';
+
+  setError(String(message));
+} finally {
 
   return (
     <div className="space-y-6">
