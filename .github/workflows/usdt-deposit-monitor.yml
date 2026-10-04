@@ -1,0 +1,25 @@
+name: Global Finance USDT Deposit Monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Scan and auto-credit BSC USDT deposits
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$CRON_SECRET"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "User-Agent: global-finance-usdt-monitor" \
+            "https://globalfin-aijobs.vercel.app/api/usdt-deposit-auto-credit-cron"
