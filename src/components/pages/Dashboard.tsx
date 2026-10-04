@@ -18,8 +18,11 @@ import {
   Award,
   RefreshCw,
   QrCode,
+  ListOrdered,
+  Table as TableIcon
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
+import { getTransactions } from '../../services/financeService.ts';
 import type { ActivePage } from '../../types/index.ts';
 
 interface DashboardProps {
@@ -27,7 +30,7 @@ interface DashboardProps {
   onOpenProfile: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile }) => {
   const { profile, wallet } = useAuth();
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -37,7 +40,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const referralUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/register?r=${referralCode}`
     : `https://globalfinance.digital/register?r=${referralCode}`;
-
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralUrl);
@@ -55,20 +57,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const num = Number(val || 0);
     return `USDT ${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
-
-  return (
-          <span className={`font-mono text-xs font-bold ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {isCredit ? '+' : '-'}{formatInr(item.amount)}
-          </span>
-        );
-      }
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (item) => renderStatusBadge(item.status)
-    }
-  ];
 
   return (
     <div className="space-y-6">
