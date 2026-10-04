@@ -734,6 +734,50 @@ export async function createSupportTicket(
   };
   await setDoc(ticketRef, ticket);
 
+  // Give the member an immediate Global Finance AI acknowledgement.
+  // Ticket creation must remain successful even when the AI service is unavailable.
+  try {
+    const currentUser = auth.currentUser;
+    const token = currentUser ? await currentUser.getIdToken() : '';
+    if (token) {
+      const response = await fetch('/api/usdt-recharge', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: 'support_ai',
+          messages: [{
+            role: 'user',
+            content: `Support ticket subject: ${subject.trim()}\\nCategory: ${category}\\nPriority: ${priority}\\nIssue: ${message.trim()}`,
+          }],
+        }),
+        cache: 'no-store',
+      });
+      const aiData = await response.json().catch(() => ({}));
+      const aiReply = response.ok ? String(aiData?.reply || '').trim() : '';
+      if (aiReply) {
+        const aiMessage: TicketMessage = {
+          id: generateReferenceId('AIM'),
+          senderId: 'SYSTEM_AI',
+          senderRole: 'ai',
+          senderName: 'Global Finance Support AI',
+          message: aiReply,
+          createdAt: new Date().toISOString(),
+        };
+        await updateDoc(ticketRef, {
+          messages: [initialMsg, aiMessage],
+          aiReply,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch (aiError) {
+    console.warn('Support AI ticket acknowledgement unavailable:', aiError);
+  }
+
   await recordAuditLog(userId, userEmail, 'Support Ticket Created', 'ticket', ticketRef.id, {
     subject,
     category,
@@ -748,12 +792,14 @@ export async function getSupportTickets(userId?: string): Promise<SupportTicket[
     const ticketRef = collection(db, 'tickets');
     let q;
     if (userId) {
-      q = query(ticketRef, where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(50));
+      q = query(ticketRef, where('userId', '==', userId), limit(50));
     } else {
       q = query(ticketRef, orderBy('createdAt', 'desc'), limit(100));
     }
     const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as SupportTicket);
+    return snap.docs
+      .map(d => d.data() as SupportTicket)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch (err) {
     console.error('Failed to fetch tickets:', err);
     return [];
