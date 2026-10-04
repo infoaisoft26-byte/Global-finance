@@ -38,6 +38,44 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Support tickets: members can create and read only their own tickets.
+    // Admins can read/update all tickets. AI acknowledgement is an owner-only append.
+    match /tickets/{ticketId} {
+      function isAdmin() {
+        return request.auth != null
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
+
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.userEmail is string
+        && request.resource.data.subject is string
+        && request.resource.data.message is string;
+
+      allow read: if request.auth != null
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow update: if request.auth != null && (
+        isAdmin()
+        ||
+        (
+          resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.subject == resource.data.subject
+          && request.resource.data.category == resource.data.category
+          && request.resource.data.priority == resource.data.priority
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.adminReply == resource.data.adminReply
+          && request.resource.data.messages.size() == resource.data.messages.size() + 1
+          && request.resource.data.messages[request.resource.data.messages.size() - 1].senderRole == 'ai'
+          && request.resource.data.messages[request.resource.data.messages.size() - 1].senderId == 'SYSTEM_AI'
+        )
+      );
+
+      allow delete: if false;
+    }
+
     // All other documents remain server-controlled.
     match /{document=**} {
       allow read, write: if false;
