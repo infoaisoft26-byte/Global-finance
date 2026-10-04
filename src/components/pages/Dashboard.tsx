@@ -18,6 +18,7 @@ import {
   Award,
   RefreshCw,
   QrCode,
+  Smartphone,
   ListOrdered,
   Table as TableIcon
 } from 'lucide-react';
@@ -36,12 +37,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const [copiedCode, setCopiedCode] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
 
-  const referralCode = profile?.referralCode || 'GF152551';
-  const referralUrl = typeof window !== 'undefined'
+  const referralCode = profile?.referralCode || '';
+  const referralUrl = typeof window !== 'undefined' && referralCode
     ? `${window.location.origin}/register?r=${referralCode}`
-    : `https://globalfinance.digital/register?r=${referralCode}`;
+    : '';
 
   const handleCopyLink = () => {
+    if (!referralUrl) return;
     navigator.clipboard.writeText(referralUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
@@ -127,7 +129,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               Your Referral Link (GF Format)
             </div>
             <div className="text-xs sm:text-sm font-mono text-cyan-400 truncate max-w-md">
-              {referralUrl}
+              {referralUrl || 'Referral link unavailable until your Member ID is assigned'}
+            </div>
+            <div className="mt-1 text-[10px] text-slate-500">
+              Referral ID: <span className="font-mono text-cyan-300">{referralCode || '—'}</span>
+              {profile?.sponsorId && <> · Referred by: <span className="font-mono text-slate-300">{profile.sponsorId}</span> <span className="text-slate-500">({profile.sponsorName || 'Sponsor name unavailable'})</span></>}
             </div>
           </div>
         </div>
@@ -156,6 +162,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           >
             <QrCode className="w-4 h-4" />
           </button>
+        </div>
+      </div>
+
+      {/* ACCOUNT DETAILS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor ID</div>
+          <div className="mt-1 font-mono text-sm font-bold text-cyan-300">{profile?.sponsorId || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor Name</div>
+          <div className="mt-1 text-sm font-semibold text-white truncate">{profile?.sponsorName || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Primary Mobile</div>
+          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.phone || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Second Mobile</div>
+          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.secondPhone || 'Not added'}</div>
         </div>
       </div>
 
