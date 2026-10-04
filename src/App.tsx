@@ -37,6 +37,7 @@ import { AdminReports } from './components/pages/admin/AdminReports.tsx';
 import { AdminPackages } from './components/pages/admin/AdminPackages.tsx';
 import { AdminPackageActivations } from './components/pages/admin/AdminPackageActivations.tsx';
 import { AdminTransactions } from './components/pages/admin/AdminTransactions.tsx';
+import { AdminUsdtRecharge } from './components/pages/admin/AdminUsdtRecharge.tsx';
 import { AdminAudit } from './components/pages/admin/AdminAudit.tsx';
 import { AdminSettingsPage } from './components/pages/admin/AdminSettingsPage.tsx';
 
@@ -230,6 +231,8 @@ const MainLayout: React.FC = () => {
         return <AdminDashboard onNavigate={setActivePage} />;
       case 'admin-transactions':
         return <AdminTransactions />;
+      case 'admin-usdt-recharge':
+        return <AdminUsdtRecharge />;
       case 'admin-package-activations':
         return <AdminPackageActivations />;
       case 'admin-users':
