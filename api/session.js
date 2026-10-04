@@ -28,6 +28,18 @@ function mapWallet(row) {
     fdPackageActive: Number(row.fd_package_active || 0),
     directTeamCount: Number(row.direct_team_count || 0),
     totalTeamCount: Number(row.total_team_count || 0),
+    referralIncome: Number(row.referral_income || 0),
+    joiningBonus: Number(row.joining_bonus || 0),
+    todayRoiIncome: Number(row.today_roi_income || 0),
+    todayLevelIncome: Number(row.today_level_income || 0),
+    totalRoiIncome: Number(row.total_roi_income || 0),
+    totalLevelIncome: Number(row.total_level_income || 0),
+    fdReferralIncome: Number(row.fd_referral_income || 0),
+    fdTodayRoiIncome: Number(row.fd_today_roi_income || 0),
+    fdTodayLevelIncome: Number(row.fd_today_level_income || 0),
+    fdTotalRoiIncome: Number(row.fd_total_roi_income || 0),
+    fdTotalLevelIncome: Number(row.fd_total_level_income || 0),
+    totalSalary: Number(row.total_salary || 0),
     updatedAt: row.updated_at?.toISOString?.() || String(row.updated_at),
   };
 }
