@@ -131,6 +131,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Keep the wallet UI synchronized with admin-approved recharges and other
+  // server-side ledger changes while the member is actively logged in.
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshWallet();
+      }
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [user?.uid]);
+
   const loginWithGoogle = async () => {
     setLoading(true);
     try {
