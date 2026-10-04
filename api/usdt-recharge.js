@@ -152,12 +152,19 @@ export default async function handler(req, res) {
 
       if (scope === 'ledger') {
         const { rows } = await getPool().query(
-          `SELECT id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at
-           FROM ledger_transactions
-           WHERE user_id=$1
-           ORDER BY created_at DESC
-           LIMIT 200`,
-          [actor.id]
+          admin
+            ? `SELECT l.id,l.user_id,l.type,l.category,l.flow,l.amount,l.fee,l.net_amount,l.description,l.reference_id,l.status,l.metadata,l.created_at,
+                      u.name AS user_name,u.email AS user_email,u.referral_code AS user_referral_code
+                 FROM ledger_transactions l
+                 LEFT JOIN users u ON u.id=l.user_id
+                ORDER BY l.created_at DESC
+                LIMIT 1000`
+            : `SELECT id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at
+                 FROM ledger_transactions
+                WHERE user_id=$1
+                ORDER BY created_at DESC
+                LIMIT 200`,
+          admin ? [] : [actor.id]
         );
         return json(res, 200, {
           transactions: rows.map((row) => ({
@@ -172,7 +179,12 @@ export default async function handler(req, res) {
             description: row.description || '',
             referenceId: row.reference_id || row.id,
             status: row.status || 'completed',
-            metadata: row.metadata || undefined,
+            metadata: {
+              ...(row.metadata || {}),
+              ...(row.user_name ? { userName: row.user_name } : {}),
+              ...(row.user_email ? { userEmail: row.user_email } : {}),
+              ...(row.user_referral_code ? { userReferralCode: row.user_referral_code } : {}),
+            },
             createdAt: row.created_at?.toISOString?.() || String(row.created_at),
           }))
         });
