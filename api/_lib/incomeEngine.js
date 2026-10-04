@@ -81,9 +81,12 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
   const id='INC-'+crypto.createHash('sha256').update(`${eventKey}:${recipient}:${incomeType}:${level}`).digest('hex').slice(0,28);
   const exists=await client.query('SELECT 1 FROM income_distributions WHERE id=$1',[id]); if(exists.rowCount) return false;
   await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[recipient]);
+  const sourceUser=(await client.query('SELECT id,name,email,referral_code FROM users WHERE id=$1 LIMIT 1',[source])).rows[0];
+  const recipientUser=(await client.query('SELECT id,name,email,referral_code FROM users WHERE id=$1 LIMIT 1',[recipient])).rows[0];
   const ledgerId='LED-'+id;
+  const metadata={sourceUserId:source,referredUserId:source,referredUserName:sourceUser?.name||null,referredUserEmail:sourceUser?.email||null,referrerUserId:recipient,referrerReferralCode:recipientUser?.referral_code||null,referralLevel:level,level,percentage:rate,commissionPercentage:rate,referralAmount:amount,baseAmount:money(base),businessDate:businessDate||null};
   await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
-    VALUES($1,$2,$3,'income_wallet','credit',$4,0,$4,$5,$6,'completed',$7::jsonb)`,[ledgerId,recipient,incomeType,amount,description,eventKey,JSON.stringify({sourceUserId:source,level,percentage:rate,baseAmount:money(base),businessDate:businessDate||null})]);
+    VALUES($1,$2,$3,'income_wallet','credit',$4,0,$4,$5,$6,'completed',$7::jsonb)`,[ledgerId,recipient,incomeType,amount,description,eventKey,JSON.stringify(metadata)]);
 
   const basicReferral=incomeType==='basic_referral'?amount:0;
   const fdReferral=incomeType==='fd_referral'?amount:0;
