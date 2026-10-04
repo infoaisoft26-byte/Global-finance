@@ -27,18 +27,6 @@ export const DailyIncomeReport: React.FC = () => {
       const txns = await getTransactions(profile.uid, 'income_wallet');
       const groups: Record<string, DailyAggregate> = {};
 
-      // If user has today income in wallet, ensure today's row exists
-      const todayStr = new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' });
-      groups[todayStr] = {
-        id: todayStr,
-        date: todayStr,
-        roiIncome: (wallet?.todayRoiIncome || 0) + (wallet?.fdTodayRoiIncome || 0),
-        levelIncome: (wallet?.todayLevelIncome || 0) + (wallet?.fdTodayLevelIncome || 0),
-        referralIncome: wallet?.referralIncome || 0,
-        salaryIncome: wallet?.totalSalary || 0,
-        totalIncome: ((wallet?.todayRoiIncome || 0) + (wallet?.fdTodayRoiIncome || 0) + (wallet?.todayLevelIncome || 0) + (wallet?.fdTodayLevelIncome || 0))
-      };
-
       for (const t of txns) {
         if (t.flow === 'credit') {
           const dStr = new Date(t.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' });
@@ -62,7 +50,7 @@ export const DailyIncomeReport: React.FC = () => {
           } else if (t.type === 'salary') {
             groups[dStr].salaryIncome += t.amount;
           }
-          groups[dStr].totalIncome += t.amount;
+          if (t.type !== 'salary') groups[dStr].totalIncome += t.amount;
         }
       }
 
@@ -93,7 +81,7 @@ export const DailyIncomeReport: React.FC = () => {
       header: 'Total ROI Income',
       render: (item) => (
         <span className="font-mono text-xs text-cyan-300">
-          ₹{item.roiIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.roiIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
         </span>
       )
     },
@@ -102,7 +90,7 @@ export const DailyIncomeReport: React.FC = () => {
       header: 'Total Level Income',
       render: (item) => (
         <span className="font-mono text-xs text-teal-300">
-          ₹{item.levelIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.levelIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
         </span>
       )
     },
@@ -111,7 +99,7 @@ export const DailyIncomeReport: React.FC = () => {
       header: 'Referral Direct Income',
       render: (item) => (
         <span className="font-mono text-xs text-emerald-300">
-          ₹{item.referralIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.referralIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
         </span>
       )
     },
@@ -120,7 +108,7 @@ export const DailyIncomeReport: React.FC = () => {
       header: 'Salary Bonus',
       render: (item) => (
         <span className="font-mono text-xs text-rose-300">
-          ₹{item.salaryIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          ₹{item.salaryIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       )
     },
@@ -129,7 +117,7 @@ export const DailyIncomeReport: React.FC = () => {
       header: 'Total Day Income',
       render: (item) => (
         <span className="font-mono text-xs font-bold text-white bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/30">
-          ₹{item.totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
         </span>
       )
     }
@@ -146,14 +134,14 @@ export const DailyIncomeReport: React.FC = () => {
             Daily Income Report
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Day-by-day aggregate breakdown of all earned ROI, level commissions, and referral rewards.
+            Daily ROI, referral and level income are recorded from the live ledger. Level income is calculated on ROI income, not invested amount, with 1 active referral required at each level.
           </p>
         </div>
 
         <div className="p-4 rounded-xl bg-[#0e173a] border border-blue-500/30 text-right">
           <span className="text-xs text-slate-400">Total Income</span>
           <div className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono tabular-nums">
-            ₹{(wallet?.totalIncome || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+USDT {Number((wallet?.totalIncome || 0) - (wallet?.totalSalary || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
           </div>
         </div>
       </div>
