@@ -706,7 +706,7 @@ export async function getTransactions(
     const currentUser = auth.currentUser;
     if (currentUser && currentUser.uid === userId) {
       const token = await currentUser.getIdToken();
-      const response = await fetch('/api/financial-ledger', {
+      const response = await fetch('/api/usdt-recharge?scope=ledger', {
         method: 'GET',
         credentials: 'include',
         headers: { Authorization: `Bearer ${token}` },
