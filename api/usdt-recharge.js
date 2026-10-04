@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getPool, withTransaction } from './_lib/db.js';
 import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
+import { applyActivationIncome, ensureIncomeSchema } from './_lib/incomeEngine.js';
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -228,6 +229,65 @@ export default async function handler(req, res) {
       body = parseBody(req);
     } catch {
       return json(res, 400, { error: 'Invalid JSON request' });
+    }
+
+    if (body.action === 'activate_package') {
+      if (admin) return json(res, 403, { error: 'Member account required' });
+
+      const packageType = body.packageType === 'fd' ? 'fd' : 'basic';
+      const packageName = String(body.packageName || '').trim().slice(0, 120);
+      const amount = Number(Number(body.amount || 0).toFixed(2));
+      const roiRate = Number(body.roiRate);
+      const durationDays = Math.floor(Number(body.durationDays));
+
+      if (!packageName || !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(roiRate) || roiRate <= 0 || !Number.isInteger(durationDays) || durationDays <= 0) {
+        return json(res, 400, { error: 'Valid package details are required' });
+      }
+
+      const result = await withTransaction(async (client) => {
+        await ensureIncomeSchema(client);
+        await client.query(`CREATE TABLE IF NOT EXISTS package_activations(
+          id VARCHAR(64) PRIMARY KEY,
+          user_id VARCHAR(64) NOT NULL REFERENCES users(id),
+          package_type VARCHAR(16) NOT NULL,
+          package_name VARCHAR(120) NOT NULL,
+          amount NUMERIC(16,2) NOT NULL CHECK(amount>0),
+          roi_daily_rate NUMERIC(10,4) NOT NULL,
+          duration_days INT NOT NULL,
+          total_earned NUMERIC(16,2) NOT NULL DEFAULT 0,
+          status VARCHAR(20) NOT NULL DEFAULT 'active',
+          activated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          expires_at TIMESTAMPTZ NOT NULL
+        )`);
+        await client.query('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS basic_package_active NUMERIC(16,2) NOT NULL DEFAULT 0');
+        await client.query('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS fd_package_active NUMERIC(16,2) NOT NULL DEFAULT 0');
+
+        const member = (await client.query('SELECT id,status,role FROM users WHERE id=$1 AND email=$2 LIMIT 1', [decoded.uid, String(decoded.email || '').trim().toLowerCase()])).rows[0];
+        if (!member || member.status !== 'active' || member.role !== 'user') throw new Error('ACTIVE_MEMBER_REQUIRED');
+
+        const walletQ = await client.query('SELECT * FROM wallets WHERE user_id=$1 FOR UPDATE', [actor.id]);
+        if (!walletQ.rowCount) throw new Error('WALLET_NOT_FOUND');
+        const available = Number(walletQ.rows[0].fund_wallet || 0);
+        if (available < amount) throw new Error('INSUFFICIENT_FUNDS');
+
+        const id = `PKG_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
+        const expiresAt = new Date(Date.now() + durationDays * 86400000).toISOString();
+        await client.query(`INSERT INTO package_activations(id,user_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at)
+          VALUES($1,$2,$3,$4,$5,$6,$7,0,'active',NOW(),$8)`, [id, actor.id, packageType, packageName, amount, roiRate, durationDays, expiresAt]);
+
+        const ledgerId = `LED_${randomUUID().replaceAll('-', '').slice(0, 26)}`;
+        await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
+          VALUES($1,$2,'package_activation','fund_wallet','debit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
+          [ledgerId, actor.id, amount, `Activated ${packageName} (${packageType.toUpperCase()})`, id, JSON.stringify({ packageId:id, packageType, packageName, amount, roiRate, durationDays })]);
+
+        const walletField = packageType === 'fd' ? 'fd_package_active' : 'basic_package_active';
+        await client.query(`UPDATE wallets SET fund_wallet=fund_wallet-$1,${walletField}=${walletField}+$1,updated_at=NOW() WHERE user_id=$2`, [amount, actor.id]);
+
+        const income = await applyActivationIncome(client, { activationId:id, userId:actor.id, amount, packageName, packageType });
+        return { packageId:id, ledgerId, income };
+      });
+
+      return json(res, 200, { success:true, ...result });
     }
 
     if (body.action === 'submit') {
