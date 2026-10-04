@@ -34,7 +34,13 @@ export const TransactionsPage: React.FC = () => {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, [profile?.uid]);
+  useEffect(() => {
+    load();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [profile?.uid]);
 
   const filteredLedger = useMemo(() => {
     const q = search.trim().toLowerCase();
