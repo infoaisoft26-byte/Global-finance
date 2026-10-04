@@ -367,5 +367,6 @@ export type ActivePage =
   | 'admin-packages'
   | 'admin-package-activations'
   | 'admin-transactions'
+  | 'admin-usdt-recharge'
   | 'admin-audit'
   | 'admin-settings';
