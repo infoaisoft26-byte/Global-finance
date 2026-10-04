@@ -121,7 +121,19 @@ async function handlePackagePurchase(member, body, res) {
     const updated = await client.query('SELECT * FROM wallets WHERE user_id=$1 LIMIT 1', [member.uid]);
     return { purchaseId, pkg, amount, wallet: updated.rows[0], commissions };
   });
-  return json(res, 200, { success: true, purchaseId: result.purchaseId, packageName: result.pkg.name, packageType: result.pkg.type, amount: result.amount, asset: 'USDT', fundWallet: Number(result.wallet?.fund_wallet || 0), automaticIncomeCredits: result.commissions.credited, message: `${result.pkg.name} purchased successfully. USDT ${result.amount.toFixed(2)} deducted automatically from Available USDT.` });
+  return json(res, 200, {
+    success: true,
+    purchaseId: result.purchaseId,
+    packageName: result.pkg.name,
+    packageType: result.pkg.type,
+    amount: result.amount,
+    asset: 'USDT',
+    fundWallet: Number(result.wallet?.fund_wallet || 0),
+    automaticIncomeCredits: result.commissions.credited,
+    referralIncomeCredited: Number(result.commissions.creditedAmount || 0),
+    referralRecipients: result.commissions.recipients || [],
+    message: `${result.pkg.name} purchased successfully. USDT ${result.amount.toFixed(2)} deducted automatically from Available USDT.`,
+  });
 }
 
 export default async function handler(req,res) {
