@@ -43,7 +43,7 @@ const incomeConfigs: Partial<Record<ActivePage, IncomeConfig>> = {
   'basic-level': {
     title: 'Basic Level Income',
     badge: 'LEVEL BONUS',
-    description: 'Recorded team level income across eligible downline activity.',
+    description: 'Daily level income is calculated on actual ROI income, not invested amount. One active referral is required at each eligible level.',
     txnType: 'basic_level' as TransactionType,
     getTodayAmount: (w) => w?.todayLevelIncome || 0,
     getTotalAmount: (w) => w?.totalLevelIncome || 0
