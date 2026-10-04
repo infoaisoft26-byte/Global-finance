@@ -11,7 +11,8 @@ import {
   Settings,
   LogOut,
   X,
-  ClipboardList
+  ClipboardList,
+  WalletCards
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import type { ActivePage } from '../../types/index.ts';
@@ -28,6 +29,7 @@ const items: Array<{ page: ActivePage; label: string; icon: React.ComponentType<
   { page: 'admin-users', label: 'User Management', icon: Users },
   { page: 'admin-kyc', label: 'KYC Approvals', icon: FileCheck },
   { page: 'admin-transactions', label: 'Transaction Requests', icon: ArrowLeftRight },
+  { page: 'admin-usdt-recharge', label: 'USDT Recharge', icon: WalletCards },
   { page: 'admin-package-activations', label: 'Package Activations', icon: ClipboardList },
   { page: 'admin-packages', label: 'Package Management', icon: Package },
   { page: 'admin-tickets', label: 'Support Tickets', icon: LifeBuoy },
