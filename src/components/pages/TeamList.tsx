@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, WalletCards } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getDownlineMembers } from '../../services/financeService.ts';
@@ -9,14 +9,17 @@ export const TeamList: React.FC = () => {
   const { profile, wallet } = useAuth();
   const [allMembers, setAllMembers] = useState<DownlineMember[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const loadTeamList = async () => {
     if (!profile) return;
     setLoading(true);
+    setError('');
     try {
       setAllMembers(await getDownlineMembers(profile.referralCode));
     } catch (err) {
       console.error(err);
+      setError(err instanceof Error ? err.message : 'Unable to load downline.');
     } finally {
       setLoading(false);
     }
@@ -28,7 +31,7 @@ export const TeamList: React.FC = () => {
       if (document.visibilityState === 'visible') loadTeamList();
     }, 10000);
     return () => window.clearInterval(timer);
-  }, [profile?.referralCode]);
+  }, [profile?.uid, profile?.referralCode]);
 
 
   const formatDate = (value: string) => new Date(value).toLocaleDateString('en-IN', { dateStyle: 'medium' });
@@ -114,6 +117,7 @@ export const TeamList: React.FC = () => {
           <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">Network Members</h3>
           <span className="text-xs text-slate-500">Multilevel affiliate hierarchy</span>
         </div>
+        {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
         <DataTable
           title="Downline Team List"
           columns={columns}
