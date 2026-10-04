@@ -149,6 +149,35 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const scope = new URL(req.url, 'http://localhost').searchParams.get('scope');
+
+      if (scope === 'ledger') {
+        const { rows } = await getPool().query(
+          `SELECT id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at
+           FROM ledger_transactions
+           WHERE user_id=$1
+           ORDER BY created_at DESC
+           LIMIT 200`,
+          [actor.id]
+        );
+        return json(res, 200, {
+          transactions: rows.map((row) => ({
+            id: row.id,
+            userId: row.user_id,
+            type: row.type === 'usdt_bep20_recharge' ? 'recharge' : row.type,
+            category: row.category,
+            flow: row.flow,
+            amount: Number(row.amount || 0),
+            fee: Number(row.fee || 0),
+            netAmount: Number(row.net_amount || 0),
+            description: row.description || '',
+            referenceId: row.reference_id || row.id,
+            status: row.status || 'completed',
+            metadata: row.metadata || undefined,
+            createdAt: row.created_at?.toISOString?.() || String(row.created_at),
+          }))
+        });
+      }
+
       if (scope === 'admin' && !admin) return json(res, 403, { error: 'Admin access required' });
       const query = scope === 'admin'
         ? `SELECT r.*,u.name,u.email,u.referral_code FROM usdt_bep20_recharges r JOIN users u ON u.id=r.user_id ORDER BY CASE WHEN r.status='pending' THEN 0 ELSE 1 END,r.created_at DESC LIMIT 150`
