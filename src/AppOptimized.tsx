@@ -104,14 +104,25 @@ const MainLayout: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#070b19] flex flex-col items-center justify-center text-center p-4">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-cyan-500 to-indigo-600 flex items-center justify-center shadow-xl border border-cyan-400/40 mb-4 animate-pulse">
-          <ShieldCheck className="w-7 h-7 text-white" />
-        </div>
-        <h2 className="text-lg font-bold tracking-wider text-white">GLOBAL FINANCE</h2>
-        <div className="flex items-center gap-2 text-xs text-slate-400 mt-3">
-          <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
-          <span>Opening secure account…</span>
+      <div className="gf-opening-screen" aria-label="Opening Global Finance">
+        <div className="gf-opening-orbit gf-opening-orbit-one" />
+        <div className="gf-opening-orbit gf-opening-orbit-two" />
+        <div className="gf-opening-glow" />
+        <div className="gf-opening-brand">
+          <div className="gf-opening-logo-wrap">
+            <div className="gf-opening-ring gf-opening-ring-one" />
+            <div className="gf-opening-ring gf-opening-ring-two" />
+            <img src="/global-finance-logo.webp" alt="Global Finance" className="gf-opening-logo" />
+          </div>
+          <div className="gf-opening-title">GLOBAL FINANCE</div>
+          <div className="gf-opening-tagline">Secure • Transparent • Digital Finance Platform</div>
+          <div className="gf-opening-loader">
+            <span />
+          </div>
+          <div className="gf-opening-status">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            <span>Opening secure account…</span>
+          </div>
         </div>
       </div>
     );
