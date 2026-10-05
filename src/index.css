@@ -273,3 +273,97 @@ html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:h
 @keyframes gfOpeningLoad{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}
 @keyframes gfOpeningOrbit{0%{transform:rotate(0deg) translateX(220px) rotate(0deg)}100%{transform:rotate(360deg) translateX(220px) rotate(-360deg)}}
 @media (prefers-reduced-motion:reduce){.gf-opening-screen::before,.gf-opening-glow,.gf-opening-logo,.gf-opening-ring,.gf-opening-orbit,.gf-opening-brand,.gf-opening-title,.gf-opening-loader span{animation:none!important}}
+
+
+/* ============================================================
+ * RESPONSIVE VIEWPORT / ZOOM SAFETY
+ * Keep the application painted across the full browser viewport
+ * at desktop zoom-out levels and prevent horizontal black gaps.
+ * ============================================================ */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+html {
+  overflow-x: clip;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased > div.lg\:pl-72 {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased main {
+  width: 100%;
+  min-width: 0;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased main > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased :is(img,video,canvas,svg) {
+  max-width: 100%;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased table {
+  width: 100%;
+  max-width: 100%;
+}
+
+#root > div.min-h-screen.flex.flex-col.antialiased :is(.overflow-x-auto,.overflow-x-scroll) {
+  max-width: 100%;
+  scrollbar-width: thin;
+}
+
+/* The normal member portal must own the full viewport background so
+ * browser zoom-out can never expose the default black body behind it. */
+body:has(#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"])) {
+  background: #f8fafc !important;
+}
+
+@media (max-width: 1023px) {
+  #root > div.min-h-screen.flex.flex-col.antialiased > div.lg\:pl-72 {
+    width: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+  #root > div.min-h-screen.flex.flex-col.antialiased > div.lg\:pl-72 {
+    flex: 1 1 auto;
+  }
+}
+
+/* Keep long IDs, hashes and labels from forcing the page wider than
+ * the visible viewport. */
+#root :is(.font-mono,[class*="break-all"],[class*="break-words"]) {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
