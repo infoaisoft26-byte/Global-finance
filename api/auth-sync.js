@@ -25,13 +25,16 @@ export default async function handler(req,res){
   try{
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
     if (body.action === 'member-login-lookup') {
-      const memberId = String(body.memberId || '').trim().toUpperCase();
-      if (!/^GF\\d+$/.test(memberId)) return json(res, 400, { error: 'Invalid GF Member ID or password.' });
+      const identifier = String(body.memberId || '').trim();
+      if (!identifier) return json(res, 400, { error: 'Invalid GF Member ID or password.' });
       const result = await withTransaction(async client => {
         await ensureIncomeSchema(client);
+        const isMemberId = /^GF\\d+$/i.test(identifier);
         return client.query(
-          "SELECT email FROM users WHERE referral_code=$1 LIMIT 1",
-          [memberId]
+          isMemberId
+            ? "SELECT email FROM users WHERE referral_code=$1 LIMIT 1"
+            : "SELECT email FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1",
+          [isMemberId ? identifier.toUpperCase() : identifier]
         );
       });
       if (!result.rowCount || !result.rows[0]?.email) {
