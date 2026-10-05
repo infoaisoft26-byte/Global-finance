@@ -28,7 +28,6 @@ export const AuthScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [secondPhone, setSecondPhone] = useState('');
   const [sponsorCode, setSponsorCode] = useState(sponsorReferralParam || '');
   const [sponsorName, setSponsorName] = useState('');
   const [sponsorLookupLoading, setSponsorLookupLoading] = useState(false);
@@ -82,7 +81,7 @@ export const AuthScreen: React.FC = () => {
       if (mode === 'signin') await loginWithEmail(email.trim(), password);
       else {
         if (!name.trim()) throw new Error('Please enter your full name');
-        await registerWithEmail(name.trim(), email.trim(), password, sponsorCode.trim(), phone.trim(), secondPhone.trim());
+        await registerWithEmail(name.trim(), email.trim(), password, sponsorCode.trim(), phone.trim());
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication failed. Please verify credentials.');
@@ -155,10 +154,6 @@ export const AuthScreen: React.FC = () => {
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Primary Mobile Number</label>
                 <div className="relative"><Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="tel" inputMode="tel" placeholder="+91XXXXXXXXXX" value={phone} onChange={(e)=>setPhone(e.target.value)} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs font-mono focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10"/></div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Second Mobile Number <span className="text-slate-500 font-normal">(Optional)</span></label>
-                <div className="relative"><Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="tel" inputMode="tel" placeholder="+91XXXXXXXXXX" value={secondPhone} onChange={(e)=>setSecondPhone(e.target.value)} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs font-mono focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10"/></div>
               </div>
             </>}
             <div><label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label><div className="relative"><Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="email" placeholder="name@example.com" value={email} onChange={(e)=>setEmail(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
