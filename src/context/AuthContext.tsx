@@ -21,7 +21,7 @@ interface AuthContextType {
   isSuspended: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (memberId: string, pass: string) => Promise<void>;
-  registerWithEmail: (name: string, email: string, pass: string, sponsorCode?: string, phone?: string) => Promise<void>;
+  registerWithEmail: (name: string, email: string, pass: string, sponsorCode?: string, phone?: string, country?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshWallet: () => Promise<void>;
   updateKycData: (data: Partial<UserProfile>) => Promise<void>;
@@ -32,8 +32,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const syncInFlight = new Map<string, Promise<{ profile: UserProfile; wallet: WalletData }>>();
 const AUTH_SYNC_TIMEOUT_MS = 15_000;
 
-async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, forceToken = false, profileUpdates?: { phone?: string }) {
-  const key = `${currentUser.uid}:${sponsorCode || ''}:${profileUpdates?.phone || ''}`;
+async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, forceToken = false, profileUpdates?: { phone?: string; country?: string }) {
+  const key = `${currentUser.uid}:${sponsorCode || ''}:${profileUpdates?.phone || ''}:${profileUpdates?.country || ''}`;
   const existing = syncInFlight.get(key);
   if (existing) return existing;
 
@@ -52,6 +52,7 @@ async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, f
           name: currentUser.displayName || '',
           sponsorCode: sponsorCode || undefined,
           ...(profileUpdates?.phone !== undefined ? { phone: profileUpdates.phone } : {}),
+          ...(profileUpdates?.country !== undefined ? { country: profileUpdates.country } : {}),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -194,7 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const registerWithEmail = async (name: string, email: string, pass: string, sponsorCode?: string, phone?: string) => {
+  const registerWithEmail = async (name: string, email: string, pass: string, sponsorCode?: string, phone?: string, country?: string) => {
     setLoading(true);
     const sponsor = sponsorCode || sponsorReferralParam;
     pendingSponsorRef.current = sponsor;
@@ -203,7 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.user) {
         await updateProfile(res.user, { displayName: name });
         setUser(res.user);
-        await loadUserData(res.user, sponsor, true, { phone });
+        await loadUserData(res.user, sponsor, true, { phone, country });
         await signOut(auth);
         setUser(null);
         setProfile(null);
