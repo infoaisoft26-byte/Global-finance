@@ -376,4 +376,4 @@ export type ActivePage =
   | 'admin-transactions'
   | 'admin-usdt-recharge'
   | 'admin-audit'
-  | 'admin-settings';
+  | 'admin-settings'\n  | 'admin-offer-poster';
