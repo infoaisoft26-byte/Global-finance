@@ -10,6 +10,11 @@ const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100)
 
 export async function ensureIncomeSchema(client) {
   await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rank_code VARCHAR(32) NOT NULL DEFAULT 'MEMBER'`);
+  await client.query(`ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS transaction_password_hash TEXT,
+    ADD COLUMN IF NOT EXISTS transaction_password_failed_attempts INT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS transaction_password_locked_until TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS transaction_password_created_at TIMESTAMPTZ`);
   await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS second_phone VARCHAR(32)`);
   await client.query(`ALTER TABLE wallets
     ADD COLUMN IF NOT EXISTS referral_income NUMERIC(16,2) NOT NULL DEFAULT 0,
