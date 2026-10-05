@@ -43,7 +43,7 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
     if (!user) return;
     setError(''); setMessage('');
     if (Number(wallet?.fundWallet || 0) < pkg.minAmount) {
-      setMessage(`USDT ${pkg.minAmount.toFixed(2)} required. Opening Recharge…`);
+      setMessage(`${pkg.minAmount.toFixed(2)} required. Opening Recharge…`);
       onNavigateToRecharge();
       return;
     }
@@ -56,7 +56,7 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
     } catch (err: any) {
       const text = err?.message || 'FD package purchase failed.';
       if (/insufficient/i.test(text)) {
-        setMessage('Available USDT is insufficient. Opening Recharge…');
+        setMessage('Available is insufficient. Opening Recharge…');
         onNavigateToRecharge();
       } else setError(text);
     } finally { setSubmittingId(''); }
@@ -65,7 +65,7 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
   const columns: Column<PackageActivationRequest>[] = useMemo(() => [
     { key:'createdAt', header:'Date', render:item => <span className="text-xs">{new Date(item.createdAt).toLocaleString('en-IN')}</span> },
     { key:'packageName', header:'FD Plan', render:item => <span className="text-xs font-semibold">{item.packageName}</span> },
-    { key:'amountRupees', header:'USDT Amount', render:item => <span className="text-xs font-mono">USDT {item.amountRupees.toFixed(2)}</span> },
+    { key:'amountRupees', header:'Amount', render:item => <span className="text-xs font-mono">{item.amountRupees.toFixed(2)}</span> },
     { key:'status', header:'Status', render:item => <span className="inline-flex px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-500">{item.status.toUpperCase()}</span> }
   ], []);
 
@@ -86,10 +86,10 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
         return <div key={pkg.id} className={`rounded-2xl bg-[#091129] border overflow-hidden shadow-lg ${prime ? 'border-violet-500/30' : 'border-blue-500/25'}`}>
           <div className="p-4 border-b border-blue-500/15 flex items-center gap-3"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${prime ? 'bg-gradient-to-br from-violet-600 to-fuchsia-500' : 'bg-gradient-to-br from-blue-600 to-cyan-500'}`}><Package className="w-5 h-5 text-white"/></div><div><h3 className="font-bold">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-500">{pkg.code}</span></div></div>
           <div className="p-4 space-y-2 text-xs">
-            <div className="flex justify-between"><span>Plan Amount</span><b className="font-mono">USDT {pkg.minAmount.toFixed(2)}</b></div>
-            <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-emerald-400">{pkg.roiRate}% = USDT {daily.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Plan Amount</span><b className="font-mono">{pkg.minAmount.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-emerald-400">{pkg.roiRate}% = {daily.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
-            <div className="flex justify-between"><span>Total Profit</span><b className="font-mono text-emerald-300">USDT {profit.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Total Profit</span><b className="font-mono text-emerald-300">{profit.toFixed(2)}</b></div>
             <div className={`flex justify-between pt-3 mt-1 border-t ${prime ? 'border-violet-500/20' : 'border-blue-500/20'}`}><span className="font-semibold">Maturity Amount</span><b className="font-mono text-base">${maturity.toFixed(2)}</b></div>
           </div>
           <button onClick={() => purchase(pkg)} disabled={waiting} className={`w-full py-3 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2 ${prime ? 'bg-violet-600 hover:bg-violet-500' : 'bg-blue-600 hover:bg-blue-500'}`}>{waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing…</> : 'Purchase with USDT'}</button>
