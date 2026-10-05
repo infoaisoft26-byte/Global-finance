@@ -367,3 +367,79 @@ body:has(#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+
+/* ============================================================
+ * MEMBER PORTAL DARK THEME
+ * Explicit overrides for pages that still contain legacy light
+ * surfaces (especially Fund Withdrawal).
+ * ============================================================ */
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) {
+  background: #070b19 !important;
+  color: #e2e8f0 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div:first-of-type,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div:last-of-type {
+  background: #060a19 !important;
+  border-color: rgba(59,130,246,.22) !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main,
+html[data-gf-theme="dark"] body:has(#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"])) {
+  background: #070b19 !important;
+  color: #e2e8f0 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header {
+  background: rgba(6,10,25,.94) !important;
+  border-color: rgba(59,130,246,.22) !important;
+  color: #e2e8f0 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) footer {
+  background: #060a19 !important;
+  border-color: rgba(59,130,246,.22) !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) .text-white,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(h1,h2,h3,h4,h5,h6,label,th) {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(.text-slate-200,.text-slate-300) {
+  color: #cbd5e1 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(.text-slate-400,.text-slate-500) {
+  color: #94a3b8 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(.bg-white,.bg-slate-50,.bg-blue-50,.bg-emerald-50,.bg-rose-50) {
+  background-color: #0d172a !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is([class*="border-slate-"],[class*="border-blue-"],[class*="border-cyan-"]) {
+  border-color: rgba(71,85,105,.65) !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(input,select,textarea) {
+  background: #0a1426 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(input,select,textarea)::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(p,span,td,li) {
+  color: #cbd5e1;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(.bg-white,.bg-blue-50,.bg-emerald-50,.bg-rose-50) :is(.text-blue-600,.text-emerald-600,.text-rose-700) {
+  color: inherit !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) aside > div:first-of-type > div:first-child > div:nth-child(2) > div:first-child {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) aside > div:first-of-type > div:first-child > div:nth-child(2) > div:last-child {
+  color: #67e8f9 !important;
+  -webkit-text-fill-color: #67e8f9 !important;
+}
+/* Fund Withdrawal-specific surfaces */
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(.shadow-sm,.shadow-lg) {
+  --tw-shadow-color: rgba(0,0,0,.35) !important;
+}
