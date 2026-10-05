@@ -12,7 +12,8 @@ import {
   LogOut,
   X,
   ClipboardList,
-  WalletCards
+  WalletCards,
+  Megaphone
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import type { ActivePage } from '../../types/index.ts';
@@ -35,6 +36,7 @@ const items: Array<{ page: ActivePage; label: string; icon: React.ComponentType<
   { page: 'admin-tickets', label: 'Support Tickets', icon: LifeBuoy },
   { page: 'admin-reports', label: 'Reports', icon: FileBarChart2 },
   { page: 'admin-audit', label: 'Audit Logs', icon: ShieldCheck },
+  { page: 'admin-offer-poster', label: 'Offer Poster', icon: Megaphone },
   { page: 'admin-settings', label: 'System Settings', icon: Settings },
 ];
 
