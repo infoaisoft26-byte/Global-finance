@@ -24,6 +24,7 @@ export const AuthScreen: React.FC = () => {
 
   const isReferralRoute = typeof window !== 'undefined' && window.location.pathname === '/register';
   const [mode, setMode] = useState<'signin' | 'register'>(isReferralRoute ? 'register' : 'signin');
+  const [memberId, setMemberId] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -32,6 +33,7 @@ export const AuthScreen: React.FC = () => {
   const [sponsorName, setSponsorName] = useState('');
   const [sponsorLookupLoading, setSponsorLookupLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -76,12 +78,23 @@ export const AuthScreen: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setSuccessMsg('');
     setLoading(true);
     try {
-      if (mode === 'signin') await loginWithEmail(email.trim(), password);
-      else {
+      if (mode === 'signin') {
+        await loginWithEmail(memberId.trim().toUpperCase(), password);
+      } else {
         if (!name.trim()) throw new Error('Please enter your full name');
         await registerWithEmail(name.trim(), email.trim(), password, sponsorCode.trim(), phone.trim());
+        setMode('signin');
+        setMemberId('');
+        setEmail('');
+        setPassword('');
+        setName('');
+        setPhone('');
+        setSponsorCode('');
+        setSuccessMsg('Registration successful. Please sign in with your GF Member ID and password.');
+        window.history.replaceState({}, '', '/');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication failed. Please verify credentials.');
@@ -90,6 +103,7 @@ export const AuthScreen: React.FC = () => {
 
   const handleGoogle = async () => {
     setErrorMsg('');
+    setSuccessMsg('');
     try { await loginWithGoogle(); }
     catch (err: any) { setErrorMsg(err.message || 'Google Sign-In failed'); }
   };
@@ -117,8 +131,8 @@ export const AuthScreen: React.FC = () => {
       <div className="w-full max-w-md relative z-10 rounded-[24px] border border-cyan-400/25 bg-[#071126]/78 p-6 sm:p-8 shadow-[0_28px_90px_rgba(0,0,0,.55),0_0_45px_rgba(20,120,255,.12)] backdrop-blur-2xl ring-1 ring-white/[0.04] before:absolute before:inset-px before:rounded-[23px] before:pointer-events-none before:bg-gradient-to-br before:from-white/[0.035] before:via-transparent before:to-cyan-400/[0.025]">
         <div className="relative z-[1]">
           <div className="grid grid-cols-2 p-1 bg-[#030817]/85 rounded-xl border border-blue-500/20 mb-6 shadow-inner shadow-black/20">
-            <button type="button" onClick={() => { setMode('signin'); setErrorMsg(''); }} className={`py-2 text-xs font-bold rounded-lg transition-all ${mode === 'signin' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-cyan-950/40' : 'text-slate-400 hover:text-white'}`}>Member Sign In</button>
-            <button type="button" onClick={() => { setMode('register'); setErrorMsg(''); }} className={`py-2 text-xs font-bold rounded-lg transition-all ${mode === 'register' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-cyan-950/40' : 'text-slate-400 hover:text-white'}`}>New Account</button>
+            <button type="button" onClick={() => { setMode('signin'); setErrorMsg(''); setSuccessMsg(''); }} className={`py-2 text-xs font-bold rounded-lg transition-all ${mode === 'signin' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-cyan-950/40' : 'text-slate-400 hover:text-white'}`}>Member Sign In</button>
+            <button type="button" onClick={() => { setMode('register'); setErrorMsg(''); setSuccessMsg(''); }} className={`py-2 text-xs font-bold rounded-lg transition-all ${mode === 'register' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-cyan-950/40' : 'text-slate-400 hover:text-white'}`}>New Account</button>
           </div>
 
           {sponsorReferralParam && mode === 'register' && (
@@ -127,6 +141,7 @@ export const AuthScreen: React.FC = () => {
             </div>
           )}
 
+          {successMsg && <div className="mb-4 p-3 rounded-xl bg-emerald-950/45 border border-emerald-500/40 text-emerald-300 text-xs">{successMsg}</div>}
           {errorMsg && <div className="mb-4 p-3 rounded-xl bg-rose-950/45 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2 shadow-lg shadow-rose-950/15"><AlertCircle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span></div>}
 
           <button type="button" onClick={handleGoogle} className="w-full py-2.5 rounded-xl bg-[#0d1938]/90 hover:bg-[#142654] border border-blue-400/25 text-white font-medium text-xs flex items-center justify-center gap-2.5 transition-all shadow-sm mb-4">
@@ -156,10 +171,15 @@ export const AuthScreen: React.FC = () => {
                 <div className="relative"><Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="tel" inputMode="tel" placeholder="+91XXXXXXXXXX" value={phone} onChange={(e)=>setPhone(e.target.value)} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs font-mono focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10"/></div>
               </div>
             </>}
+            {mode === 'signin' ? (
+              <div><label className="block text-xs font-semibold text-slate-300 mb-1">GF Member ID</label><div className="relative"><Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="GF123456" value={memberId} onChange={(e)=>setMemberId(e.target.value.toUpperCase())} required pattern="GF\\d{6}" title="Enter your 6-digit GF Member ID" autoComplete="username" className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-cyan-200 font-mono uppercase focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
+            ) : (
             <div><label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label><div className="relative"><Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="email" placeholder="name@example.com" value={email} onChange={(e)=>setEmail(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
             <div><label className="block text-xs font-semibold text-slate-300 mb-1">Password</label><div className="relative"><Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="password" placeholder="••••••••" value={password} onChange={(e)=>setPassword(e.target.value)} required minLength={6} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
             <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-600 hover:from-blue-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-cyan-950/45 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <><RefreshCw className="w-4 h-4 animate-spin"/><span>Authenticating with Global Finance Ledger...</span></> : <><span>{mode === 'signin' ? 'Sign In to Dashboard' : 'Create Global Finance Account'}</span><ArrowRight className="w-4 h-4"/></>}</button>
           </form>
+
+          {mode === 'signin' && <p className="mt-3 text-center text-[10px] text-slate-500">Use your GF Member ID and account password. T-Password is for withdrawal/security, not login.</p>}
 
           <div className="mt-6 pt-4 border-t border-blue-400/15 flex flex-wrap items-center justify-center gap-2.5 text-[11px] text-slate-400"><div className="flex items-center gap-1"><Lock className="w-3.5 h-3.5 text-emerald-400"/><span>256-bit Encrypted</span></div><span className="text-slate-600">•</span><div className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-cyan-400"/><span>Secure Ledger Controls</span></div></div>
         </div>
