@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getTransactions } from '../../services/financeService.ts';
+import { getActiveOfferPoster, type OfferPoster } from '../../services/offerPosterService.ts';
 import type { ActivePage } from '../../types/index.ts';
 
 interface DashboardProps {
@@ -36,8 +37,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [offerPoster, setOfferPoster] = useState<OfferPoster | null>(null);
+  const [showOffer, setShowOffer] = useState(false);
 
   const referralCode = profile?.referralCode || '';
+
+  useEffect(() => {
+    let cancelled = false;
+    getActiveOfferPoster().then((poster) => {
+      if (!cancelled && poster) { setOfferPoster(poster); setShowOffer(true); }
+    }).catch((err) => console.warn('Offer poster unavailable:', err));
+    return () => { cancelled = true; };
+  }, []);
   const referralUrl = typeof window !== 'undefined' && referralCode
     ? `${window.location.origin}/register?r=${referralCode}`
     : '';
@@ -62,6 +73,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
 
   return (
     <div className="space-y-6">
+      {showOffer && offerPoster && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl bg-[#091129] border border-cyan-500/30 shadow-2xl shadow-cyan-950/40">
+            <button onClick={() => setShowOffer(false)} className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/70 border border-white/20 text-white text-lg" aria-label="Close offer">×</button>
+            <img src={offerPoster.imageUrl} alt={offerPoster.title} className="w-full max-h-[65vh] object-contain bg-black/20" />
+            <div className="p-5 space-y-3">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-400">Exclusive Offer</div>
+              <h3 className="text-xl font-extrabold text-white">{offerPoster.title}</h3>
+              {offerPoster.description && <p className="text-sm text-slate-300 leading-relaxed">{offerPoster.description}</p>}
+              <div className="flex gap-2">
+                {offerPoster.ctaLabel && offerPoster.ctaUrl && <a href={offerPoster.ctaUrl} target={offerPoster.ctaUrl.startsWith('http') ? '_blank' : undefined} rel="noreferrer" onClick={() => setShowOffer(false)} className="flex-1 text-center px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-bold">{offerPoster.ctaLabel}</a>}
+                <button onClick={() => setShowOffer(false)} className="px-4 py-3 rounded-xl bg-[#111c44] border border-blue-500/30 text-slate-200 text-xs font-semibold">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Top Banner & Quick Shortcuts */}
       <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-[#0d173d] via-[#0b1435] to-[#070b1a] border border-blue-500/30 shadow-xl backdrop-blur-md flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6">
         <div>
