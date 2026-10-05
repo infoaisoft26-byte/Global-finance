@@ -232,7 +232,7 @@ const MainLayout: React.FC = () => {
 
       <div className="lg:pl-72 flex-1 flex flex-col min-w-0">
         <Header activePage={activePage} onToggleSidebar={() => setIsSidebarOpenMobile(v => !v)} onOpenProfile={() => !isAdminEntry && setShowProfileModal(true)} onNavigate={setActivePage} />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 min-w-0 w-full p-4 sm:p-6 lg:p-8 mx-auto">
           <PageErrorBoundary><Suspense fallback={<PageFallback />}>{renderContent()}</Suspense></PageErrorBoundary>
         </main>
         <Footer />
