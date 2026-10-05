@@ -48,7 +48,7 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
     if (!user) return;
     setError(''); setMessage('');
     if (Number(wallet?.fundWallet || 0) < pkg.minAmount) {
-      setMessage(`USDT ${pkg.minAmount.toFixed(2)} required. Opening Recharge…`);
+      setMessage(`${pkg.minAmount.toFixed(2)} required. Opening Recharge…`);
       onNavigateToRecharge();
       return;
     }
@@ -61,7 +61,7 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
     } catch (err: any) {
       const text = err?.message || 'Package purchase failed.';
       if (/insufficient/i.test(text)) {
-        setMessage('Available USDT is insufficient. Opening Recharge…');
+        setMessage('Available is insufficient. Opening Recharge…');
         onNavigateToRecharge();
       } else setError(text);
     } finally { setSubmittingId(''); }
@@ -70,7 +70,7 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
   const columns: Column<PackageActivationRequest>[] = useMemo(() => [
     { key: 'createdAt', header: 'Date', render: item => <span className="text-xs">{new Date(item.createdAt).toLocaleString('en-IN')}</span> },
     { key: 'packageName', header: 'Package', render: item => <span className="text-xs font-semibold">{item.packageName}</span> },
-    { key: 'amountRupees', header: 'USDT Amount', render: item => <span className="text-xs font-mono">USDT {item.amountRupees.toFixed(2)}</span> },
+    { key: 'amountRupees', header: 'Amount', render: item => <span className="text-xs font-mono">{item.amountRupees.toFixed(2)}</span> },
     { key: 'status', header: 'Status', render: item => <span className="inline-flex px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-500">{item.status.toUpperCase()}</span> }
   ], []);
 
@@ -93,11 +93,11 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
         return <div key={pkg.id} className="rounded-2xl bg-[#091129] border border-blue-500/25 overflow-hidden shadow-lg">
           <div className="p-4 border-b border-blue-500/15 flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center"><Package className="w-5 h-5 text-white"/></div><div><h3 className="font-bold">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-500">{pkg.code}</span></div></div>
           <div className="p-4 space-y-2 text-xs">
-            <div className="flex justify-between"><span>Plan Amount</span><b className="font-mono">USDT {pkg.minAmount.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Plan Amount</span><b className="font-mono">{pkg.minAmount.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-cyan-400">{pkg.roiRate}%</b></div>
-            <div className="flex justify-between"><span>Daily Income</span><b className="font-mono text-emerald-400">USDT {dailyIncome.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Daily Income</span><b className="font-mono text-emerald-400">{dailyIncome.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
-            <div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Total Profit</span><b className="font-mono text-emerald-400">USDT {totalProfit.toFixed(2)}</b></div>
+            <div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Total Profit</span><b className="font-mono text-emerald-400">{totalProfit.toFixed(2)}</b></div>
             <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-3">
               <div className="text-[10px] uppercase tracking-wide text-cyan-300">Maturity Amount</div>
               <div className="mt-1 text-xl font-bold font-mono text-white">${maturityAmount.toFixed(2)}</div>
