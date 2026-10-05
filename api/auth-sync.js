@@ -11,7 +11,7 @@ function referralCode(){return `GF${Math.floor(100000+Math.random()*900000)}`;}
 function generateTransactionPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';let out='';for(let i=0;i<6;i++)out+=chars[crypto.randomInt(0,chars.length)];return out;}
 function hashTransactionPassword(password){const salt=crypto.randomBytes(16).toString('hex');const hash=crypto.scryptSync(password,salt,64).toString('hex');return `${salt}:${hash}`;}
 function normalizePhone(value){const raw=String(value??'').trim();if(!raw)return null;const compact=raw.replace(/[\\s()-]/g,'');if(!/^\\+?\\d{7,15}$/.test(compact))throw new Error('Please enter a valid mobile number.');return compact;}
-function mapProfile(row,sponsorName){return {uid:row.id,name:row.name,email:row.email,phone:row.phone||undefined,referralCode:row.referral_code,sponsorId:row.sponsor_id||undefined,sponsorName:sponsorName||undefined,rankCode:row.rank_code||'MEMBER',role:row.role,status:row.status,kycStatus:row.kyc_status,panNumber:row.pan_number||undefined,bankAccount:row.bank_account||undefined,bankName:row.bank_name||undefined,ifscCode:row.ifsc_code||undefined,upiId:row.upi_id||undefined,createdAt:row.created_at?.toISOString?.()||String(row.created_at),updatedAt:row.updated_at?.toISOString?.()||String(row.updated_at)};}
+function mapProfile(row,sponsorName){return {uid:row.id,name:row.name,email:row.email,phone:row.phone||undefined,country:row.country||undefined,referralCode:row.referral_code,sponsorId:row.sponsor_id||undefined,sponsorName:sponsorName||undefined,rankCode:row.rank_code||'MEMBER',role:row.role,status:row.status,kycStatus:row.kyc_status,panNumber:row.pan_number||undefined,bankAccount:row.bank_account||undefined,bankName:row.bank_name||undefined,ifscCode:row.ifsc_code||undefined,upiId:row.upi_id||undefined,createdAt:row.created_at?.toISOString?.()||String(row.created_at),updatedAt:row.updated_at?.toISOString?.()||String(row.updated_at)};}
 function mapWallet(row){return {
   userId:row.user_id,fundWallet:Number(row.fund_wallet||0),incomeWallet:Number(row.income_wallet||0),totalIncome:Number(row.total_income||0),totalWithdrawal:Number(row.total_withdrawal||0),
   basicPackageActive:Number(row.basic_package_active||0),fdPackageActive:Number(row.fd_package_active||0),directTeamCount:Number(row.direct_team_count||0),totalTeamCount:Number(row.total_team_count||0),
@@ -48,6 +48,9 @@ export default async function handler(req,res){
     const requestedName=String(body.name||decoded.name||email.split('@')[0]).trim().slice(0,255)||'Global Finance Member';
     const hasPhone=Object.prototype.hasOwnProperty.call(body,'phone');
     const phone=hasPhone?normalizePhone(body.phone):null;
+    const hasCountry=Object.prototype.hasOwnProperty.call(body,'country');
+    const country=hasCountry?String(body.country||'').trim().toUpperCase():null;
+    if(hasCountry && country && !/^[A-Z]{2}$/.test(country)) return json(res,400,{error:'Please select a valid country.'});
     const sponsorCode=safeSponsor(body.sponsorCode);const configuredAdminEmail=String(process.env.ADMIN_EMAIL||'admin@gf.app').trim().toLowerCase();
     let registrationTransactionPassword=null;
     const result=await withTransaction(async client=>{
@@ -61,7 +64,7 @@ export default async function handler(req,res){
         const role=email===configuredAdminEmail?'admin':'user';
         registrationTransactionPassword=generateTransactionPassword();
         const transactionPasswordHash=hashTransactionPassword(registrationTransactionPassword);
-        existing=await client.query(`INSERT INTO users(id,email,name,referral_code,sponsor_id,phone,role,status,kyc_status,transaction_password_hash,transaction_password_created_at) VALUES($1,$2,$3,$4,$5,$6,$7,'active',$8,$9,NOW()) RETURNING *`,[uid,email,requestedName,code,sponsorId,phone,role,role==='admin'?'verified':'unverified',transactionPasswordHash]);
+        existing=await client.query(`INSERT INTO users(id,email,name,referral_code,sponsor_id,phone,country,role,status,kyc_status,transaction_password_hash,transaction_password_created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$10,NOW()) RETURNING *`,[uid,email,requestedName,code,sponsorId,phone,country,role,role==='admin'?'verified':'unverified',transactionPasswordHash]);
         await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[uid]);
         await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata) VALUES($1,$2,$3,'USER_REGISTERED','user',$2,$4::jsonb)`,[crypto.randomUUID(),uid,email,JSON.stringify({referralCode:code,sponsorId,role})]);
         if(sponsorUserId&&role==='user'){
