@@ -20,7 +20,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuspended: boolean;
   loginWithGoogle: () => Promise<void>;
-  loginWithEmail: (email: string, pass: string) => Promise<void>;
+  loginWithEmail: (memberId: string, pass: string) => Promise<void>;
   registerWithEmail: (name: string, email: string, pass: string, sponsorCode?: string, phone?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshWallet: () => Promise<void>;
@@ -159,18 +159,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithEmail = async (email: string, pass: string) => {
+  const loginWithEmail = async (memberId: string, pass: string) => {
     setLoading(true);
     try {
-      const res = await signInWithEmailAndPassword(auth, email, pass);
+      const lookupResponse = await fetch('/api/member-login-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ memberId: memberId.trim().toUpperCase() }),
+      });
+      const lookup = await lookupResponse.json().catch(() => ({}));
+      if (!lookupResponse.ok || !lookup?.email) {
+        throw new Error('Invalid GF Member ID or password.');
+      }
+
+      const res = await signInWithEmailAndPassword(auth, String(lookup.email), pass);
       if (res.user) {
         setUser(res.user);
         await loadUserData(res.user, undefined, true);
       }
     } catch (err: any) {
-      console.error('Email Sign-in failed:', err);
-      if (err?.code === 'auth/wrong-password' || err?.code === 'auth/user-not-found' || err?.code === 'auth/invalid-credential') {
-        throw new Error('Invalid email or password. Please verify credentials.');
+      console.error('Member Sign-in failed:', err);
+      if (
+        err?.message === 'Invalid GF Member ID or password.' ||
+        err?.code === 'auth/wrong-password' ||
+        err?.code === 'auth/user-not-found' ||
+        err?.code === 'auth/invalid-credential'
+      ) {
+        throw new Error('Invalid GF Member ID or password.');
       }
       throw new Error(err?.message || 'Sign-in could not be completed.');
     } finally {
@@ -188,6 +204,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await updateProfile(res.user, { displayName: name });
         setUser(res.user);
         await loadUserData(res.user, sponsor, true, { phone });
+        await signOut(auth);
+        setUser(null);
+        setProfile(null);
+        setWallet(null);
+        window.history.replaceState({}, '', '/');
       }
     } catch (err: any) {
       console.error('Email Registration failed:', err);
