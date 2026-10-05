@@ -30,7 +30,7 @@ export default async function handler(req,res){
       const result = await withTransaction(async client => {
         await ensureIncomeSchema(client);
         return client.query(
-          "SELECT email FROM users WHERE referral_code=$1 AND status='active' LIMIT 1",
+          "SELECT email FROM users WHERE referral_code=$1 LIMIT 1",
           [memberId]
         );
       });
