@@ -25,7 +25,6 @@ function mapProfile(row, sponsorName) {
     name: row.name,
     email: row.email,
     phone: row.phone || undefined,
-    secondPhone: row.second_phone || undefined,
     referralCode: row.referral_code,
     sponsorId: row.sponsor_id || undefined,
     sponsorName: sponsorName || undefined,
@@ -54,17 +53,11 @@ export default async function handler(req, res) {
 
     const hasName = Object.prototype.hasOwnProperty.call(body, 'name');
     const hasPhone = Object.prototype.hasOwnProperty.call(body, 'phone');
-    const hasSecondPhone = Object.prototype.hasOwnProperty.call(body, 'secondPhone');
 
     const name = hasName ? String(body.name || '').trim().slice(0, 255) : null;
     if (hasName && !name) return json(res, 400, { error: 'Full name is required.' });
 
     const phone = hasPhone ? normalizePhone(body.phone) : null;
-    const secondPhone = hasSecondPhone ? normalizePhone(body.secondPhone) : null;
-
-    if (phone && secondPhone && phone === secondPhone) {
-      return json(res, 400, { error: 'Second mobile number must be different from the primary mobile number.' });
-    }
 
     const pool = getPool();
     const client = await pool.connect();
@@ -81,17 +74,15 @@ export default async function handler(req, res) {
       const row = current.rows[0];
       const nextName = hasName ? name : row.name;
       const nextPhone = hasPhone ? phone : row.phone;
-      const nextSecondPhone = hasSecondPhone ? secondPhone : row.second_phone;
 
       const updated = await client.query(
         `UPDATE users
             SET name=$2,
                 phone=$3,
-                second_phone=$4,
                 updated_at=NOW()
           WHERE id=$1
           RETURNING *`,
-        [uid, nextName, nextPhone, nextSecondPhone]
+        [uid, nextName, nextPhone]
       );
 
       const sponsorResult = updated.rows[0].sponsor_id
