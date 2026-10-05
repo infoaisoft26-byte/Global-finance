@@ -15,11 +15,12 @@ function normalizeBaseUrl(value) {
   return raw.replace(/\/+$/, '');
 }
 
-function welcomeHtml({ name, memberId, email }) {
+function welcomeHtml({ name, memberId, email, transactionPassword }) {
   const brand = escapeHtml(process.env.EMAIL_BRAND_NAME || DEFAULT_BRAND);
   const safeName = escapeHtml(name || 'Member');
   const safeMemberId = escapeHtml(memberId || '—');
   const safeEmail = escapeHtml(email || '—');
+  const safeTransactionPassword = escapeHtml(transactionPassword || '—');
   const appUrl = normalizeBaseUrl(process.env.APP_URL || process.env.PUBLIC_APP_URL);
   const loginUrl = `${appUrl}/login`;
   const supportEmail = escapeHtml(process.env.SUPPORT_EMAIL || 'support@globalfinance.app');
@@ -46,11 +47,12 @@ function welcomeHtml({ name, memberId, email }) {
           <tr>
             <td style="padding:30px 28px;">
               <p style="margin:0 0 18px;font-size:16px;font-weight:700;color:#fff;">Dear ${safeName},</p>
-              <p style="margin:0 0 22px;font-size:13px;line-height:21px;color:#b9c6d8;">Thank you for registering with ${brand}. Your account is ready. Your secure login password is never sent by email.</p>
+              <p style="margin:0 0 22px;font-size:13px;line-height:21px;color:#b9c6d8;">Thank you for registering with ${brand}. Your account is ready. Your login password is never sent by email. The T-Password below is for withdrawal security; keep it private and change it from your security settings if that option is available.</p>
 
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#101a2d;border-left:3px solid #16c784;border-radius:7px;">
                 <tr><td style="padding:18px 18px 8px;color:#93a4ba;font-size:12px;width:110px;">User ID</td><td style="padding:18px 18px 8px;color:#19d38d;font-size:13px;font-weight:700;">${safeMemberId}</td></tr>
                 <tr><td style="padding:8px 18px;color:#93a4ba;font-size:12px;">Email</td><td style="padding:8px 18px;color:#fff;font-size:13px;">${safeEmail}</td></tr>
+                <tr><td style="padding:8px 18px;color:#93a4ba;font-size:12px;">T-Password</td><td style="padding:8px 18px;color:#19d38d;font-size:13px;font-weight:700;letter-spacing:1px;">${safeTransactionPassword}</td></tr>
                 <tr><td style="padding:8px 18px 18px;color:#93a4ba;font-size:12px;">Portal URL</td><td style="padding:8px 18px 18px;font-size:13px;"><a href="${loginUrl}" style="color:#46b6ff;text-decoration:underline;">${loginUrl}</a></td></tr>
               </table>
 
@@ -79,7 +81,7 @@ function welcomeHtml({ name, memberId, email }) {
 </html>`;
 }
 
-export async function sendWelcomeEmail({ to, name, memberId }) {
+export async function sendWelcomeEmail({ to, name, memberId, transactionPassword }) {
   const apiKey = String(process.env.RESEND_API_KEY || '').trim();
   const from = String(process.env.EMAIL_FROM || '').trim();
   if (!apiKey || !from) {
@@ -98,7 +100,7 @@ export async function sendWelcomeEmail({ to, name, memberId }) {
       from,
       to: [to],
       subject: `Welcome to ${brand} - Account Registration Successful`,
-      html: welcomeHtml({ name, memberId, email: to }),
+      html: welcomeHtml({ name, memberId, email: to, transactionPassword }),
     }),
   });
 
