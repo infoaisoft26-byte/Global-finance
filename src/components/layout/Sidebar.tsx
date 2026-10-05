@@ -80,7 +80,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-[#060a19] border-r border-blue-500/20 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'
         } no-print`}
-      >        {/* Navigation Menus List (Scrollable) */}
+      >
+        {/* Official GLOBAL FINANCE logo */}
+        <div className="shrink-0 border-b border-blue-500/20 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <img
+              src="/global-finance-logo.webp"
+              alt="GLOBAL FINANCE"
+              className="h-14 w-[76px] rounded-xl object-contain"
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-black tracking-[0.12em] text-white">GLOBAL FINANCE</div>
+              <div className="mt-1 text-[10px] leading-4 text-cyan-400">Secure • Transparent • Digital Finance Platform</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Menus List (Scrollable) */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 text-xs text-slate-300">
           {/* Main: Dashboard */}
           <button
