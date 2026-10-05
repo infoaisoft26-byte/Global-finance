@@ -26,7 +26,7 @@ export default async function handler(req,res){
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
     if (body.action === 'member-login-lookup') {
       const memberId = String(body.memberId || '').trim().toUpperCase();
-      if (!/^GF\\d{6}$/.test(memberId)) return json(res, 400, { error: 'Invalid GF Member ID or password.' });
+      if (!/^GF\\d+$/.test(memberId)) return json(res, 400, { error: 'Invalid GF Member ID or password.' });
       const result = await withTransaction(async client => {
         await ensureIncomeSchema(client);
         return client.query(
