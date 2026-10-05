@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Megaphone, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
-import { disableOfferPoster, getActiveOfferPoster, saveOfferPoster, type OfferPoster } from '../../../services/offerPosterService.ts';
+import { disableOfferPoster, getActiveOfferPoster, saveOfferPoster, uploadOfferPosterImage, type OfferPoster } from '../../../services/offerPosterService.ts';
 
 export const AdminOfferPoster: React.FC = () => {
   const [poster, setPoster] = useState<OfferPoster | null>(null);
   const [title, setTitle] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [description, setDescription] = useState('');
   const [ctaLabel, setCtaLabel] = useState('');
   const [ctaUrl, setCtaUrl] = useState('');
@@ -80,7 +81,7 @@ export const AdminOfferPoster: React.FC = () => {
         <section className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-4">
           <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-cyan-300">Poster Content</h3><label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Publish now</label></div>
           <label className="block text-xs text-slate-300">Offer title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={160} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="e.g. New Member Offer" /></label>
-          <label className="block text-xs text-slate-300">Poster image URL<input value={imageUrl} onChange={e => setImageUrl(e.target.value)} required className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="https://..." /></label>
+          <label className="block text-xs text-slate-300">Upload poster image<input type="file" accept="image/*" disabled={uploadingImage || saving} onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setError(""); setMessage(""); setUploadingImage(true); try { const url = await uploadOfferPosterImage(file); setImageUrl(url); setMessage("Image uploaded. Click Publish Offer Poster to show it to members."); } catch (err: any) { setError(err?.message || "Unable to upload poster image."); } finally { setUploadingImage(false); e.currentTarget.value = ""; } }} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Uploading image…" : "PNG, JPG, WEBP or GIF • Max 10 MB"}</p></label><label className="block text-xs text-slate-300">Image URL (optional)<input value={imageUrl} onChange={e => setImageUrl(e.target.value)} required className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="https://..." /></label>
           <label className="block text-xs text-slate-300">Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} maxLength={1000} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="Short offer details..." /></label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block text-xs text-slate-300">Button text<input value={ctaLabel} onChange={e => setCtaLabel(e.target.value)} maxLength={80} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="View Offer" /></label>
