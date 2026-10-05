@@ -8,6 +8,8 @@ import { ensureIncomeSchema } from './_lib/incomeEngine.js';
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.end(JSON.stringify(body));}
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}
 function referralCode(){return `GF${Math.floor(100000+Math.random()*900000)}`;}
+function generateTransactionPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';let out='';for(let i=0;i<6;i++)out+=chars[crypto.randomInt(0,chars.length)];return out;}
+function hashTransactionPassword(password){const salt=crypto.randomBytes(16).toString('hex');const hash=crypto.scryptSync(password,salt,64).toString('hex');return `${salt}:${hash}`;}
 function normalizePhone(value){const raw=String(value??'').trim();if(!raw)return null;const compact=raw.replace(/[\\s()-]/g,'');if(!/^\\+?\\d{7,15}$/.test(compact))throw new Error('Please enter a valid mobile number.');return compact;}
 function mapProfile(row,sponsorName){return {uid:row.id,name:row.name,email:row.email,phone:row.phone||undefined,referralCode:row.referral_code,sponsorId:row.sponsor_id||undefined,sponsorName:sponsorName||undefined,rankCode:row.rank_code||'MEMBER',role:row.role,status:row.status,kycStatus:row.kyc_status,panNumber:row.pan_number||undefined,bankAccount:row.bank_account||undefined,bankName:row.bank_name||undefined,ifscCode:row.ifsc_code||undefined,upiId:row.upi_id||undefined,createdAt:row.created_at?.toISOString?.()||String(row.created_at),updatedAt:row.updated_at?.toISOString?.()||String(row.updated_at)};}
 function mapWallet(row){return {
@@ -29,6 +31,7 @@ export default async function handler(req,res){
     const hasPhone=Object.prototype.hasOwnProperty.call(body,'phone');
     const phone=hasPhone?normalizePhone(body.phone):null;
     const sponsorCode=safeSponsor(body.sponsorCode);const configuredAdminEmail=String(process.env.ADMIN_EMAIL||'admin@gf.app').trim().toLowerCase();
+    let registrationTransactionPassword=null;
     const result=await withTransaction(async client=>{
       await ensureIncomeSchema(client);
       let existing=await client.query('SELECT * FROM users WHERE id=$1 FOR UPDATE',[uid]);let isNewRegistration=false;
@@ -38,7 +41,9 @@ export default async function handler(req,res){
         let code='';for(let i=0;i<20;i++){const candidate=referralCode();const used=await client.query('SELECT 1 FROM users WHERE referral_code=$1',[candidate]);if(!used.rowCount){code=candidate;break;}}
         if(!code)throw new Error('Unable to allocate referral code');
         const role=email===configuredAdminEmail?'admin':'user';
-        existing=await client.query(`INSERT INTO users(id,email,name,referral_code,sponsor_id,phone,role,status,kyc_status) VALUES($1,$2,$3,$4,$5,$6,$7,'active',$8) RETURNING *`,[uid,email,requestedName,code,sponsorId,phone,role,role==='admin'?'verified':'unverified']);
+        registrationTransactionPassword=generateTransactionPassword();
+        const transactionPasswordHash=hashTransactionPassword(registrationTransactionPassword);
+        existing=await client.query(`INSERT INTO users(id,email,name,referral_code,sponsor_id,phone,role,status,kyc_status,transaction_password_hash,transaction_password_created_at) VALUES($1,$2,$3,$4,$5,$6,$7,'active',$8,$9,NOW()) RETURNING *`,[uid,email,requestedName,code,sponsorId,phone,role,role==='admin'?'verified':'unverified',transactionPasswordHash]);
         await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[uid]);
         await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata) VALUES($1,$2,$3,'USER_REGISTERED','user',$2,$4::jsonb)`,[crypto.randomUUID(),uid,email,JSON.stringify({referralCode:code,sponsorId,role})]);
         if(sponsorUserId&&role==='user'){
@@ -57,7 +62,7 @@ export default async function handler(req,res){
       const walletResult=await client.query('SELECT * FROM wallets WHERE user_id=$1 LIMIT 1',[uid]);return{suspended:false,profile,wallet:walletResult.rows[0],sponsorName:sponsorResult.rows[0]?.name||null,isNewRegistration};
     });
     if(result.suspended)return json(res,403,{error:'Account is suspended. Please contact support.'});
-    if(result.isNewRegistration){try{await sendWelcomeEmail({to:result.profile.email,name:result.profile.name,memberId:result.profile.referral_code});}catch(emailError){console.error('Welcome email failed:',emailError instanceof Error?emailError.message:emailError);}}
+    if(result.isNewRegistration){try{await sendWelcomeEmail({to:result.profile.email,name:result.profile.name,memberId:result.profile.referral_code,transactionPassword:registrationTransactionPassword});}catch(emailError){console.error('Welcome email failed:',emailError instanceof Error?emailError.message:emailError);}}
     const token=await createSessionToken({idToken:body.idToken});res.setHeader('Set-Cookie',sessionCookie(token));
     return json(res,200,{ok:true,profile:mapProfile(result.profile,result.sponsorName),wallet:mapWallet(result.wallet)});
   }catch(error){console.error('auth-sync failed:',error instanceof Error?error.message:error);const message=error instanceof Error?error.message:'';if(message.includes('Database connection URL')||message.includes('DATABASE_URL'))return json(res,503,{error:'Login service database is not configured.'});return json(res,500,{error:'Unable to complete secure login.'});}
