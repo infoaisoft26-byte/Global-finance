@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { getPool } from './_lib/db.js';
+import { getPool, withTransaction } from './_lib/db.js';
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -109,10 +109,9 @@ export default async function handler(req, res) {
     const data = normalize(body);
     const id = String(body.id || crypto.randomUUID());
 
-    await pool.query('BEGIN');
-    try {
-      if (data.active) await pool.query('UPDATE offer_posters SET active=FALSE, updated_at=NOW() WHERE active=TRUE');
-      await pool.query(`
+    await withTransaction(async (client) => {
+      if (data.active) await client.query('UPDATE offer_posters SET active=FALSE, updated_at=NOW() WHERE active=TRUE');
+      await client.query(`
         INSERT INTO offer_posters
           (id,title,image_url,description,cta_label,cta_url,active,start_at,end_at,created_by,updated_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
@@ -127,11 +126,7 @@ export default async function handler(req, res) {
           end_at=EXCLUDED.end_at,
           updated_at=NOW()
       `, [id,data.title,data.imageUrl,data.description,data.ctaLabel,data.ctaUrl,data.active,data.startAt,data.endAt,decoded.uid]);
-      await pool.query('COMMIT');
-    } catch (e) {
-      await pool.query('ROLLBACK');
-      throw e;
-    }
+    });
 
     await pool.query(`
       INSERT INTO audit_logs (id, actor_user_id, actor_email, action, entity_type, entity_id, metadata)
