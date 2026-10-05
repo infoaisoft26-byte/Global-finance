@@ -28,6 +28,7 @@ export const AuthScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState('IN');
   const [sponsorCode, setSponsorCode] = useState(sponsorReferralParam || '');
   const [sponsorName, setSponsorName] = useState('');
   const [sponsorLookupLoading, setSponsorLookupLoading] = useState(false);
