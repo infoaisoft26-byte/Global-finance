@@ -14,7 +14,8 @@ export async function ensureIncomeSchema(client) {
     ADD COLUMN IF NOT EXISTS transaction_password_hash TEXT,
     ADD COLUMN IF NOT EXISTS transaction_password_failed_attempts INT NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS transaction_password_locked_until TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS transaction_password_created_at TIMESTAMPTZ`);
+    ADD COLUMN IF NOT EXISTS transaction_password_created_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS country VARCHAR(2)`);
   await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS second_phone VARCHAR(32)`);
   await client.query(`ALTER TABLE wallets
     ADD COLUMN IF NOT EXISTS referral_income NUMERIC(16,2) NOT NULL DEFAULT 0,
