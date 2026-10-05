@@ -51,19 +51,21 @@ export const AuthScreen: React.FC = () => {
     }
 
     let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      setSponsorLookupLoading(true);
-      try {
-        const response = await fetch(`/api/referral-lookup?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
-        const data = await response.json().catch(() => ({}));
-        if (!cancelled && response.ok && data?.valid && data?.sponsor?.name) {
-          setSponsorName(String(data.sponsor.name));
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setSponsorLookupLoading(true);
+        try {
+          const response = await fetch(`/api/referral-lookup?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
+          const data = await response.json().catch(() => ({}));
+          if (!cancelled && response.ok && data?.valid && data?.sponsor?.name) {
+            setSponsorName(String(data.sponsor.name));
+          }
+        } catch (error) {
+          if (!cancelled) console.warn('Sponsor lookup unavailable:', error);
+        } finally {
+          if (!cancelled) setSponsorLookupLoading(false);
         }
-      } catch (error) {
-        if (!cancelled) console.warn('Sponsor lookup unavailable:', error);
-      } finally {
-        if (!cancelled) setSponsorLookupLoading(false);
-      }
+      })();
     }, 300);
 
     return () => {
