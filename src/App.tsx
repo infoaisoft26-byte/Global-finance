@@ -40,6 +40,7 @@ import { AdminTransactions } from './components/pages/admin/AdminTransactions.ts
 import { AdminUsdtRecharge } from './components/pages/admin/AdminUsdtRecharge.tsx';
 import { AdminAudit } from './components/pages/admin/AdminAudit.tsx';
 import { AdminSettingsPage } from './components/pages/admin/AdminSettingsPage.tsx';
+import { AdminOfferPoster } from './components/pages/admin/AdminOfferPoster.tsx';
 
 import { getSystemSettings } from './services/settingsService.ts';
 import type { ActivePage, SystemSettings } from './types/index.ts';
@@ -258,6 +259,8 @@ const MainLayout: React.FC = () => {
         return <AdminAudit />;
       case 'admin-settings':
         return <AdminSettingsPage />;
+      case 'admin-offer-poster':
+        return <AdminOfferPoster />;
       default:
         return isAdminEntry
           ? <AdminDashboard onNavigate={setActivePage} />
