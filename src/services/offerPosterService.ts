@@ -1,4 +1,5 @@
-import { auth } from '../lib/firebase.ts';
+import { auth, storage } from '../lib/firebase.ts';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
 export interface OfferPoster {
   id: string;
@@ -28,6 +29,17 @@ export async function getActiveOfferPoster(): Promise<OfferPoster | null> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Unable to load current offer.');
   return data.poster || null;
+}
+
+export async function uploadOfferPosterImage(file: File): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Authentication required');
+  if (!file.type.startsWith('image/')) throw new Error('Please select an image file.');
+  if (file.size > 10 * 1024 * 1024) throw new Error('Poster image must be 10 MB or smaller.');
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+  const storageRef = ref(storage, `offer-posters/${user.uid}/${Date.now()}-${safeName}`);
+  const snapshot = await uploadBytes(storageRef, file, { contentType: file.type });
+  return getDownloadURL(snapshot.ref);
 }
 
 export async function saveOfferPoster(input: Omit<OfferPoster, 'createdAt' | 'updatedAt'>): Promise<OfferPoster> {
