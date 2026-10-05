@@ -81,19 +81,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'
         } no-print`}
       >
-        {/* Official GLOBAL FINANCE logo */}
+        {/* Single GLOBAL FINANCE logo */}
         <div className="shrink-0 border-b border-blue-500/20 px-4 py-3">
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-[92px] w-full items-center justify-center overflow-hidden rounded-2xl bg-[#071126]">
-              <img
-                src="/global-finance-logo.webp"
-                alt="GLOBAL FINANCE"
-                className="block h-[84px] w-[210px] max-w-full object-contain"
-                style={{ objectFit: 'contain' }}
-              />
-            </div>
-            <div className="mt-2 text-[15px] font-black tracking-[0.14em] text-white">GLOBAL FINANCE</div>
-            <div className="mt-1 text-[10px] leading-4 text-cyan-400">Secure • Transparent • Digital Finance Platform</div>
+          <div className="flex h-[96px] w-full items-center justify-center">
+            <img
+              src="/global-finance-logo.webp"
+              alt="GLOBAL FINANCE"
+              className="block h-[92px] w-[230px] max-w-full object-contain"
+            />
           </div>
         </div>
 
