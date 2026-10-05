@@ -162,11 +162,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithEmail = async (memberId: string, pass: string) => {
     setLoading(true);
     try {
-      const lookupResponse = await fetch('/api/member-login-lookup', {
+      const lookupResponse = await fetch('/api/auth-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
-        body: JSON.stringify({ memberId: memberId.trim().toUpperCase() }),
+        body: JSON.stringify({ action: 'member-login-lookup', memberId: memberId.trim().toUpperCase() }),
       });
       const lookup = await lookupResponse.json().catch(() => ({}));
       if (!lookupResponse.ok || !lookup?.email) {
