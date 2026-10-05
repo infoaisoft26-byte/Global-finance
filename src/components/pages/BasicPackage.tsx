@@ -97,6 +97,10 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
             <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-cyan-400">{pkg.roiRate}%</b></div>
             <div className="flex justify-between"><span>Daily Income</span><b className="font-mono text-emerald-400">{dailyIncome.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5 mt-2">
+              <div className="text-[10px] font-semibold text-emerald-300">Daily 5% ROI</div>
+              <div className="mt-1 text-[10px] leading-relaxed text-slate-300">1% Profit + 4% Principal amount for 25 Day's</div>
+            </div>
             <div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Total Profit</span><b className="font-mono text-emerald-400">{totalProfit.toFixed(2)}</b></div>
             <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-3">
               <div className="text-[10px] uppercase tracking-wide text-cyan-300">Maturity Amount</div>
