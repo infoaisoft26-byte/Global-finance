@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS transaction_password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS transaction_password_failed_attempts INT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS transaction_password_locked_until TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS transaction_password_created_at TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
 CREATE INDEX IF NOT EXISTS idx_users_sponsor_id ON users(sponsor_id);
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
@@ -211,6 +216,6 @@ CREATE TABLE IF NOT EXISTS platform_settings (
     maintenance_mode BOOLEAN NOT NULL DEFAULT FALSE,
     min_withdrawal NUMERIC(16, 2) NOT NULL DEFAULT 500.00,
     withdrawal_fee_percent NUMERIC(8, 2) NOT NULL DEFAULT 5.00,
-    support_email VARCHAR(255) NOT NULL DEFAULT 'support@globalfinance.digital',
+    support_email VARCHAR(255) NOT NULL DEFAULT 'support@globalfinance1.online',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
