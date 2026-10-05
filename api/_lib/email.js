@@ -11,7 +11,7 @@ function escapeHtml(value) {
 
 function normalizeBaseUrl(value) {
   const raw = String(value || '').trim();
-  if (!raw) return 'https://globalfin-beta.vercel.app';
+  if (!raw) return 'https://globalfinance1.online';
   return raw.replace(/\/+$/, '');
 }
 
