@@ -24,6 +24,21 @@ export default async function handler(req,res){
   if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});
   try{
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
+    if (body.action === 'member-login-lookup') {
+      const memberId = String(body.memberId || '').trim().toUpperCase();
+      if (!/^GF\\d{6}$/.test(memberId)) return json(res, 400, { error: 'Invalid GF Member ID or password.' });
+      const result = await withTransaction(async client => {
+        await ensureIncomeSchema(client);
+        return client.query(
+          "SELECT email FROM users WHERE referral_code=$1 AND status='active' LIMIT 1",
+          [memberId]
+        );
+      });
+      if (!result.rowCount || !result.rows[0]?.email) {
+        return json(res, 401, { error: 'Invalid GF Member ID or password.' });
+      }
+      return json(res, 200, { email: result.rows[0].email });
+    }
     const decoded=await verifyFirebaseIdToken(body.idToken);
     const uid=decoded.uid;const email=String(decoded.email||'').trim().toLowerCase();
     if(!uid||!email)return json(res,400,{error:'Verified account email is required'});
