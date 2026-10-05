@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS users (
     bank_name VARCHAR(128),
     ifsc_code VARCHAR(16),
     upi_id VARCHAR(128),
+    transaction_password_hash TEXT,
+    transaction_password_failed_attempts INT NOT NULL DEFAULT 0,
+    transaction_password_locked_until TIMESTAMPTZ,
+    transaction_password_created_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
