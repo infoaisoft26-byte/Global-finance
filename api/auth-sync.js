@@ -76,7 +76,7 @@ export default async function handler(req,res){
     const country=Object.prototype.hasOwnProperty.call(body,'country')?String(body.country||'').trim().toUpperCase():null;
     if(country&&!/^[A-Z]{2}$/.test(country))return json(res,400,{error:'Please select a valid country.'});
     const sponsorCode=safeSponsor(body.sponsorCode);
-    const configuredAdminEmails=Array.from(new Set([String(process.env.ADMIN_EMAIL||'').trim().toLowerCase(),'admin@gf.app'].filter(Boolean)));
+    const configuredAdminEmails=Array.from(new Set([String(process.env.ADMIN_EMAIL||'').trim().toLowerCase(),'admin@gf.online','admin@gf.app'].filter(Boolean)));
     if(maintenance.maintenanceMode && !configuredAdminEmails.includes(email)){
       return json(res,503,{error:maintenance.message||'Member access is temporarily disabled for maintenance.',code:'MAINTENANCE_MODE'});
     }
@@ -115,7 +115,7 @@ export default async function handler(req,res){
 
       registrationTransactionPassword=generateTransactionPassword();
       const profile={uid,email,name:requestedName,referralCode:code,sponsorId,sponsorName,role:configuredAdminEmails.includes(email)?'admin':'user',
-        status:'active',kycStatus:email===configuredAdminEmail?'verified':'unverified',phone,country,rankCode:'MEMBER',
+        status:'active',kycStatus:configuredAdminEmails.includes(email)?'verified':'unverified',phone,country,rankCode:'MEMBER',
         transactionPasswordHash:hashTransactionPassword(registrationTransactionPassword),
         transactionPasswordCreatedAt:now,createdAt:now,updatedAt:now,storage:'firestore'};
       const wallet=emptyWallet(uid,now);
