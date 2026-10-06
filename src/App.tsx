@@ -54,6 +54,7 @@ const MainLayout: React.FC = () => {
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
+  const [publicMaintenance, setPublicMaintenance] = useState<{maintenanceMode:boolean;message?:string}>({ maintenanceMode: false });
 
   useEffect(() => {
     if (isAdminEntry && isAdmin) setActivePage('admin-dashboard');
