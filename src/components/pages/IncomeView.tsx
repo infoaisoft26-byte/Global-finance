@@ -164,7 +164,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       header: 'Amount Credited',
       render: (item) => (
         <span className="font-mono text-xs font-bold text-emerald-400">
-          {config.txnType === 'salary' ? '₹' : '+USDT '}{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+          {item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
         </span>
       )
     },
@@ -207,7 +207,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     : 0;
 
   const money = (value: number) => {
-    const prefix = config.txnType === 'salary' ? '₹' : 'USDT ';
+    const prefix = config.txnType === 'salary' ? '₹' : '';
     return `${prefix}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
   };
 
