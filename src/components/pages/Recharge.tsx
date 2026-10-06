@@ -63,7 +63,7 @@ export const Recharge: React.FC = () => {
     FALLBACK_BEP20_ADDRESS;
 
   const qrUrl = settings?.depositQrImageUrl || FALLBACK_BEP20_QR;
-  const recent = useMemo(() => requests.slice(0, 5), [requests]);
+  const recent = useMemo(() => requests, [requests]);
 
   const copyAddress = async () => {
     try {
@@ -330,7 +330,7 @@ export const Recharge: React.FC = () => {
           <div>
             <h3 className="text-sm font-bold text-white">My Recharge Requests</h3>
             <p className="text-[11px] text-slate-400">
-              Your submitted payment confirmations appear here.
+              All submitted payment confirmations appear here.
             </p>
           </div>
 
@@ -343,7 +343,7 @@ export const Recharge: React.FC = () => {
           </button>
         </div>
 
-        {recent.length === 0 ? (
+        {requests.length === 0 ? (
           <div className="text-xs text-slate-500 py-6 text-center">
             No payment confirmation submitted yet.
           </div>
