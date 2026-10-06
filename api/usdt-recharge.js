@@ -217,6 +217,16 @@ export default async function handler(req,res){
     const admin=['admin','super_admin','administrator'].includes(actor.role)||adminEmailAllowed(actor.email);
 
     if(req.method==='GET'){
+      if(scope==='ledger'){
+        const q=admin
+          ? getFirestoreAdmin().collection('transactions').limit(1000)
+          : getFirestoreAdmin().collection('transactions').where('userId','==',actor.id).limit(500);
+        const snap=await q.get();
+        const transactions=snap.docs
+          .map(d=>({id:d.id,...(d.data()||{})}))
+          .sort((a,b)=>new Date(iso(b.createdAt)).getTime()-new Date(iso(a.createdAt)).getTime());
+        return json(res,200,{transactions});
+      }
       if(scope==='admin'&&!admin) return json(res,403,{error:'Admin access required'});
       return json(res,200,{
         requests:await listRequests(actor,scope==='admin'),
