@@ -47,7 +47,6 @@ export default async function handler(req,res){
   try{
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
     const maintenance=await getMaintenanceState();
-    if(maintenance.maintenanceMode)return json(res,503,{error:maintenance.message,code:'MAINTENANCE_MODE'});
 
     if(body.action==='member-login-lookup'){
       const profile=await memberLookup(body.memberId);
@@ -67,6 +66,9 @@ export default async function handler(req,res){
     if(country&&!/^[A-Z]{2}$/.test(country))return json(res,400,{error:'Please select a valid country.'});
     const sponsorCode=safeSponsor(body.sponsorCode);
     const configuredAdminEmail=String(process.env.ADMIN_EMAIL||'admin@gf.app').trim().toLowerCase();
+    if(maintenance.maintenanceMode && email!==configuredAdminEmail){
+      return json(res,503,{error:maintenance.message||'Member access is temporarily disabled for maintenance.',code:'MAINTENANCE_MODE'});
+    }
     const db=getFirestoreAdmin();
     const now=new Date();
     let registrationTransactionPassword=null;
