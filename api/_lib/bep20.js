@@ -1,10 +1,12 @@
 export const BEP20_WALLET = '0x062D87BE020291b34D08fdCfa7E432248680910E';
+// BNB Smart Chain USDT / BEP20 contract (18 decimals).
+export const DEFAULT_USDT_BEP20_CONTRACT = '0x55d398326f99059fF775485246999027B3197955';
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 
 export function rechargeConfigured() {
   const paymentsEnabled = String(process.env.PAYMENTS_ENABLED || '').trim().toLowerCase() === 'true';
   const rechargeEnabled = String(process.env.USDT_RECHARGE_ENABLED || '').trim().toLowerCase() === 'true';
-  const contract = String(process.env.USDT_BEP20_CONTRACT_ADDRESS || '').trim();
+  const contract = String(process.env.USDT_BEP20_CONTRACT_ADDRESS || DEFAULT_USDT_BEP20_CONTRACT).trim();
   const rpc = String(process.env.BSC_RPC_URL || '').trim();
   const contractValid = /^0x[0-9a-fA-F]{40}$/.test(contract);
   const rpcConfigured = /^https?:\/\//i.test(rpc);
@@ -31,7 +33,7 @@ export function getAutoCreditRate() {
 export async function verifyBep20(txHash, claimedAmount) {
   if (!rechargeConfigured()) throw new Error('RECHARGE_DISABLED');
 
-  const token = process.env.USDT_BEP20_CONTRACT_ADDRESS.toLowerCase();
+  const token = String(process.env.USDT_BEP20_CONTRACT_ADDRESS || DEFAULT_USDT_BEP20_CONTRACT).trim().toLowerCase();
   const rpc = process.env.BSC_RPC_URL;
 
   const rpcCall = async (method, params) => {
