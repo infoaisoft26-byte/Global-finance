@@ -141,7 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const walletRef = doc(db, 'wallets', user.uid);
     const unsubscribe = onSnapshot(walletRef, (snap) => {
       if (!snap.exists()) return;
-      const data = snap.data() as WalletData;
+      const data = snap.data() as WalletData & { updatedAt?: any };
       setWallet({
         ...data,
         userId: user.uid,
