@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
+import { verifyFirebaseIdToken, getMaintenanceState } from './_lib/firebaseAdmin.js';
 import { withTransaction } from './_lib/db.js';
 import { createSessionToken, sessionCookie } from './_lib/session.js';
 import { sendWelcomeEmail } from './_lib/email.js';
@@ -24,6 +24,8 @@ export default async function handler(req,res){
   if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});
   try{
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
+    const maintenance = await getMaintenanceState();
+    if (maintenance.maintenanceMode) return json(res, 503, { error: maintenance.message, code: 'MAINTENANCE_MODE' });
     if (body.action === 'member-login-lookup') {
       const identifier = String(body.memberId || '').trim();
       if (!identifier) return json(res, 400, { error: 'Invalid GF Member ID or password.' });
