@@ -207,7 +207,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     : 0;
 
   const money = (value: number) => {
-    const prefix = config.txnType === 'salary' ? '₹' : '';
+    const prefix = '';
     return `${prefix}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
   };
 
