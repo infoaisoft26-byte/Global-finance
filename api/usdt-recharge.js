@@ -152,9 +152,12 @@ async function listRequests(actor,admin){
   const db=getFirestoreAdmin();
   const q=admin
     ? db.collection('usdtRecharges').orderBy('createdAt','desc').limit(150)
-    : db.collection('usdtRecharges').where('userId','==',actor.id).orderBy('createdAt','desc').limit(50);
+    : db.collection('usdtRecharges').where('userId','==',actor.id).limit(50);
   const snap=await q.get();
-  return snap.docs.map(d=>mapRecharge(d.data()||{},d.id));
+  return snap.docs
+    .map(d=>({id:d.id,data:d.data()||{}}))
+    .sort((a,b)=>new Date(iso(b.data.createdAt)).getTime()-new Date(iso(a.data.createdAt)).getTime())
+    .map(({id,data})=>mapRecharge(data,id));
 }
 async function review(actor,id,action,note,credit){
   requireAdmin(actor);
