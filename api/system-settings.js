@@ -1,114 +1,101 @@
-// Secure production system-settings API. Firestore client permissions are intentionally not required.
+// Secure production system-settings API backed by Firestore.
 import crypto from 'node:crypto';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { getPool } from './_lib/db.js';
+import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 
-const SETTINGS_ID = 'global_finance_system_settings';
-
-function json(res, status, body) {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Cache-Control', 'no-store');
+function json(res,status,body){
+  res.statusCode=status;
+  res.setHeader('Content-Type','application/json');
+  res.setHeader('Cache-Control','no-store');
   res.end(JSON.stringify(body));
 }
 
-async function authenticatedUser(req) {
-  const header = String(req.headers.authorization || '');
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-  if (!token) throw new Error('Authentication required');
-  return verifyFirebaseIdToken(token);
-}
-
-async function ensureTable(pool) {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS app_settings (
-      id TEXT PRIMARY KEY,
-      data JSONB NOT NULL DEFAULT '{}'::jsonb,
-      updated_by TEXT,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-}
-
-function normalizePayload(input = {}) {
-  const data = { ...input };
-  data.depositNetworkLabel = 'BNB Smart Chain (BEP20)';
-  data.basicPackageEnabled = true;
-  data.fdPackageEnabled = true;
-  data.rechargeEnabled = false;
-  data.withdrawalEnabled = true;
-  data.minWithdrawal = 2;
-  data.withdrawalWindowStart = '10:30';
-  data.withdrawalWindowEnd = '15:30';
-  data.withdrawalTimezone = 'Asia/Kolkata';
+function normalizePayload(input={}){
+  const data={...input};
+  data.depositNetworkLabel='BNB Smart Chain (BEP20)';
+  data.basicPackageEnabled=true;
+  data.fdPackageEnabled=true;
+  data.rechargeEnabled=false;
+  data.withdrawalEnabled=true;
+  data.minWithdrawal=2;
+  data.withdrawalWindowStart='10:30';
+  data.withdrawalWindowEnd='15:30';
+  data.withdrawalTimezone='Asia/Kolkata';
   delete data.updatedBy;
+  delete data.updatedAt;
   return data;
 }
 
-export default async function handler(req, res) {
-  if (!['GET', 'POST'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
+function isAdminEmail(email){
+  const configured=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
+  return [configured,'admin@gf.online','admin@gf.app'].filter(Boolean).includes(String(email||'').trim().toLowerCase());
+}
 
-  try {
-    const decoded = await authenticatedUser(req);
-    const pool = getPool();
-    await ensureTable(pool);
+async function authenticatedUser(req){
+  const header=String(req.headers.authorization||'');
+  const token=header.startsWith('Bearer ')?header.slice(7).trim():'';
+  if(!token)throw new Error('Authentication required');
+  return verifyFirebaseIdToken(token);
+}
 
-    if (req.method === 'GET') {
-      const result = await pool.query('SELECT data, updated_by, updated_at FROM app_settings WHERE id=$1 LIMIT 1', [SETTINGS_ID]);
-      if (!result.rowCount) return json(res, 200, { ok: true, settings: {} });
-      const row = result.rows[0];
-      return json(res, 200, {
-        ok: true,
-        settings: {
-          ...(row.data || {}),
-          updatedBy: row.updated_by || undefined,
-          updatedAt: row.updated_at?.toISOString?.() || String(row.updated_at),
-        },
-      });
+export default async function handler(req,res){
+  if(!['GET','POST'].includes(req.method))return json(res,405,{error:'Method not allowed'});
+  try{
+    const decoded=await authenticatedUser(req);
+    const db=getFirestoreAdmin();
+    const settingsRef=db.collection('system').doc('settings');
+    const userRef=db.collection('users').doc(decoded.uid);
+    const userSnap=await userRef.get();
+    const user=userSnap.exists?(userSnap.data()||{}):{};
+    const admin=isAdminEmail(decoded.email)||['admin','super_admin','administrator'].includes(String(user.role||'').toLowerCase());
+
+    if(req.method==='GET'){
+      if(!admin)return json(res,403,{error:'Admin permission required'});
+      const snap=await settingsRef.get();
+      if(!snap.exists)return json(res,200,{ok:true,settings:{}});
+      const data=snap.data()||{};
+      return json(res,200,{ok:true,settings:{
+        ...data,
+        updatedAt:data.updatedAt?.toDate?.()?.toISOString?.()||data.updatedAt||undefined
+      }});
     }
 
-    const userResult = await pool.query('SELECT role, email, status FROM users WHERE id=$1 LIMIT 1', [decoded.uid]);
-    const user = userResult.rows[0];
-    if (!user || user.status !== 'active' || user.role !== 'admin') {
-      return json(res, 403, { error: 'Admin permission required' });
-    }
+    if(!admin||user.status==='suspended')return json(res,403,{error:'Admin permission required'});
 
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const settings = normalizePayload(body.settings || {});
-    const updatedAt = new Date().toISOString();
-    const persisted = { ...settings, updatedAt, updatedBy: decoded.uid };
+    const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
+    const settings=normalizePayload(body.settings||{});
+    const now=new Date();
 
-    await pool.query(
-      `INSERT INTO app_settings (id, data, updated_by, updated_at)
-       VALUES ($1, $2::jsonb, $3, NOW())
-       ON CONFLICT (id) DO UPDATE SET
-         data=EXCLUDED.data,
-         updated_by=EXCLUDED.updated_by,
-         updated_at=NOW()`,
-      [SETTINGS_ID, JSON.stringify(persisted), decoded.uid]
-    );
+    await settingsRef.set({
+      ...settings,
+      updatedAt:now,
+      updatedBy:decoded.uid,
+      storage:'firestore'
+    },{merge:true});
 
-    await pool.query(
-      `INSERT INTO audit_logs (id, actor_user_id, actor_email, action, entity_type, entity_id, metadata)
-       VALUES ($1,$2,$3,'SYSTEM_SETTINGS_UPDATED','settings',$4,$5::jsonb)`,
-      [
-        crypto.randomUUID(),
-        decoded.uid,
-        String(user.email || decoded.email || ''),
-        SETTINGS_ID,
-        JSON.stringify({
-          changedFields: Object.keys(body.settings || {}),
-          depositNetwork: 'BEP20',
-          storage: 'neon_app_settings',
-        }),
-      ]
-    ).catch((err) => console.warn('settings audit log failed:', err?.message || err));
+    await db.collection('auditLogs').doc(crypto.randomUUID()).set({
+      actorUserId:decoded.uid,
+      actorEmail:String(decoded.email||user.email||''),
+      action:'SYSTEM_SETTINGS_UPDATED',
+      entityType:'settings',
+      entityId:'system/settings',
+      metadata:{
+        changedFields:Object.keys(body.settings||{}),
+        depositNetwork:'BEP20',
+        storage:'firestore'
+      },
+      timestamp:now
+    });
 
-    return json(res, 200, { ok: true, settings: persisted });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to process settings request';
-    console.error('system-settings failed:', message);
-    if (message === 'Authentication required') return json(res, 401, { error: message });
-    return json(res, 500, { error: 'Unable to process system settings.' });
+    const saved=await settingsRef.get();
+    const savedData=saved.data()||{};
+    return json(res,200,{ok:true,settings:{
+      ...savedData,
+      updatedAt:savedData.updatedAt?.toDate?.()?.toISOString?.()||String(savedData.updatedAt||now.toISOString())
+    }});
+  }catch(error){
+    const message=error instanceof Error?error.message:'Unable to process settings request';
+    console.error('system-settings failed:',message);
+    if(message==='Authentication required')return json(res,401,{error:message});
+    return json(res,500,{error:'Unable to process system settings.'});
   }
 }
