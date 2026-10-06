@@ -163,21 +163,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithEmail = async (memberId: string, pass: string) => {
     setLoading(true);
     try {
-      const lookupResponse = await fetch('/api/auth-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ action: 'member-login-lookup', memberId: memberId.trim().toUpperCase() }),
-      });
-      const lookup = await lookupResponse.json().catch(() => ({}));
-      if (!lookupResponse.ok || !lookup?.email) {
-        throw new Error('Invalid GF Member ID or password.');
+      const identifier = memberId.trim();
+      if (!identifier) throw new Error('Please enter your GF Member ID or email address.');
+
+      let loginEmail = identifier;
+      if (!identifier.includes('@')) {
+        const lookupResponse = await fetch('/api/auth-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          body: JSON.stringify({ action: 'member-login-lookup', memberId: identifier.toUpperCase() }),
+        });
+        const lookup = await lookupResponse.json().catch(() => ({}));
+        if (!lookupResponse.ok || !lookup?.email) {
+          throw new Error('Invalid GF Member ID or password.');
+        }
+        loginEmail = String(lookup.email).trim().toLowerCase();
+      } else {
+        loginEmail = identifier.toLowerCase();
       }
 
-      const res = await signInWithEmailAndPassword(auth, String(lookup.email), pass);
+      const res = await signInWithEmailAndPassword(auth, loginEmail, pass);
       if (res.user) {
         setUser(res.user);
-        await loadUserData(res.user, undefined, true);
+        // Firebase Auth is the source of truth for authentication. Profile
+        // synchronization happens after the credential is accepted.
+        const data = await loadUserData(res.user, undefined, true);
+        setProfile(data.profile);
+        setWallet(data.wallet);
       }
     } catch (err: any) {
       console.error('Member Sign-in failed:', err);
@@ -185,7 +198,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         err?.message === 'Invalid GF Member ID or password.' ||
         err?.code === 'auth/wrong-password' ||
         err?.code === 'auth/user-not-found' ||
-        err?.code === 'auth/invalid-credential'
+        err?.code === 'auth/invalid-credential' ||
+        err?.code === 'auth/invalid-email'
       ) {
         throw new Error('Invalid GF Member ID or password.');
       }
