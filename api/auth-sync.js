@@ -76,8 +76,8 @@ export default async function handler(req,res){
     const country=Object.prototype.hasOwnProperty.call(body,'country')?String(body.country||'').trim().toUpperCase():null;
     if(country&&!/^[A-Z]{2}$/.test(country))return json(res,400,{error:'Please select a valid country.'});
     const sponsorCode=safeSponsor(body.sponsorCode);
-    const configuredAdminEmail=String(process.env.ADMIN_EMAIL||'admin@gf.app').trim().toLowerCase();
-    if(maintenance.maintenanceMode && email!==configuredAdminEmail){
+    const configuredAdminEmails=Array.from(new Set([String(process.env.ADMIN_EMAIL||'').trim().toLowerCase(),'admin@gf.app'].filter(Boolean)));
+    if(maintenance.maintenanceMode && !configuredAdminEmails.includes(email)){
       return json(res,503,{error:maintenance.message||'Member access is temporarily disabled for maintenance.',code:'MAINTENANCE_MODE'});
     }
     const db=getFirestoreAdmin();
@@ -93,7 +93,7 @@ export default async function handler(req,res){
 
       if(userSnap.exists){
         const current=userSnap.data()||{};
-        const next={...current,email,name:requestedName,role:email===configuredAdminEmail?'admin':(current.role||'user'),
+        const next={...current,email,name:requestedName,role:configuredAdminEmails.includes(email)?'admin':(current.role||'user'),
           phone:hasPhone?phone:current.phone||null,country:country||current.country||null,updatedAt:now};
         transaction.set(userRef,next,{merge:true});
         if(!walletSnap.exists)transaction.set(walletRef,emptyWallet(uid,now));
@@ -114,7 +114,7 @@ export default async function handler(req,res){
       if(!codeQuery.empty)code=referralCode();
 
       registrationTransactionPassword=generateTransactionPassword();
-      const profile={uid,email,name:requestedName,referralCode:code,sponsorId,sponsorName,role:email===configuredAdminEmail?'admin':'user',
+      const profile={uid,email,name:requestedName,referralCode:code,sponsorId,sponsorName,role:configuredAdminEmails.includes(email)?'admin':'user',
         status:'active',kycStatus:email===configuredAdminEmail?'verified':'unverified',phone,country,rankCode:'MEMBER',
         transactionPasswordHash:hashTransactionPassword(registrationTransactionPassword),
         transactionPasswordCreatedAt:now,createdAt:now,updatedAt:now,storage:'firestore'};
