@@ -35,11 +35,22 @@ async function memberLookup(identifier){
   const db=getFirestoreAdmin();
   const value=String(identifier||'').trim();
   const isMemberId=/^GF\d+$/i.test(value);
-  const snap=isMemberId
-    ? await db.collection('users').where('referralCode','==',value.toUpperCase()).limit(1).get()
-    : await db.collection('users').where('email','==',value.toLowerCase()).limit(1).get();
-  if(snap.empty) return null;
-  return snap.docs[0].data()||null;
+  if (!isMemberId) {
+    const snap=await db.collection('users').where('email','==',value.toLowerCase()).limit(1).get();
+    if(snap.empty) return null;
+    return snap.docs[0].data()||null;
+  }
+
+  const normalized=value.toUpperCase();
+  // Support both the current referralCode field and legacy memberId fields
+  // so existing real accounts remain login-compatible after the Firestore migration.
+  const byReferral=await db.collection('users').where('referralCode','==',normalized).limit(1).get();
+  if(!byReferral.empty) return byReferral.docs[0].data()||null;
+
+  const byMemberId=await db.collection('users').where('memberId','==',normalized).limit(1).get();
+  if(!byMemberId.empty) return byMemberId.docs[0].data()||null;
+
+  return null;
 }
 
 export default async function handler(req,res){
