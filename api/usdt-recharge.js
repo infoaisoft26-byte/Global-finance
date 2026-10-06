@@ -150,9 +150,11 @@ async function autoCreditRecharge({id,actor,txHash,amount}){
 }
 async function listRequests(actor,admin){
   const db=getFirestoreAdmin();
+  // Do not use orderBy/low limits here: older recharge documents may not have
+  // createdAt, and small limits hide valid historical recharge records.
   const q=admin
-    ? db.collection('usdtRecharges').orderBy('createdAt','desc').limit(150)
-    : db.collection('usdtRecharges').where('userId','==',actor.id).limit(50);
+    ? db.collection('usdtRecharges')
+    : db.collection('usdtRecharges').where('userId','==',actor.id);
   const snap=await q.get();
   return snap.docs
     .map(d=>({id:d.id,data:d.data()||{}}))
