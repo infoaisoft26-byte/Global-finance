@@ -11,6 +11,8 @@ import {
   type FirebaseUser
 } from '../lib/firebase.ts';
 import type { UserProfile, WalletData } from '../types/index.ts';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase.ts';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -132,16 +134,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Keep the wallet UI synchronized with admin-approved recharges and other
-  // server-side ledger changes while the member is actively logged in.
+  // Firestore is the wallet source of truth. Listen directly so an automatic
+  // deposit credit appears for the member without waiting for a refresh.
   useEffect(() => {
     if (!user) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        refreshWallet();
-      }
-    }, 10000);
-    return () => window.clearInterval(timer);
+    const walletRef = doc(db, 'wallets', user.uid);
+    const unsubscribe = onSnapshot(walletRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data() as WalletData;
+      setWallet({
+        ...data,
+        userId: user.uid,
+        fundWallet: Number(data.fundWallet || 0),
+        incomeWallet: Number(data.incomeWallet || 0),
+        totalIncome: Number(data.totalIncome || 0),
+        totalWithdrawal: Number(data.totalWithdrawal || 0),
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() || String(data.updatedAt || new Date().toISOString()),
+      });
+    }, (error) => {
+      console.warn('Realtime wallet listener unavailable:', error);
+    });
+    return () => unsubscribe();
   }, [user?.uid]);
 
   const loginWithGoogle = async () => {
