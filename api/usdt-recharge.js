@@ -207,7 +207,7 @@ async function review(actor,id,action,note,credit){
     return {status:'rejected',ledgerId:null};
   });
 }
-export async function autoCreditRechargePublic(args){return autoCreditRecharge(args);}
+export { autoCreditRecharge };
 
 export default async function handler(req,res){
   if(!['GET','POST'].includes(req.method)) return json(res,405,{error:'Method not allowed'});
@@ -291,6 +291,10 @@ export default async function handler(req,res){
     if(['TRANSACTION_NOT_CONFIRMED','TRANSFER_MISMATCH','WRONG_NETWORK','INVALID_TOKEN','BSC_RPC_FAILED'].includes(message)) return json(res,422,{error:`On-chain verification pending: ${message}`});
     if(message==='RECHARGE_DISABLED') return json(res,503,{error:'Recharge is not available yet'});
     console.error('usdt-recharge failed:',error instanceof Error?error.stack||error.message:error);
-    return json(res,500,{error:'Recharge request could not be processed'});
+    const code=String(error?.code||'');
+    if(code==='permission-denied'||code==='7') return json(res,503,{error:'Recharge service database permission is not configured yet.'});
+    if(code==='failed-precondition') return json(res,503,{error:'Recharge service database is not ready yet. Please try again in a moment.'});
+    if(code==='unavailable') return json(res,503,{error:'Recharge service is temporarily unavailable. Please try again.'});
+    return json(res,500,{error:'Recharge request could not be processed. Please try again.'});
   }
 }
