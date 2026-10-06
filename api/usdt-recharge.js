@@ -1,575 +1,293 @@
-import { randomUUID } from 'node:crypto';
-import { getPool, withTransaction } from './_lib/db.js';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
+import crypto from 'node:crypto';
+import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
-import { applyActivationIncome, ensureIncomeSchema } from './_lib/incomeEngine.js';
-import { GoogleGenAI } from '@google/genai';
 
-function json(res, status, body) {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Cache-Control', 'no-store');
+function json(res,status,body){
+  res.statusCode=status;
+  res.setHeader('Content-Type','application/json');
+  res.setHeader('Cache-Control','no-store');
   return res.end(JSON.stringify(body));
 }
+const hashPattern=/^0x[0-9a-fA-F]{64}$/;
+const amountPattern=/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/;
 
-const hashPattern = /^0x[0-9a-fA-F]{64}$/;
-const amountPattern = /^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/;
-
-function parseBody(req) {
-  return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+function bodyOf(req){return typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});}
+function iso(v){return v?.toDate?.()?.toISOString?.() || (v ? String(v) : new Date().toISOString());}
+function num(v){return Number(v||0);}
+function adminEmailAllowed(email){
+  const configured=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
+  return new Set([configured,'admin@gf.online','admin@gf.app'].filter(Boolean)).has(String(email||'').toLowerCase());
 }
-
-function map(row) {
+function mapRecharge(d,id){
   return {
-    id: row.id,
-    userId: row.user_id,
-    userName: row.name,
-    userEmail: row.email,
-    referralCode: row.referral_code,
-    txHash: row.tx_hash,
-    amountUsdt: String(row.amount_usdt),
-    status: row.status,
-    creditInr: row.credit_inr == null ? null : String(row.credit_inr),
-    reviewNote: row.review_note,
-    proofUrl: row.proof_url,
-    createdAt: row.created_at,
-    reviewedAt: row.reviewed_at,
+    id,
+    userId:d.userId,
+    userName:d.userName||'',
+    userEmail:d.userEmail||'',
+    referralCode:d.referralCode||'',
+    txHash:d.txHash,
+    amountUsdt:String(d.amountUsdt),
+    status:d.status,
+    creditInr:d.creditInr==null?null:String(d.creditInr),
+    reviewNote:d.reviewNote||null,
+    proofUrl:d.proofUrl||null,
+    createdAt:iso(d.createdAt),
+    reviewedAt:d.reviewedAt?iso(d.reviewedAt):null,
   };
 }
-
-export async function autoCreditRecharge({ id, actor, txHash, amount }) {
-  if (!autoCreditConfigured()) return { attempted: false, status: 'pending' };
-
+function emptyWallet(uid,now){
+  return {
+    userId:uid,fundWallet:0,incomeWallet:0,totalIncome:0,totalWithdrawal:0,
+    basicPackageActive:0,fdPackageActive:0,directTeamCount:0,totalTeamCount:0,
+    joiningBonus:0,referralIncome:0,todayRoiIncome:0,todayLevelIncome:0,
+    totalRoiIncome:0,totalLevelIncome:0,fdTodayRoiIncome:0,fdTodayLevelIncome:0,
+    fdTotalRoiIncome:0,fdTotalLevelIncome:0,fdReferralIncome:0,fdReleased:0,totalSalary:0,
+    updatedAt:now,
+  };
+}
+async function actorFromToken(req){
+  const auth=String(req.headers.authorization||'');
+  if(!auth.startsWith('Bearer ')) throw new Error('AUTH_REQUIRED');
+  const decoded=await verifyFirebaseIdToken(auth.slice(7));
+  const db=getFirestoreAdmin();
+  const snap=await db.collection('users').doc(decoded.uid).get();
+  if(!snap.exists) throw new Error('ACTIVE_MEMBER_REQUIRED');
+  const u=snap.data()||{};
+  const email=String(decoded.email||u.email||'').trim().toLowerCase();
+  if(u.status!=='active') throw new Error('ACTIVE_MEMBER_REQUIRED');
+  return {id:decoded.uid,email,name:u.name||decoded.name||'',role:u.role||'user',referralCode:u.referralCode||''};
+}
+function requireAdmin(actor){
+  if(!['admin','super_admin','administrator'].includes(actor.role) && !adminEmailAllowed(actor.email)) throw new Error('ADMIN_REQUIRED');
+}
+async function createRecharge(db,actor,amount,txHash,proofUrl){
+  const now=new Date();
+  const id='RCH_'+crypto.randomUUID().replaceAll('-','').slice(0,24);
+  const ref=db.collection('usdtRecharges').doc(id);
+  const txRef=db.collection('usdtDepositTx').doc(txHash);
+  await db.runTransaction(async t=>{
+    const txSnap=await t.get(txRef);
+    if(txSnap.exists) throw new Error(txSnap.data()?.status==='approved'?'ALREADY_CREDITED':'TXID_ALREADY_SUBMITTED');
+    const userSnap=await t.get(db.collection('users').doc(actor.id));
+    if(!userSnap.exists || userSnap.data()?.status!=='active') throw new Error('ACTIVE_MEMBER_REQUIRED');
+    t.set(ref,{
+      id,userId:actor.id,userName:actor.name,userEmail:actor.email,referralCode:actor.referralCode,
+      txHash,depositAddress:BEP20_WALLET.toLowerCase(),amountUsdt:amount,
+      status:'pending',creditInr:null,reviewNote:null,proofUrl:proofUrl||null,
+      createdAt:now,reviewedAt:null,reviewedBy:null,ledgerId:null,storage:'firestore',
+    });
+    t.set(txRef,{txHash,userId:actor.id,rechargeId:id,status:'pending',amountUsdt:amount,createdAt:now},{merge:false});
+    t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
+      actorUserId:actor.id,actorEmail:actor.email,action:'USDT_RECHARGE_SUBMITTED',
+      entityType:'usdt_recharge',entityId:id,
+      metadata:{txHash,amountUsdt:amount,network:'BSC',autoCreditEnabled:autoCreditConfigured(),storage:'firestore'},
+      timestamp:now,
+    });
+  });
+  return id;
+}
+async function autoCreditRecharge({id,actor,txHash,amount}){
+  if(!autoCreditConfigured()) return {attempted:false,status:'pending'};
   let proof;
-  try {
-    proof = await verifyBep20(txHash, amount);
-  } catch (error) {
-    const message = String(error?.message || '');
-    if (['TRANSACTION_NOT_CONFIRMED', 'TRANSFER_MISMATCH', 'WRONG_NETWORK', 'INVALID_TOKEN', 'BSC_RPC_FAILED'].includes(message)) {
-      await getPool().query(
-        `UPDATE usdt_bep20_recharges SET review_note=$2 WHERE id=$1 AND status='pending'`,
-        [id, `Auto-credit deferred: ${message}`]
-      ).catch(() => {});
-      return { attempted: true, status: 'pending', deferred: message };
+  try{proof=await verifyBep20(txHash,amount);}
+  catch(error){
+    const code=String(error?.message||'');
+    if(['TRANSACTION_NOT_CONFIRMED','TRANSFER_MISMATCH','WRONG_NETWORK','INVALID_TOKEN','BSC_RPC_FAILED'].includes(code)){
+      const db=getFirestoreAdmin();
+      await db.collection('usdtRecharges').doc(id).set({
+        reviewNote:`Auto-credit deferred: ${code}`,updatedAt:new Date()
+      },{merge:true}).catch(()=>{});
+      return {attempted:true,status:'pending',deferred:code};
     }
     throw error;
   }
-
-  return withTransaction(async (client) => {
-    const locked = await client.query('SELECT * FROM usdt_bep20_recharges WHERE id=$1 FOR UPDATE', [id]);
-    const row = locked.rows[0];
-    if (!row) throw new Error('RECHARGE_NOT_FOUND');
-    if (row.status !== 'pending') {
-      return {
-        attempted: true,
-        status: row.status,
-        alreadyProcessed: true,
-        creditInr: row.credit_inr == null ? null : String(row.credit_inr),
-      };
+  const db=getFirestoreAdmin();
+  const now=new Date();
+  const rechargeRef=db.collection('usdtRecharges').doc(id);
+  const txRef=db.collection('usdtDepositTx').doc(txHash);
+  const walletRef=db.collection('wallets').doc(actor.id);
+  const ledgerRef=db.collection('transactions').doc('DEP_'+crypto.randomUUID().replaceAll('-','').slice(0,26));
+  await db.runTransaction(async t=>{
+    const [rechargeSnap,txSnap,walletSnap,userSnap]=await Promise.all([
+      t.get(rechargeRef),t.get(txRef),t.get(walletRef),t.get(db.collection('users').doc(actor.id))
+    ]);
+    if(!rechargeSnap.exists) throw new Error('RECHARGE_NOT_FOUND');
+    const r=rechargeSnap.data()||{};
+    if(r.status!=='pending'){
+      if(r.status==='approved') return;
+      throw new Error('ALREADY_REVIEWED');
     }
-    if (row.tx_hash !== txHash || String(row.amount_usdt) !== String(amount)) throw new Error('REVIEW_CHANGED');
-
-    const already = await client.query(
-      `SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
-       AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,
-      [txHash]
-    );
-    if (already.rowCount) throw new Error('ALREADY_CREDITED');
-
-    const member = await client.query("SELECT id,status FROM users WHERE id=$1 AND role='user'", [actor.id]);
-    await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [actor.id]);
-    const wallet = await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE', [actor.id]);
-    if (!wallet.rowCount || member.rows[0]?.status !== 'active') throw new Error('MEMBER_UNAVAILABLE');
-
-    // Fund Wallet is USDT-denominated: 1 verified USDT = 1 wallet unit.
-    // Wallet schema stores 2 decimals, so auto-credit rounds to 2 decimals.
-    const creditResult = await client.query(`SELECT ROUND($1::numeric,2)::text AS credit`, [amount]);
-    const walletCredit = String(creditResult.rows[0]?.credit || '0.00');
-    if (!/^(?:0|[1-9][0-9]{0,12})\.[0-9]{2}$/.test(walletCredit) || Number(walletCredit) <= 0) {
-      throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
+    if(r.txHash!==txHash || String(r.amountUsdt)!==String(amount)) throw new Error('REVIEW_CHANGED');
+    if(txSnap.exists && txSnap.data()?.status==='approved') throw new Error('ALREADY_CREDITED');
+    if(!userSnap.exists || userSnap.data()?.status!=='active') throw new Error('MEMBER_UNAVAILABLE');
+    const wallet=walletSnap.exists()?walletSnap.data()||{}:emptyWallet(actor.id,now);
+    const credit=Number(Number(amount).toFixed(2));
+    if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
+    const ledger={
+      id:ledgerRef.id,userId:actor.id,type:'recharge',category:'fund_wallet',flow:'credit',
+      amount:credit,fee:0,netAmount:credit,
+      description:`Auto-verified USDT BEP20 recharge ${id}`,
+      referenceId:txHash,status:'completed',
+      metadata:{rechargeId:id,amountUsdt:String(amount),walletCreditUsdt:credit,chainProof:proof,autoCredit:true},
+      createdAt:now.toISOString()
+    };
+    t.set(ledgerRef,ledger);
+    t.set(walletRef,{...wallet,userId:actor.id,fundWallet:Number((num(wallet.fundWallet)+credit).toFixed(2)),updatedAt:now},{merge:true});
+    t.set(rechargeRef,{
+      status:'approved',creditInr:credit,
+      reviewNote:'Auto-approved after on-chain verification',
+      reviewedBy:actor.id,reviewedAt:now,ledgerId:ledgerRef.id,updatedAt:now
+    },{merge:true});
+    t.set(txRef,{status:'approved',creditedAt:now,ledgerId:ledgerRef.id,rechargeId:id,userId:actor.id,amountUsdt:String(amount)},{merge:true});
+    t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
+      actorUserId:actor.id,actorEmail:actor.email,action:'USDT_RECHARGE_AUTO_CREDITED',
+      entityType:'usdt_recharge',entityId:id,
+      metadata:{txHash,amountUsdt:String(amount),walletCreditUsdt:credit,ledgerId:ledgerRef.id,chainProof:proof,autoCredit:true},
+      timestamp:now,
+    });
+  });
+  return {attempted:true,status:'approved',autoCredited:true,creditInr:Number(Number(amount).toFixed(2)),ledgerId:ledgerRef.id};
+}
+async function listRequests(actor,admin){
+  const db=getFirestoreAdmin();
+  const q=admin
+    ? db.collection('usdtRecharges').orderBy('createdAt','desc').limit(150)
+    : db.collection('usdtRecharges').where('userId','==',actor.id).orderBy('createdAt','desc').limit(50);
+  const snap=await q.get();
+  return snap.docs.map(d=>mapRecharge(d.data()||{},d.id));
+}
+async function review(actor,id,action,note,credit){
+  requireAdmin(actor);
+  const db=getFirestoreAdmin();
+  const ref=db.collection('usdtRecharges').doc(id);
+  const now=new Date();
+  return db.runTransaction(async t=>{
+    const snap=await t.get(ref);
+    if(!snap.exists) throw new Error('RECHARGE_NOT_FOUND');
+    const r=snap.data()||{};
+    if(r.status!=='pending') throw new Error('ALREADY_REVIEWED');
+    if(action==='approve'){
+      if(!/^\d+\.\d{2}$/.test(credit)||Number(credit)<=0) throw new Error('INVALID_REVIEW_CREDIT');
+      const userRef=db.collection('users').doc(r.userId);
+      const walletRef=db.collection('wallets').doc(r.userId);
+      const txRef=db.collection('usdtDepositTx').doc(r.txHash);
+      const [userSnap,walletSnap,txSnap]=await Promise.all([t.get(userRef),t.get(walletRef),t.get(txRef)]);
+      if(!userSnap.exists||userSnap.data()?.status!=='active') throw new Error('MEMBER_UNAVAILABLE');
+      if(txSnap.exists&&txSnap.data()?.status==='approved') throw new Error('ALREADY_CREDITED');
+      const wallet=walletSnap.exists()?walletSnap.data()||{}:emptyWallet(r.userId,now);
+      const ledgerRef=db.collection('transactions').doc('DEP_'+crypto.randomUUID().replaceAll('-','').slice(0,26));
+      t.set(ledgerRef,{
+        id:ledgerRef.id,userId:r.userId,type:'recharge',category:'fund_wallet',flow:'credit',
+        amount:Number(credit),fee:0,netAmount:Number(credit),
+        description:`Verified USDT BEP20 recharge ${id}`,referenceId:r.txHash,status:'completed',
+        metadata:{rechargeId:id,amountUsdt:String(r.amountUsdt),walletCreditUsdt:Number(credit),reviewNote:note,adminId:actor.id},
+        createdAt:now.toISOString()
+      });
+      t.set(walletRef,{...wallet,userId:r.userId,fundWallet:Number((num(wallet.fundWallet)+Number(credit)).toFixed(2)),updatedAt:now},{merge:true});
+      t.set(txRef,{status:'approved',creditedAt:now,ledgerId:ledgerRef.id,rechargeId:id,userId:r.userId},{merge:true});
+      t.set(ref,{status:'approved',creditInr:Number(credit),ledgerId:ledgerRef.id,reviewNote:note,reviewedBy:actor.id,reviewedAt:now,updatedAt:now},{merge:true});
+      t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
+        actorUserId:actor.id,actorEmail:actor.email,action:'USDT_RECHARGE_APPROVED',
+        entityType:'usdt_recharge',entityId:id,
+        metadata:{txHash:r.txHash,amountUsdt:String(r.amountUsdt),walletCreditUsdt:Number(credit),ledgerId:ledgerRef.id,note},
+        timestamp:now,
+      });
+      return {status:'approved',ledgerId:ledgerRef.id};
     }
-
-    const ledgerId = `DEP_${randomUUID().replaceAll('-', '').slice(0, 26)}`;
-    await client.query(
-      `INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
-       VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
-      [
-        ledgerId,
-        actor.id,
-        walletCredit,
-        `Auto-verified USDT BEP20 recharge ${id}`,
-        txHash,
-        JSON.stringify({ rechargeId: id, amountUsdt: amount, walletCreditUsdt: walletCredit, chainProof: proof, autoCredit: true }),
-      ]
-    );
-
-    await client.query('UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2', [walletCredit, actor.id]);
-    await client.query(
-      `UPDATE usdt_bep20_recharges
-       SET status='approved',credit_inr=$2,ledger_id=$3,review_note='Auto-approved after on-chain verification',
-           reviewed_by=$4,reviewed_at=NOW()
-       WHERE id=$1`,
-      [id, walletCredit, ledgerId, actor.id]
-    );
-    await client.query(
-      `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
-       VALUES($1,$2,$3,'USDT_RECHARGE_AUTO_CREDITED','usdt_recharge',$4,$5::jsonb)`,
-      [
-        randomUUID(),
-        actor.id,
-        actor.email,
-        id,
-        JSON.stringify({ txHash, amountUsdt: amount, walletCreditUsdt: walletCredit, ledgerId, chainProof: proof, autoCredit: true }),
-      ]
-    );
-
-    return { attempted: true, status: 'approved', autoCredited: true, creditInr: walletCredit, ledgerId };
+    t.set(ref,{status:'rejected',creditInr:null,reviewNote:note,reviewedBy:actor.id,reviewedAt:now,updatedAt:now},{merge:true});
+    t.set(db.collection('usdtDepositTx').doc(r.txHash),{status:'rejected',reviewedAt:now,rechargeId:id},{merge:true});
+    t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
+      actorUserId:actor.id,actorEmail:actor.email,action:'USDT_RECHARGE_REJECTED',
+      entityType:'usdt_recharge',entityId:id,
+      metadata:{txHash:r.txHash,amountUsdt:String(r.amountUsdt),note},timestamp:now,
+    });
+    return {status:'rejected',ledgerId:null};
   });
 }
+export async function autoCreditRechargePublic(args){return autoCreditRecharge(args);}
 
-export default async function handler(req, res) {
-  if (!['GET', 'POST'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
+export default async function handler(req,res){
+  if(!['GET','POST'].includes(req.method)) return json(res,405,{error:'Method not allowed'});
+  try{
+    const actor=await actorFromToken(req);
+    const scope=new URL(req.url,'http://localhost').searchParams.get('scope');
+    const admin=['admin','super_admin','administrator'].includes(actor.role)||adminEmailAllowed(actor.email);
 
-  try {
-    const auth = String(req.headers.authorization || '');
-    if (!auth.startsWith('Bearer ')) return json(res, 401, { error: 'Authentication required' });
-
-    let decoded;
-    try {
-      decoded = await verifyFirebaseIdToken(auth.slice(7));
-    } catch {
-      return json(res, 401, { error: 'Invalid or expired authentication' });
-    }
-
-    const userResult = await getPool().query(
-      'SELECT id,email,role,status FROM users WHERE id=$1 AND email=$2 LIMIT 1',
-      [decoded.uid, String(decoded.email || '').trim().toLowerCase()]
-    );
-    const actor = userResult.rows[0];
-    if (!actor || actor.status !== 'active') return json(res, 403, { error: 'Active account required' });
-    const admin = actor.role === 'admin';
-
-    if (req.method === 'GET') {
-      const scope = new URL(req.url, 'http://localhost').searchParams.get('scope');
-
-      if (scope === 'ledger') {
-        const { rows } = await getPool().query(
-          admin
-            ? `SELECT l.id,l.user_id,l.type,l.category,l.flow,l.amount,l.fee,l.net_amount,l.description,l.reference_id,l.status,l.metadata,l.created_at,
-                      u.name AS user_name,u.email AS user_email,u.referral_code AS user_referral_code
-                 FROM ledger_transactions l
-                 LEFT JOIN users u ON u.id=l.user_id
-                ORDER BY l.created_at DESC
-                LIMIT 1000`
-            : `SELECT id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at
-                 FROM ledger_transactions
-                WHERE user_id=$1
-                ORDER BY created_at DESC
-                LIMIT 200`,
-          admin ? [] : [actor.id]
-        );
-        return json(res, 200, {
-          transactions: rows.map((row) => ({
-            id: row.id,
-            userId: row.user_id,
-            type: row.type === 'usdt_bep20_recharge' ? 'recharge' : row.type,
-            category: row.category,
-            flow: row.flow,
-            amount: Number(row.amount || 0),
-            fee: Number(row.fee || 0),
-            netAmount: Number(row.net_amount || 0),
-            description: row.description || '',
-            referenceId: row.reference_id || row.id,
-            status: row.status || 'completed',
-            metadata: {
-              ...(row.metadata || {}),
-              ...(row.user_name ? { userName: row.user_name } : {}),
-              ...(row.user_email ? { userEmail: row.user_email } : {}),
-              ...(row.user_referral_code ? { userReferralCode: row.user_referral_code } : {}),
-            },
-            createdAt: row.created_at?.toISOString?.() || String(row.created_at),
-          }))
-        });
-      }
-
-      if (scope === 'admin' && !admin) return json(res, 403, { error: 'Admin access required' });
-      const query = scope === 'admin'
-        ? `SELECT r.*,u.name,u.email,u.referral_code FROM usdt_bep20_recharges r JOIN users u ON u.id=r.user_id ORDER BY CASE WHEN r.status='pending' THEN 0 ELSE 1 END,r.created_at DESC LIMIT 150`
-        : `SELECT r.* FROM usdt_bep20_recharges r WHERE r.user_id=$1 ORDER BY r.created_at DESC LIMIT 30`;
-      const { rows } = await getPool().query(query, scope === 'admin' ? [] : [actor.id]);
-
-      // When automatic verification is enabled, retry pending requests whenever
-      // the member opens/refreshes Recharge. This makes a previously submitted
-      // confirmed transaction settle without requiring a second manual submit.
-      if (scope !== 'admin' && autoCreditConfigured()) {
-        for (const pending of rows.filter((row) => row.status === 'pending')) {
-          try {
-            await autoCreditRecharge({
-              id: pending.id,
-              actor,
-              txHash: pending.tx_hash,
-              amount: String(pending.amount_usdt),
-            });
-          } catch (error) {
-            console.error('Pending recharge auto-credit retry failed:', error instanceof Error ? error.message : error);
-          }
-        }
-      }
-
-      const { rows: refreshedRows } = await getPool().query(query, scope === 'admin' ? [] : [actor.id]);
-      return json(res, 200, {
-        requests: refreshedRows.map(map),
-        enabled: rechargeConfigured(),
-        autoCreditEnabled: autoCreditConfigured(),
-        depositAddress: BEP20_WALLET,
+    if(req.method==='GET'){
+      if(scope==='admin'&&!admin) return json(res,403,{error:'Admin access required'});
+      return json(res,200,{
+        requests:await listRequests(actor,scope==='admin'),
+        enabled:rechargeConfigured(),
+        autoCreditEnabled:autoCreditConfigured(),
+        depositAddress:BEP20_WALLET
       });
     }
 
-    let body;
-    try {
-      body = parseBody(req);
-    } catch {
-      return json(res, 400, { error: 'Invalid JSON request' });
-    }
-
-    if (body.action === 'support_ai') {
-      const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
-      if (!apiKey) return json(res, 503, { error: 'Support AI is not configured yet. Please open a support ticket.' });
-
-      const incoming = Array.isArray(body.messages) ? body.messages.slice(-12) : [];
-      const messages = incoming
-        .filter((item) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
-        .map((item) => ({ role: item.role, content: item.content.slice(0, 1200) }));
-
-      const systemInstruction = [
-        'You are Global Finance Support AI, the in-app customer support assistant for the Global Finance platform.',
-        'ONLY answer questions about Global Finance and its platform operations.',
-        'Allowed topics: package purchase/activation, wallet balances, USDT deposit/recharge, withdrawal, OTP/login/authentication issues, KYC, referrals/downline/commission, transactions/ledger, notifications, profile/settings, and support tickets.',
-        'If the user asks about unrelated topics, politely say you can only help with Global Finance platform support.',
-        'Never provide investment, trading, legal, tax, medical, gambling, or unrelated financial advice.',
-        'Never invent account balances, transaction status, deposit confirmations, withdrawal approvals, OTPs, fees, limits, package returns, or policies that are not explicitly present in the user message.',
-        'Do not ask for or expose passwords, OTP codes, private keys, seed phrases, API keys, or other secrets.',
-        'For a transaction-specific issue that requires staff verification, tell the member to open a support ticket and include the transaction/reference ID; do not claim that you changed anything.',
-        'Be concise, clear, and helpful. You may answer in the language used by the member (including Hindi/Hinglish).',
-      ].join(' ');
-
-      const ai = new GoogleGenAI({ apiKey });
-      const contents = messages.length
-        ? messages.map((item) => ({
-            role: item.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: item.content }],
-          }))
-        : [{ role: 'user', parts: [{ text: 'Hello' }] }];
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.2,
-          maxOutputTokens: 500,
-        },
-      });
-
-      const reply = String(response.text || '').trim();
-      return json(res, 200, { reply: reply || 'Please open a support ticket so our team can assist you.' });
-    }
-
-    if (body.action === 'downline') {
-      const { rows } = await getPool().query(`
-        WITH RECURSIVE downline AS (
-          SELECT
-            s.id,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
-            1 AS level, ARRAY[s.id::text]::text[] AS path, s.created_at
-          FROM users root
-          JOIN users s
-            ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.referral_code,'')))
-             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
-          WHERE root.id=$1
-          UNION ALL
-          SELECT
-            s.id,s.name,s.email,s.phone,s.referral_code,s.sponsor_id,s.status,
-            d.level+1, d.path || s.id::text, s.created_at
-          FROM downline d
-          JOIN users s
-            ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.referral_code,'')))
-             OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.id::text,'')))
-          WHERE d.level < 15 AND NOT (s.id::text = ANY(d.path))
-        )
-        SELECT d.*,
-          COALESCE(SUM(CASE WHEN l.flow='credit' AND l.category='income_wallet'
-            AND COALESCE((l.metadata->>'referredUserId'),'')=d.id::text
-            AND COALESCE((l.metadata->>'referralLevel')::int,0)=d.level
-            THEN l.amount ELSE 0 END),0)::numeric(16,2) AS commission_from_member,
-          COALESCE(SUM(CASE WHEN l.flow='credit' AND l.category='income_wallet'
-            AND COALESCE((l.metadata->>'referredUserId'),'')=d.id::text
-            THEN l.amount ELSE 0 END),0)::numeric(16,2) AS total_commission_from_member
-        FROM downline d
-        LEFT JOIN ledger_transactions l ON l.user_id=$1
-        GROUP BY d.id,d.name,d.email,d.phone,d.referral_code,d.sponsor_id,d.status,d.level,d.path,d.created_at
-        ORDER BY d.level,d.created_at
-      `, [actor.id]);
-      return json(res, 200, { success:true, members:rows.map(r=>({
-        id:r.id,userId:r.id,name:r.name||'',email:r.email||'',phone:r.phone||'—',
-        referralCode:r.referral_code||'',sponsorId:r.sponsor_id||'',level:Number(r.level),
-        joinDate:r.created_at,status:r.status==='suspended'?'inactive':'active',
-        activePackage:0,commissionFromMember:Number(r.commission_from_member||0),
-        totalCommissionFromMember:Number(r.total_commission_from_member||0)
-      }))});
-    }
-
-    if (body.action === 'activate_package') {
-      if (admin) return json(res, 403, { error: 'Member account required' });
-
-      const packageType = body.packageType === 'fd' ? 'fd' : 'basic';
-      const packageName = String(body.packageName || '').trim().slice(0, 120);
-      const amount = Number(Number(body.amount || 0).toFixed(2));
-      const roiRate = Number(body.roiRate);
-      const durationDays = Math.floor(Number(body.durationDays));
-
-      if (!packageName || !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(roiRate) || roiRate <= 0 || !Number.isInteger(durationDays) || durationDays <= 0) {
-        return json(res, 400, { error: 'Valid package details are required' });
-      }
-
-      const result = await withTransaction(async (client) => {
-        await ensureIncomeSchema(client);
-        await client.query(`CREATE TABLE IF NOT EXISTS package_activations(
-          id VARCHAR(64) PRIMARY KEY,
-          user_id VARCHAR(64) NOT NULL REFERENCES users(id),
-          package_type VARCHAR(16) NOT NULL,
-          package_name VARCHAR(120) NOT NULL,
-          amount NUMERIC(16,2) NOT NULL CHECK(amount>0),
-          roi_daily_rate NUMERIC(10,4) NOT NULL,
-          duration_days INT NOT NULL,
-          total_earned NUMERIC(16,2) NOT NULL DEFAULT 0,
-          status VARCHAR(20) NOT NULL DEFAULT 'active',
-          activated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          expires_at TIMESTAMPTZ NOT NULL
-        )`);
-        await client.query('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS basic_package_active NUMERIC(16,2) NOT NULL DEFAULT 0');
-        await client.query('ALTER TABLE wallets ADD COLUMN IF NOT EXISTS fd_package_active NUMERIC(16,2) NOT NULL DEFAULT 0');
-
-        const member = (await client.query('SELECT id,status,role FROM users WHERE id=$1 AND email=$2 LIMIT 1', [decoded.uid, String(decoded.email || '').trim().toLowerCase()])).rows[0];
-        if (!member || member.status !== 'active' || member.role !== 'user') throw new Error('ACTIVE_MEMBER_REQUIRED');
-
-        const walletQ = await client.query('SELECT * FROM wallets WHERE user_id=$1 FOR UPDATE', [actor.id]);
-        if (!walletQ.rowCount) throw new Error('WALLET_NOT_FOUND');
-        const available = Number(walletQ.rows[0].fund_wallet || 0);
-        if (available < amount) throw new Error('INSUFFICIENT_FUNDS');
-
-        const id = `PKG_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
-        const expiresAt = new Date(Date.now() + durationDays * 86400000).toISOString();
-        await client.query(`INSERT INTO package_activations(id,user_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at)
-          VALUES($1,$2,$3,$4,$5,$6,$7,0,'active',NOW(),$8)`, [id, actor.id, packageType, packageName, amount, roiRate, durationDays, expiresAt]);
-
-        const ledgerId = `LED_${randomUUID().replaceAll('-', '').slice(0, 26)}`;
-        await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
-          VALUES($1,$2,'package_activation','fund_wallet','debit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
-          [ledgerId, actor.id, amount, `Activated ${packageName} (${packageType.toUpperCase()})`, id, JSON.stringify({ packageId:id, packageType, packageName, amount, roiRate, durationDays })]);
-
-        const walletField = packageType === 'fd' ? 'fd_package_active' : 'basic_package_active';
-        await client.query(`UPDATE wallets SET fund_wallet=fund_wallet-$1,${walletField}=${walletField}+$1,updated_at=NOW() WHERE user_id=$2`, [amount, actor.id]);
-
-        const income = await applyActivationIncome(client, { activationId:id, userId:actor.id, amount, packageName, packageType });
-        return { packageId:id, ledgerId, income };
-      });
-
-      return json(res, 200, { success:true, ...result });
-    }
-
-    if (body.action === 'submit') {
-      if (admin) return json(res, 403, { error: 'Member account required' });
-      if (!rechargeConfigured()) return json(res, 503, { error: 'Recharge is not available yet' });
-
-      const amount = String(body.amountUsdt || '').trim();
-      const txHash = String(body.txHash || '').trim().toLowerCase();
-      if (!amountPattern.test(amount) || Number(amount) <= 0 || !hashPattern.test(txHash)) {
-        return json(res, 400, { error: 'Enter a valid USDT amount and BSC TXID' });
-      }
-
-      const proofUrl = String(body.paymentProofUrl || '').trim();
-      if (proofUrl) {
+    const body=bodyOf(req);
+    if(body.action==='submit'){
+      if(admin) return json(res,403,{error:'Member account required'});
+      if(!rechargeConfigured()) return json(res,503,{error:'Recharge is not available yet'});
+      const amount=String(body.amountUsdt||'').trim();
+      const txHash=String(body.txHash||'').trim().toLowerCase();
+      if(!amountPattern.test(amount)||Number(amount)<=0||!hashPattern.test(txHash)) return json(res,400,{error:'Enter a valid USDT amount and BSC TXID'});
+      const proofUrl=String(body.paymentProofUrl||'').trim();
+      if(proofUrl){
         let url;
-        try {
-          url = new URL(proofUrl);
-        } catch {
-          return json(res, 400, { error: 'Invalid payment screenshot URL' });
-        }
-        if (
-          url.protocol !== 'https:' ||
-          url.hostname !== 'firebasestorage.googleapis.com' ||
-          !decodeURIComponent(url.pathname).includes(`/payment_proofs/${actor.id}/${txHash}/`)
-        ) {
-          return json(res, 400, { error: 'Payment screenshot must belong to this account and TXID' });
-        }
+        try{url=new URL(proofUrl);}catch{throw new Error('INVALID_PROOF_URL');}
+        if(url.protocol!=='https:'||url.hostname!=='firebasestorage.googleapis.com'||!decodeURIComponent(url.pathname).includes(`/payment_proofs/${actor.id}/${txHash}/`)) throw new Error('INVALID_PROOF_URL');
       }
-
-      const id = `RCH_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
-      await withTransaction(async (client) => {
-        const credited = await client.query(
-          `SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
-           AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,
-          [txHash]
-        );
-        if (credited.rowCount) throw new Error('ALREADY_CREDITED');
-
-        const existing = await client.query('SELECT id FROM usdt_bep20_recharges WHERE lower(tx_hash)=$1 LIMIT 1', [txHash]);
-        if (existing.rowCount) throw new Error('TXID_ALREADY_SUBMITTED');
-
-        await client.query(
-          `INSERT INTO usdt_bep20_recharges(id,user_id,tx_hash,deposit_address,amount_usdt,proof_url)
-           VALUES($1,$2,$3,$4,$5,$6)`,
-          [id, actor.id, txHash, BEP20_WALLET.toLowerCase(), amount, proofUrl || null]
-        );
-        await client.query(
-          `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
-           VALUES($1,$2,$3,'USDT_RECHARGE_SUBMITTED','usdt_recharge',$4,$5::jsonb)`,
-          [randomUUID(), actor.id, actor.email, id, JSON.stringify({ txHash, amountUsdt: amount, network: 'BSC', autoCreditEnabled: autoCreditConfigured() })]
-        );
-      });
-
-      // AUTO-CREDIT FLOW: store first, then verify on-chain and credit atomically.
-      // The recharge request is already safely stored as pending.
-      // Automatic on-chain verification must never turn a successful submission
-      // into a generic 500 response. If verification fails, keep it pending
-      // and let admin review/retry it.
-      let autoResult = { attempted: false, status: 'pending' };
-
-      if (autoCreditConfigured()) {
-        try {
-          autoResult = await autoCreditRecharge({ id, actor, txHash, amount });
-        } catch (error) {
-          console.error('Recharge auto-credit failed:', {
-            rechargeId: id,
-            userId: actor.id,
-            txHash,
-            amount,
-            error: error instanceof Error ? error.stack || error.message : error,
-          });
-
-          await getPool().query(
-            `UPDATE usdt_bep20_recharges
-             SET review_note=$2
-             WHERE id=$1 AND status='pending'`,
-            [
-              id,
-              'Automatic verification failed. Recharge remains pending admin review.',
-            ]
-          ).catch((dbError) => {
-            console.error('Failed to save auto-credit failure note:', dbError);
-          });
-
-          autoResult = {
-            attempted: true,
-            status: 'pending',
-            deferred: true,
-          };
+      const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl);
+      let autoResult={attempted:false,status:'pending'};
+      if(autoCreditConfigured()){
+        try{autoResult=await autoCreditRecharge({id,actor,txHash,amount});}
+        catch(error){
+          console.error('Firestore recharge auto-credit failed:',error instanceof Error?error.stack||error.message:error);
+          await getFirestoreAdmin().collection('usdtRecharges').doc(id).set({reviewNote:'Automatic verification failed. Recharge remains pending admin review.',updatedAt:new Date()},{merge:true});
+          autoResult={attempted:true,status:'pending',deferred:true};
         }
       }
-
-      return json(res, 201, {
-        success: true,
-        id,
-        status: autoResult.status || 'pending',
-        autoCredit: autoResult,
-      });
+      return json(res,201,{success:true,id,status:autoResult.status||'pending',autoCredit:autoResult});
     }
 
-    if (body.action !== 'approve' && body.action !== 'reject') return json(res, 400, { error: 'Invalid action' });
-    if (!admin) return json(res, 403, { error: 'Admin access required' });
-    if (!rechargeConfigured()) return json(res, 503, { error: 'Recharge approval is disabled' });
-
-    const id = String(body.id || '');
-    const note = String(body.note || '').trim() || (body.action === 'approve' ? 'Approved by admin after manual payment verification.' : 'Rejected by admin after manual payment review.');
-    if (!/^RCH_[0-9a-f]{24}$/.test(id) || note.length > 1000) {
-      return json(res, 400, { error: 'A valid recharge request is required' });
+    if(body.action==='retry'){
+      if(admin) return json(res,403,{error:'Member account required'});
+      const id=String(body.id||'');
+      const snap=await getFirestoreAdmin().collection('usdtRecharges').doc(id).get();
+      if(!snap.exists||snap.data()?.userId!==actor.id) return json(res,404,{error:'Recharge not found'});
+      const r=snap.data()||{};
+      if(r.status!=='pending') return json(res,200,{success:true,status:r.status,alreadyProcessed:true});
+      const result=await autoCreditRecharge({id,actor,txHash:r.txHash,amount:String(r.amountUsdt)});
+      return json(res,200,{success:true,...result});
     }
 
-    const isApproval = body.action === 'approve';
-    const credit = String(body.creditInr || '').trim();
-    if (isApproval && (!/^(?:0|[1-9][0-9]{0,12})\.[0-9]{2}$/.test(credit) || Number(credit) <= 0)) {
-      return json(res, 400, { error: 'Enter the reviewed wallet credit with two decimals' });
+    if(body.action==='approve'||body.action==='reject'){
+      if(!admin) return json(res,403,{error:'Admin access required'});
+      if(!rechargeConfigured()) return json(res,503,{error:'Recharge approval is disabled'});
+      const id=String(body.id||'');
+      if(!/^RCH_[0-9a-f]{24}$/.test(id)) return json(res,400,{error:'A valid recharge request is required'});
+      const note=String(body.note||'').trim()|| (body.action==='approve'?'Approved by admin after manual payment verification.':'Rejected by admin after manual payment review.');
+      if(note.length>1000) return json(res,400,{error:'Review note is too long'});
+      const credit=String(body.creditInr||'').trim();
+      if(body.action==='approve'&&!/^\d+\.\d{2}$/.test(credit)) return json(res,400,{error:'Enter the reviewed wallet credit with two decimals'});
+      return json(res,200,{success:true,...await review(actor,id,body.action,note,credit)});
     }
-
-    const requested = await getPool().query('SELECT tx_hash,amount_usdt FROM usdt_bep20_recharges WHERE id=$1', [id]);
-    if (!requested.rows[0]) return json(res, 404, { error: 'Recharge not found' });
-    // Phase 1: admin approval is manual. Admin verifies the TX on-chain
-    // before approving, so approval does not depend on RPC/token-contract
-    // auto-verification. Phase 2/3 can re-enable verifyBep20 for automation.
-    const proof = null;
-
-    const result = await withTransaction(async (client) => {
-      const locked = await client.query('SELECT * FROM usdt_bep20_recharges WHERE id=$1 FOR UPDATE', [id]);
-      const row = locked.rows[0];
-      if (!row || row.status !== 'pending') throw new Error('ALREADY_REVIEWED');
-      if (isApproval && (row.tx_hash !== requested.rows[0].tx_hash || String(row.amount_usdt) !== String(requested.rows[0].amount_usdt))) {
-        throw new Error('REVIEW_CHANGED');
-      }
-
-      let ledgerId = null;
-      if (isApproval) {
-        await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [row.user_id]);
-        const wallet = await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE', [row.user_id]);
-        const member = await client.query("SELECT id,status FROM users WHERE id=$1 AND role='user'", [row.user_id]);
-        if (!wallet.rowCount || member.rows[0]?.status !== 'active') throw new Error('MEMBER_UNAVAILABLE');
-
-        const already = await client.query(
-          `SELECT id FROM ledger_transactions WHERE lower(reference_id)=$1
-           AND type IN ('crypto_deposit','usdt_bep20_recharge') LIMIT 1`,
-          [row.tx_hash]
-        );
-        if (already.rowCount) throw new Error('ALREADY_CREDITED');
-
-        ledgerId = `DEP_${randomUUID().replaceAll('-', '').slice(0, 26)}`;
-        await client.query(
-          `INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
-           VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,
-          [
-            ledgerId,
-            row.user_id,
-            credit,
-            `Verified USDT BEP20 recharge ${id}`,
-            row.tx_hash,
-            JSON.stringify({ rechargeId: id, amountUsdt: String(row.amount_usdt), walletCreditUsdt: credit, chainProof: proof, reviewNote: note, adminId: actor.id }),
-          ]
-        );
-        await client.query('UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2', [credit, row.user_id]);
-      }
-
-      await client.query(
-        `UPDATE usdt_bep20_recharges SET status=$2,credit_inr=$3,ledger_id=$4,review_note=$5,reviewed_by=$6,reviewed_at=NOW() WHERE id=$1`,
-        [id, isApproval ? 'approved' : 'rejected', isApproval ? credit : null, ledgerId, note, actor.id]
-      );
-      await client.query(
-        `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
-         VALUES($1,$2,$3,$4,'usdt_recharge',$5,$6::jsonb)`,
-        [
-          randomUUID(),
-          actor.id,
-          actor.email,
-          isApproval ? 'USDT_RECHARGE_APPROVED' : 'USDT_RECHARGE_REJECTED',
-          id,
-          JSON.stringify({ txHash: row.tx_hash, amountUsdt: String(row.amount_usdt), walletCreditUsdt: isApproval ? credit : null, ledgerId, chainProof: proof, note }),
-        ]
-      );
-      return { status: isApproval ? 'approved' : 'rejected', ledgerId };
-    });
-
-    return json(res, 200, { success: true, ...result });
-  } catch (error) {
-    const message = String(error?.message || '');
-    if (error?.code === '23505') return json(res, 409, { error: 'This TXID has already been submitted or credited' });
-    if (message === 'TXID_ALREADY_SUBMITTED') return json(res, 409, { error: 'This TXID has already been submitted' });
-    if (message === 'ALREADY_CREDITED') return json(res, 409, { error: 'This TXID was already credited' });
-    if (message === 'ALREADY_REVIEWED') return json(res, 409, { error: 'Recharge has already been reviewed' });
-    if (message === 'REVIEW_CHANGED') return json(res, 409, { error: 'Recharge changed during review' });
-    if (message === 'MEMBER_UNAVAILABLE') return json(res, 409, { error: 'Member wallet or account is unavailable' });
-    if (message === 'INVALID_AUTO_CREDIT_AMOUNT') return json(res, 422, { error: 'Automatic credit amount is invalid; request remains for admin review' });
-    if (['TRANSACTION_NOT_CONFIRMED', 'TRANSFER_MISMATCH', 'WRONG_NETWORK', 'INVALID_TOKEN', 'BSC_RPC_FAILED'].includes(message)) {
-      return json(res, 422, { error: `On-chain verification failed: ${message}` });
-    }
-    if (message === 'RECHARGE_DISABLED') return json(res, 503, { error: 'Recharge approval is disabled' });
-    console.error('usdt-recharge failed:', message);
-    return json(res, 500, { error: 'Recharge request could not be processed' });
+    return json(res,400,{error:'Invalid action'});
+  }catch(error){
+    const message=String(error?.message||'');
+    if(message==='AUTH_REQUIRED') return json(res,401,{error:'Authentication required'});
+    if(message==='ADMIN_REQUIRED') return json(res,403,{error:'Admin access required'});
+    if(message==='ACTIVE_MEMBER_REQUIRED'||message==='MEMBER_UNAVAILABLE') return json(res,403,{error:'Active member account required'});
+    if(message==='RECHARGE_NOT_FOUND') return json(res,404,{error:'Recharge not found'});
+    if(message==='TXID_ALREADY_SUBMITTED') return json(res,409,{error:'This TXID has already been submitted'});
+    if(message==='ALREADY_CREDITED') return json(res,409,{error:'This TXID was already credited'});
+    if(message==='ALREADY_REVIEWED') return json(res,409,{error:'Recharge has already been reviewed'});
+    if(message==='REVIEW_CHANGED') return json(res,409,{error:'Recharge changed during verification'});
+    if(message==='INVALID_AUTO_CREDIT_AMOUNT') return json(res,422,{error:'Automatic credit amount is invalid; request remains pending'});
+    if(message==='INVALID_REVIEW_CREDIT') return json(res,400,{error:'Enter a valid wallet credit with two decimals'});
+    if(message==='INVALID_PROOF_URL') return json(res,400,{error:'Invalid payment screenshot URL'});
+    if(['TRANSACTION_NOT_CONFIRMED','TRANSFER_MISMATCH','WRONG_NETWORK','INVALID_TOKEN','BSC_RPC_FAILED'].includes(message)) return json(res,422,{error:`On-chain verification pending: ${message}`});
+    if(message==='RECHARGE_DISABLED') return json(res,503,{error:'Recharge is not available yet'});
+    console.error('usdt-recharge failed:',error instanceof Error?error.stack||error.message:error);
+    return json(res,500,{error:'Recharge request could not be processed'});
   }
 }
