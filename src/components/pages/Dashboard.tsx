@@ -351,6 +351,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               Net payout executed
             </div>
           </div>
+
+          {/* Signup maturity points remain separate from cash balances. */}
+          <div className="p-5 rounded-xl bg-[#091129]/90 border border-violet-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">Maturity Points</span>
+              <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-300">
+                <Award className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-violet-200 font-mono tracking-tight tabular-nums">
+              {Number(wallet?.lockedMaturityPoints || 0) + Number(wallet?.releasedMaturityPoints || 0)}
+            </div>
+            <div className="mt-3 text-[11px] text-slate-400">
+              {wallet?.maturityPointsStatus === 'released'
+                ? '150 points released after all packages matured'
+                : wallet?.maturityPointsStatus === 'locked'
+                  ? `${Number(wallet?.lockedMaturityPoints || 0)} points locked until all packages mature`
+                  : 'Signup points status'}
+            </div>
+          </div>
         </div>
       </div>
 
