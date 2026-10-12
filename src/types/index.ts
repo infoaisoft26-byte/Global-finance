@@ -46,6 +46,7 @@ export interface WalletData {
   totalSalary?: number;
   lockedMaturityPoints?: number;
   maturityPointsStatus?: 'none' | 'locked' | 'released';
+  releasedMaturityPoints?: number;
   maturityPointsReleasedAt?: string | null;
   updatedAt?: string;
 }
