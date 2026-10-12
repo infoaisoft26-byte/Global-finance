@@ -3,6 +3,12 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "crons": [
+    {
+      "path": "/api/usdt-bep20-deposit",
+      "schedule": "0 19 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/admin",
