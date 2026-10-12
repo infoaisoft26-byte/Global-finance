@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { getFirestoreAdmin } from './firebaseAdmin.js';
 
 const MAX_LEVEL = 15;
 
@@ -279,5 +280,54 @@ export async function runDailyIncome(client,businessDate) {
     packagesProcessed++;
     if(money(already+roi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1`,[a.id]);
   }
-  return {businessDate:date,packages:rows.length,packagesProcessed,roiCredits,levelCredits};
+  // Release signup maturity points only after the member has had at least one
+  // real package and every package activation is no longer active. Points stay
+  // separate from money wallets; a Firestore transaction makes release idempotent.
+  let maturityPointsReleased=0;
+  const fsdb=getFirestoreAdmin();
+  const lockedWallets=await fsdb.collection('wallets').where('maturityPointsStatus','==','locked').get();
+  for (const walletDoc of lockedWallets.docs) {
+    const userId=walletDoc.id;
+    const packageState=await client.query(
+      `SELECT COUNT(*) FILTER (WHERE status='active')::int AS active_count,
+              COUNT(*) FILTER (WHERE status='matured')::int AS matured_count,
+              COUNT(*)::int AS total_count
+         FROM package_activations WHERE user_id=$1`,
+      [userId]
+    );
+    const state=packageState.rows[0]||{};
+    if (Number(state.total_count||0)<1 || Number(state.active_count||0)>0 || Number(state.matured_count||0)<1) continue;
+    const pointsLedgerRef=fsdb.collection('maturityPointsLedger').doc(`MATURITY_POINTS_RELEASE_${userId}`);
+    const walletRef=fsdb.collection('wallets').doc(userId);
+    const auditRef=fsdb.collection('auditLogs').doc(`MATURITY_POINTS_RELEASE_${userId}`);
+    const released=await fsdb.runTransaction(async tx=>{
+      const [currentSnap,ledgerSnap]=await Promise.all([tx.get(walletRef),tx.get(pointsLedgerRef)]);
+      const current=currentSnap.data()||{};
+      if (!currentSnap.exists || current.maturityPointsStatus!=='locked' || ledgerSnap.exists) return false;
+      const now=new Date();
+      tx.set(walletRef,{
+        lockedMaturityPoints:0,
+        releasedMaturityPoints:Number(current.lockedMaturityPoints||150),
+        maturityPointsStatus:'released',
+        maturityPointsReleasedAt:now,
+        updatedAt:now
+      },{merge:true});
+      tx.set(pointsLedgerRef,{
+        id:pointsLedgerRef.id,userId,points:Number(current.lockedMaturityPoints||150),
+        type:'maturity_points_release',status:'completed',
+        description:'Signup maturity points released after all package activations matured',
+        packageCount:Number(state.total_count||0),maturedPackageCount:Number(state.matured_count||0),
+        createdAt:now
+      });
+      tx.set(auditRef,{
+        actorUserId:'SYSTEM',actorEmail:null,action:'MATURITY_POINTS_RELEASED',
+        entityType:'ledger',entityId:pointsLedgerRef.id,
+        metadata:{userId,points:Number(current.lockedMaturityPoints||150),packageCount:Number(state.total_count||0),maturedPackageCount:Number(state.matured_count||0)},
+        timestamp:now
+      });
+      return true;
+    });
+    if (released) maturityPointsReleased++;
+  }
+  return {businessDate:date,packages:rows.length,packagesProcessed,roiCredits,levelCredits,maturityPointsReleased};
 }
