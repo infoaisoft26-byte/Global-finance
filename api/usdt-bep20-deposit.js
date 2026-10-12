@@ -133,7 +133,7 @@ async function handleAdminReconcileReferralIncome(member, res) {
           activationsProcessed,
           distributionsCreated,
           amountCredited: Number(amountCredited.toFixed(2)),
-          commissionSchedule: 'L1=5%, L2-L12=1%, L13-L15=0.5%',
+          commissionSchedule: 'L1=7%, L2-L12=1%, L13-L15=0.5%',
           asset: 'USDT',
         }),
       ]
