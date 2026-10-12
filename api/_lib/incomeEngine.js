@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 const MAX_LEVEL = 15;
 
 // Authoritative 15-level referral/level commission schedule.
-const LEVEL_COMMISSION_RATES = Object.freeze({1:5,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:0.5,14:0.5,15:0.5});
+const LEVEL_COMMISSION_RATES = Object.freeze({1:7,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:0.5,14:0.5,15:0.5});
 const levelRate = (level) => Number(LEVEL_COMMISSION_RATES[Number(level)] || 0);
 const money = (v) => Number(Number(v || 0).toFixed(2));
 const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100);
