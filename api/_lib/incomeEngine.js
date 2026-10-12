@@ -233,6 +233,8 @@ export async function runDailyIncome(client,businessDate) {
   await ensureIncomeSchema(client);
   const date=businessDate || previousIndiaBusinessDate();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_BUSINESS_DATE');
+  // Expired activations must transition out of active status even if a prior daily run was missed.
+  await client.query(`UPDATE package_activations SET status='matured' WHERE status='active' AND (expires_at AT TIME ZONE 'Asia/Kolkata')::date < $1::date`,[date]);
   const {rows}=await client.query(`SELECT pa.* FROM package_activations pa JOIN users u ON u.id=pa.user_id
     WHERE pa.status='active' AND u.status='active'
       AND (pa.activated_at AT TIME ZONE 'Asia/Kolkata')::date<=$1::date
