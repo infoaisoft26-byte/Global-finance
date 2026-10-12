@@ -25,11 +25,11 @@ function mapWallet(data,uid){
     todayRoiIncome:n(data.todayRoiIncome),todayLevelIncome:n(data.todayLevelIncome),totalRoiIncome:n(data.totalRoiIncome),
     totalLevelIncome:n(data.totalLevelIncome),fdReferralIncome:n(data.fdReferralIncome),fdTodayRoiIncome:n(data.fdTodayRoiIncome),
     fdTodayLevelIncome:n(data.fdTodayLevelIncome),fdTotalRoiIncome:n(data.fdTotalRoiIncome),fdTotalLevelIncome:n(data.fdTotalLevelIncome),
-    updatedAt:asIso(data.updatedAt)};
+    lockedMaturityPoints:n(data.lockedMaturityPoints),maturityPointsStatus:data.maturityPointsStatus||'none',maturityPointsReleasedAt:data.maturityPointsReleasedAt?asIso(data.maturityPointsReleasedAt):null,updatedAt:asIso(data.updatedAt)};
 }
 const emptyWallet=(uid,now)=>({userId:uid,fundWallet:0,incomeWallet:0,totalIncome:0,totalWithdrawal:0,basicPackageActive:0,fdPackageActive:0,
   directTeamCount:0,totalTeamCount:0,referralIncome:0,todayRoiIncome:0,todayLevelIncome:0,totalRoiIncome:0,totalLevelIncome:0,
-  fdReferralIncome:0,fdTodayRoiIncome:0,fdTodayLevelIncome:0,fdTotalRoiIncome:0,fdTotalLevelIncome:0,updatedAt:now});
+  fdReferralIncome:0,fdTodayRoiIncome:0,fdTodayLevelIncome:0,fdTotalRoiIncome:0,fdTotalLevelIncome:0,lockedMaturityPoints:0,maturityPointsStatus:'none',maturityPointsReleasedAt:null,updatedAt:now});
 
 async function memberLookup(identifier){
   const db=getFirestoreAdmin();
@@ -118,13 +118,13 @@ export default async function handler(req,res){
         status:'active',kycStatus:configuredAdminEmails.includes(email)?'verified':'unverified',phone,country,rankCode:'MEMBER',
         transactionPasswordHash:hashTransactionPassword(registrationTransactionPassword),
         transactionPasswordCreatedAt:now,createdAt:now,updatedAt:now,storage:'firestore'};
-      const wallet=emptyWallet(uid,now);
+      const wallet={...emptyWallet(uid,now),lockedMaturityPoints:150,maturityPointsStatus:'locked',maturityPointsGrantedAt:now,maturityPointsReleasedAt:null};
       transaction.set(userRef,profile);
       transaction.set(walletRef,wallet);
 
       const auditRef=db.collection('auditLogs').doc(crypto.randomUUID());
       transaction.set(auditRef,{actorUserId:uid,actorEmail:email,action:'USER_REGISTERED',entityType:'user',entityId:uid,
-        metadata:{referralCode:code,sponsorId,role:profile.role,storage:'firestore'},timestamp:now});
+        metadata:{referralCode:code,sponsorId,role:profile.role,storage:'firestore',lockedMaturityPoints:150,maturityPointsStatus:'locked'},timestamp:now});
       if(sponsorRef){
         const sponsorWalletRef=db.collection('wallets').doc(sponsorRef.id);
         const sponsorWalletSnap=await transaction.get(sponsorWalletRef);
