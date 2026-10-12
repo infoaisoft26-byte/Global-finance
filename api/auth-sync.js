@@ -25,7 +25,7 @@ function mapWallet(data,uid){
     todayRoiIncome:n(data.todayRoiIncome),todayLevelIncome:n(data.todayLevelIncome),totalRoiIncome:n(data.totalRoiIncome),
     totalLevelIncome:n(data.totalLevelIncome),fdReferralIncome:n(data.fdReferralIncome),fdTodayRoiIncome:n(data.fdTodayRoiIncome),
     fdTodayLevelIncome:n(data.fdTodayLevelIncome),fdTotalRoiIncome:n(data.fdTotalRoiIncome),fdTotalLevelIncome:n(data.fdTotalLevelIncome),
-    lockedMaturityPoints:n(data.lockedMaturityPoints),maturityPointsStatus:data.maturityPointsStatus||'none',maturityPointsReleasedAt:data.maturityPointsReleasedAt?asIso(data.maturityPointsReleasedAt):null,updatedAt:asIso(data.updatedAt)};
+    lockedMaturityPoints:n(data.lockedMaturityPoints),releasedMaturityPoints:n(data.releasedMaturityPoints),maturityPointsStatus:data.maturityPointsStatus||'none',maturityPointsReleasedAt:data.maturityPointsReleasedAt?asIso(data.maturityPointsReleasedAt):null,updatedAt:asIso(data.updatedAt)};
 }
 const emptyWallet=(uid,now)=>({userId:uid,fundWallet:0,incomeWallet:0,totalIncome:0,totalWithdrawal:0,basicPackageActive:0,fdPackageActive:0,
   directTeamCount:0,totalTeamCount:0,referralIncome:0,todayRoiIncome:0,todayLevelIncome:0,totalRoiIncome:0,totalLevelIncome:0,
