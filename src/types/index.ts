@@ -44,6 +44,9 @@ export interface WalletData {
   fdReferralIncome?: number;
   fdReleased?: number;
   totalSalary?: number;
+  lockedMaturityPoints?: number;
+  maturityPointsStatus?: 'none' | 'locked' | 'released';
+  maturityPointsReleasedAt?: string | null;
   updatedAt?: string;
 }
 
