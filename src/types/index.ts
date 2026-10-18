@@ -165,6 +165,13 @@ export type PackageActivationStatus =
 
 export interface PackageActivationRequest {
   id: string;
+  capMultiple?: number;
+  capAmount?: number | null;
+  creditedTotal?: number;
+  capReconciled?: boolean;
+  completedAt?: string | null;
+  principalReturned?: boolean;
+  principalReturnAmount?: number;
   reference: string;
   userId: string;
   userEmail?: string;
