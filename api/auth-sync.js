@@ -5,7 +5,8 @@ import { sendWelcomeEmail } from './_lib/email.js';
 
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(body));}
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}
-function referralCode(){return `GF${crypto.randomInt(100000,1000000)}`;}
+const FIRST_REFERRAL_NUMBER=201;
+function formatReferralCode(number){return `GF${String(number).padStart(6,'0')}`;}
 function generateTransactionPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';let out='';for(let i=0;i<6;i++)out+=chars[crypto.randomInt(0,chars.length)];return out;}
 function hashTransactionPassword(password){const salt=crypto.randomBytes(16).toString('hex');const hash=crypto.scryptSync(password,salt,64).toString('hex');return `${salt}:${hash}`;}
 function normalizePhone(value){const raw=String(value??'').trim();if(!raw)return null;const compact=raw.replace(/[\s()-]/g,'');if(!/^\+?\d{7,15}$/.test(compact))throw new Error('Please enter a valid mobile number.');return compact;}
@@ -121,26 +122,45 @@ export default async function handler(req,res){
         }
       }
 
-      let code=referralCode();
-      const codeQuery=await transaction.get(db.collection('users').where('referralCode','==',code).limit(1));
-      if(!codeQuery.empty)code=referralCode();
+      const sequenceRef=db.collection('_system').doc('referralSequence');
+      const sequenceSnap=await transaction.get(sequenceRef);
+      let candidateNumber=sequenceSnap.exists?Number(sequenceSnap.get('lastIssued')||FIRST_REFERRAL_NUMBER-1)+1:FIRST_REFERRAL_NUMBER;
+      let code='';
+      // Keep existing member IDs untouched and skip legacy IDs already in use.
+      while(candidateNumber<=999999){
+        const candidate=formatReferralCode(candidateNumber);
+        const referralCollision=await transaction.get(db.collection('users').where('referralCode','==',candidate).limit(1));
+        const memberIdCollision=await transaction.get(db.collection('users').where('memberId','==',candidate).limit(1));
+        if(referralCollision.empty&&memberIdCollision.empty){code=candidate;break;}
+        candidateNumber++;
+      }
+      if(!code)throw new Error('Referral ID sequence exhausted');
 
+      const issuedNumber=Number(code.slice(2));
       registrationTransactionPassword=generateTransactionPassword();
-      const profile={uid,email,name:requestedName,referralCode:code,sponsorId,sponsorName,role:configuredAdminEmails.includes(email)?'admin':'user',
+      const profile={uid,email,name:requestedName,referralCode:code,memberId:code,sponsorId,sponsorName,role:configuredAdminEmails.includes(email)?'admin':'user',
         status:'active',kycStatus:configuredAdminEmails.includes(email)?'verified':'unverified',phone,country,rankCode:'MEMBER',
         transactionPasswordHash:hashTransactionPassword(registrationTransactionPassword),
         transactionPasswordCreatedAt:now,createdAt:now,updatedAt:now,storage:'firestore'};
       const wallet={...emptyWallet(uid,now),lockedMaturityPoints:150,maturityPointsStatus:'locked',maturityPointsGrantedAt:now,maturityPointsReleasedAt:null};
+
+      let sponsorWalletRef=null;
+      let sponsorWalletSnap=null;
+      if(sponsorRef){
+        sponsorWalletRef=db.collection('wallets').doc(sponsorRef.id);
+        sponsorWalletSnap=await transaction.get(sponsorWalletRef);
+      }
+
       transaction.set(userRef,profile);
       transaction.set(walletRef,wallet);
+      if(sequenceSnap.exists)transaction.set(sequenceRef,{lastIssued:issuedNumber,updatedAt:now},{merge:true});
+      else transaction.set(sequenceRef,{lastIssued:issuedNumber,startsAt:'GF000201',updatedAt:now});
 
       const auditRef=db.collection('auditLogs').doc(crypto.randomUUID());
       transaction.set(auditRef,{actorUserId:uid,actorEmail:email,action:'USER_REGISTERED',entityType:'user',entityId:uid,
-        metadata:{referralCode:code,sponsorId,role:profile.role,storage:'firestore',lockedMaturityPoints:150,maturityPointsStatus:'locked'},timestamp:now});
-      if(sponsorRef){
-        const sponsorWalletRef=db.collection('wallets').doc(sponsorRef.id);
-        const sponsorWalletSnap=await transaction.get(sponsorWalletRef);
-        const sw=sponsorWalletSnap.exists?(sponsorWalletSnap.data()||{}):emptyWallet(sponsorRef.id,now);
+        metadata:{referralCode:code,sponsorId,sponsorName,role:profile.role,storage:'firestore',lockedMaturityPoints:150,maturityPointsStatus:'locked'},timestamp:now});
+      if(sponsorRef&&sponsorWalletRef){
+        const sw=sponsorWalletSnap?.exists?(sponsorWalletSnap.data()||{}):emptyWallet(sponsorRef.id,now);
         transaction.set(sponsorWalletRef,{...sw,directTeamCount:Number(sw.directTeamCount||0)+1,totalTeamCount:Number(sw.totalTeamCount||0)+1,updatedAt:now},{merge:true});
       }
       registrationEmail={email,name:requestedName,memberId:code,transactionPassword:registrationTransactionPassword};
