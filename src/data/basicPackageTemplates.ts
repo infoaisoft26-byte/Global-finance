@@ -2,7 +2,7 @@ import type { PackageDefinition } from '../types/index.ts';
 
 const createdAt = '2026-09-27T00:00:00.000Z';
 
-const amounts = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+const amounts = [2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
 
 /**
  * GLOBAL FINANCE basic-package templates adapted from the approved reference structure.
@@ -17,8 +17,8 @@ export const BASIC_PACKAGE_TEMPLATES: PackageDefinition[] = amounts.map((amount,
   maxAmount: amount,
   roiRate: 1,
   durationDays: 25,
-  description: `Fixed ${amount.toLocaleString('en-IN')} plan with admin-configured daily return terms for 25 days.`,
-  terms: 'Configured daily return: 1% of plan amount for 25 days. Subject to platform terms and admin controls.',
+  description: `Fixed USDT ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} plan with admin-configured daily return terms for 25 days.`,
+  terms: 'All plan values are denominated in USDT. Configured daily return: 1% of plan amount for 25 days. Subject to platform terms and admin controls.',
   active: true,
   createdAt,
   updatedAt: createdAt
@@ -26,13 +26,13 @@ export const BASIC_PACKAGE_TEMPLATES: PackageDefinition[] = amounts.map((amount,
 
 /** Daily ROI amount = principal × daily rate ÷ 100. */
 export function getBasicPlanDailyReturn(pkg: PackageDefinition): number {
-  return Number(((pkg.minAmount * pkg.roiRate) / 100).toFixed(4));
+  return Number(((pkg.minAmount * pkg.roiRate) / 100).toFixed(2));
 }
 
 /** Total ROI only. Principal is intentionally NOT included. */
 export function getBasicPlanScheduledReturn(pkg: PackageDefinition): number {
   const daily = getBasicPlanDailyReturn(pkg);
-  return Number((daily * pkg.durationDays).toFixed(4));
+  return Number((daily * pkg.durationDays).toFixed(2));
 }
 
 /**
@@ -47,5 +47,5 @@ export function getBasicPlanTotalWithPrincipal(pkg: PackageDefinition): number {
 
 /** Maturity value when a screen explicitly needs principal + ROI. */
 export function getBasicPlanMaturityValue(pkg: PackageDefinition): number {
-  return Number((pkg.minAmount + getBasicPlanScheduledReturn(pkg)).toFixed(4));
+  return Number((pkg.minAmount + getBasicPlanScheduledReturn(pkg)).toFixed(2));
 }
