@@ -109,10 +109,10 @@ export async function createTransactionRequest(params: {
         throw new Error('KYC verification is required before sending P2P transfers.');
       }
       if (amountRupees < settings.minP2p) {
-        throw new Error(`Minimum P2P transfer amount is ₹${settings.minP2p.toFixed(2)}.`);
+        throw new Error(`Minimum P2P transfer amount is USDT ${settings.minP2p.toFixed(2)}.`);
       }
       if (amountRupees > settings.maxP2p) {
-        throw new Error(`Maximum P2P transfer amount is ₹${settings.maxP2p.toFixed(2)}.`);
+        throw new Error(`Maximum P2P transfer amount is USDT ${settings.maxP2p.toFixed(2)}.`);
       }
       if (!beneficiaryReferralCode) {
         throw new Error('Recipient GF Member ID is required for P2P transfers.');
@@ -124,7 +124,7 @@ export async function createTransactionRequest(params: {
       // Check sender Available Fund balance
       if (balances.fundWalletPaise < amountPaise) {
         throw new Error(
-          `Insufficient Available Fund. Required: ₹${amountRupees.toFixed(2)}, Available: ₹${balances.fundWalletRupees.toFixed(2)}`
+          `Insufficient Available Fund. Required: USDT ${amountRupees.toFixed(2)}, Available: USDT ${balances.fundWalletRupees.toFixed(2)}`
         );
       }
 
@@ -151,14 +151,14 @@ export async function createTransactionRequest(params: {
         throw new Error('Transfer from Available Balance to Fund is currently disabled.');
       }
       if (amountRupees < settings.minIncomeTransfer) {
-        throw new Error(`Minimum internal transfer is ₹${settings.minIncomeTransfer.toFixed(2)}.`);
+        throw new Error(`Minimum internal transfer is USDT ${settings.minIncomeTransfer.toFixed(2)}.`);
       }
       if (amountRupees > settings.maxIncomeTransfer) {
-        throw new Error(`Maximum internal transfer is ₹${settings.maxIncomeTransfer.toFixed(2)}.`);
+        throw new Error(`Maximum internal transfer is USDT ${settings.maxIncomeTransfer.toFixed(2)}.`);
       }
       if (balances.incomeWalletPaise < amountPaise) {
         throw new Error(
-          `Insufficient Available Balance. Required: ₹${amountRupees.toFixed(2)}, Available: ₹${balances.incomeWalletRupees.toFixed(2)}`
+          `Insufficient Available Balance. Required: USDT ${amountRupees.toFixed(2)}, Available: USDT ${balances.incomeWalletRupees.toFixed(2)}`
         );
       }
       break;
@@ -172,14 +172,14 @@ export async function createTransactionRequest(params: {
         throw new Error('KYC verification is strictly mandatory for fund withdrawal requests.');
       }
       if (amountRupees < settings.minWithdrawal) {
-        throw new Error(`Minimum withdrawal amount is ₹${settings.minWithdrawal.toFixed(2)}.`);
+        throw new Error(`Minimum withdrawal amount is USDT ${settings.minWithdrawal.toFixed(2)}.`);
       }
       if (amountRupees > settings.maxWithdrawal) {
-        throw new Error(`Maximum withdrawal amount is ₹${settings.maxWithdrawal.toFixed(2)}.`);
+        throw new Error(`Maximum withdrawal amount is USDT ${settings.maxWithdrawal.toFixed(2)}.`);
       }
       if (balances.incomeWalletPaise < amountPaise) {
         throw new Error(
-          `Insufficient Available Balance for withdrawal. Available: ₹${balances.incomeWalletRupees.toFixed(2)}`
+          `Insufficient Available Balance for withdrawal. Available: USDT ${balances.incomeWalletRupees.toFixed(2)}`
         );
       }
 
@@ -268,7 +268,7 @@ export async function createTransactionRequest(params: {
       beneficiaryUserId,
       'transaction',
       'P2P Funds Received',
-      `You received ₹${amountRupees.toFixed(2)} from ${userProfile.referralCode} (${userProfile.name}). Ref: ${reference}`,
+      `You received USDT ${amountRupees.toFixed(2)} from ${userProfile.referralCode} (${userProfile.name}). Ref: ${reference}`,
       '/transactions'
     );
   }
@@ -280,7 +280,7 @@ export async function createTransactionRequest(params: {
     userId,
     'transaction',
     requestRecord.status === 'completed' ? 'Transaction Completed' : 'Transaction Request Submitted',
-    `${requestType.replace(/_/g, ' ').toUpperCase()} request of ₹${amountRupees.toFixed(2)} (${reference}) status: ${requestRecord.status.toUpperCase()}.`,
+    `${requestType.replace(/_/g, ' ').toUpperCase()} request of USDT ${amountRupees.toFixed(2)} (${reference}) status: ${requestRecord.status.toUpperCase()}.`,
     '/transactions'
   );
 
@@ -288,7 +288,7 @@ export async function createTransactionRequest(params: {
   if (requestRecord.status === 'pending') {
     await notifyAdmins(
       `New ${requestType.toUpperCase()} Request`,
-      `Member ${userProfile.referralCode} submitted a ${requestType} request for ₹${amountRupees.toFixed(2)} (${reference}).`,
+      `Member ${userProfile.referralCode} submitted a ${requestType} request for USDT ${amountRupees.toFixed(2)} (${reference}).`,
       'admin',
       '/admin/transactions'
     );
@@ -434,7 +434,7 @@ export async function adminUpdateTransactionRequestStatus(
     current.userId,
     'transaction',
     `Transaction Request Status: ${targetStatus.toUpperCase()}`,
-    `Your ${current.requestType.replace(/_/g, ' ')} request (${current.reference}) of ₹${current.amountRupees.toFixed(2)} is now ${targetStatus.toUpperCase()}. ${adminNote ? 'Note: ' + adminNote : ''}`,
+    `Your ${current.requestType.replace(/_/g, ' ')} request (${current.reference}) of USDT ${current.amountRupees.toFixed(2)} is now ${targetStatus.toUpperCase()}. ${adminNote ? 'Note: ' + adminNote : ''}`,
     '/transactions'
   );
 
