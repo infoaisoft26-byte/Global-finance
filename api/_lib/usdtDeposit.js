@@ -13,7 +13,9 @@ function boolEnv(name) {
 }
 
 function contractAddress() {
-  return String(process.env.USDT_BEP20_CONTRACT_ADDRESS || '').trim().toLowerCase();
+  // Global Finance accepts USDT on BNB Smart Chain only. Keep the known
+  // BEP20 token as the default, while still allowing an explicit override.
+  return String(process.env.USDT_BEP20_CONTRACT_ADDRESS || DEFAULT_CONTRACT).trim().toLowerCase();
 }
 
 function xpubConfigured() {
