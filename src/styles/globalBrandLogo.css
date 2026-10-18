@@ -51,3 +51,47 @@ img[src*="global-finance-logo.webp"] {
   border-radius: 0 !important;
   box-shadow: none !important;
 }
+
+
+/* FIX: member sidebar must show the requested gold text, not the legacy logo background. */
+aside[class*="border-blue-500/20"] > div:first-child {
+  min-height: 88px !important;
+  height: auto !important;
+  padding: 10px 16px !important;
+  background: linear-gradient(135deg, #061126 0%, #071a35 58%, #08254b 100%) !important;
+  border-bottom: 1px solid rgba(245, 190, 55, 0.24) !important;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.03), 0 8px 24px rgba(5,18,42,0.16) !important;
+}
+
+aside[class*="border-blue-500/20"] > div:first-child > div:first-child {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 56px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-image: none !important;
+  background: transparent !important;
+  background-size: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+aside[class*="border-blue-500/20"] > div:first-child > div:first-child > span {
+  visibility: visible !important;
+  display: inline-block !important;
+  color: #facc15 !important;
+  -webkit-text-fill-color: #facc15 !important;
+  background-image: linear-gradient(90deg, #fde68a, #facc15, #d97706) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  font-size: 21px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.12em !important;
+  line-height: 1.25 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  text-shadow: 0 0 12px rgba(234,179,8,0.18) !important;
+}
