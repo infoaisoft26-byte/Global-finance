@@ -284,6 +284,7 @@ const COUNTRIES = [
   const [countrySearch, setCountrySearch] = useState('');
   const [sponsorCode, setSponsorCode] = useState(sponsorReferralParam || '');
   const [sponsorName, setSponsorName] = useState('');
+  const [verifiedSponsorCode, setVerifiedSponsorCode] = useState('');
   const [sponsorLookupLoading, setSponsorLookupLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -299,6 +300,7 @@ const COUNTRIES = [
   useEffect(() => {
     const code = sponsorCode.trim().toUpperCase();
     setSponsorName('');
+    setVerifiedSponsorCode('');
     if (!/^GF\d{6}$/.test(code)) {
       setSponsorLookupLoading(false);
       return;
@@ -313,6 +315,7 @@ const COUNTRIES = [
           const data = await response.json().catch(() => ({}));
           if (!cancelled && response.ok && data?.valid && data?.sponsor?.name) {
             setSponsorName(String(data.sponsor.name));
+            setVerifiedSponsorCode(code);
           }
         } catch (error) {
           if (!cancelled) console.warn('Sponsor lookup unavailable:', error);
@@ -338,7 +341,17 @@ const COUNTRIES = [
         await loginWithEmail(memberId.trim().toUpperCase(), password);
       } else {
         if (!name.trim()) throw new Error('Please enter your full name');
-        await registerWithEmail(name.trim(), email.trim(), password, sponsorCode.trim(), phone.trim());
+        const normalizedSponsorCode = sponsorCode.trim().toUpperCase();
+        if (normalizedSponsorCode && !/^GF\d{6}$/.test(normalizedSponsorCode)) {
+          throw new Error('Enter a valid sponsor Referral ID (GF followed by 6 digits).');
+        }
+        if (normalizedSponsorCode && sponsorLookupLoading) {
+          throw new Error('Please wait while we verify the sponsor Referral ID.');
+        }
+        if (normalizedSponsorCode && (verifiedSponsorCode !== normalizedSponsorCode || !sponsorName.trim())) {
+          throw new Error('Sponsor Referral ID was not found or is inactive. Please verify the ID before registering.');
+        }
+        await registerWithEmail(name.trim(), email.trim(), password, normalizedSponsorCode, phone.trim());
         setMode('signin');
         setMemberId('');
         setEmail('');
