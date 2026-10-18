@@ -23,10 +23,10 @@ export interface UserProfile {
 
 export interface WalletData {
   userId: string;
-  fundWallet: number; // Available Fund (₹)
-  incomeWallet: number; // Available Balance (₹)
-  basicPackageActive: number; // Basic Package Active Value (₹)
-  fdPackageActive: number; // FD Package Active Value (₹)
+  fundWallet: number; // Available Fund balance in USDT
+  incomeWallet: number; // Available Balance in USDT
+  basicPackageActive: number; // Active Basic Package value in USDT
+  fdPackageActive: number; // Active FD Package value in USDT
   totalIncome: number;
   totalWithdrawal: number;
   directTeamCount: number;
@@ -83,7 +83,7 @@ export interface TransactionLedger {
   type: TransactionType;
   category: 'fund_wallet' | 'income_wallet';
   flow: 'credit' | 'debit';
-  amount: number; // rupees
+  amount: number; // USDT
   fee: number;
   netAmount: number;
   description: string;
@@ -118,12 +118,12 @@ export interface TransactionRequest {
   beneficiaryUserId?: string;
   beneficiaryReferralCode?: string;
   beneficiaryName?: string;
-  amountPaise: number; // Stored in integer paise (e.g. 50000 = ₹500.00)
-  amountRupees: number;
+  amountPaise: number; // Legacy field name; 100 minor units = 1.00 USDT
+  amountRupees: number; // Legacy field name; denomination is USDT
   feePaise: number;
-  feeRupees: number;
+  feeRupees: number; // Legacy field name; denomination is USDT
   netAmountPaise: number;
-  netAmountRupees: number;
+  netAmountRupees: number; // Legacy field name; denomination is USDT
   status: TransactionRequestStatus;
   providerName?: string;
   providerReference?: string;
@@ -174,7 +174,7 @@ export interface PackageActivationRequest {
   packageName: string;
   packageType: 'basic' | 'fd';
   amountPaise: number;
-  amountRupees: number;
+  amountRupees: number; // Legacy field name; denomination is USDT
   fundingSource: 'fund_wallet';
   status: PackageActivationStatus;
   adminNote?: string;
@@ -192,7 +192,7 @@ export interface PackageDefinition {
   name: string;
   code: string;
   type: 'basic' | 'fd';
-  minAmount: number; // rupees
+  minAmount: number; // USDT
   maxAmount: number;
   roiRate: number; // Daily percentage (for reference/rules)
   durationDays: number;
@@ -307,7 +307,7 @@ export interface SystemSettings {
   incomeToFundEnabled: boolean;
   withdrawalEnabled: boolean;
 
-  minRecharge: number; // in rupees
+  minRecharge: number; // USDT
   maxRecharge: number;
 
   minP2p: number;
