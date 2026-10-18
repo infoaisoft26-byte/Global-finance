@@ -36,7 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 -- 2. WALLETS TABLE (Derived & Cached Balance Cache)
 CREATE TABLE IF NOT EXISTS wallets (
     user_id VARCHAR(64) PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    fund_wallet NUMERIC(16, 2) NOT NULL DEFAULT 0.00,
+    fund_wallet NUMERIC(40, 18) NOT NULL DEFAULT 0.00,
     income_wallet NUMERIC(16, 2) NOT NULL DEFAULT 0.00,
     total_income NUMERIC(16, 2) NOT NULL DEFAULT 0.00,
     total_withdrawal NUMERIC(16, 2) NOT NULL DEFAULT 0.00,
@@ -54,9 +54,9 @@ CREATE TABLE IF NOT EXISTS ledger_transactions (
     type VARCHAR(64) NOT NULL, -- 'recharge' | 'package_activation' | 'p2p_transfer' | 'withdrawal' | 'admin_adjustment' etc.
     category VARCHAR(32) NOT NULL, -- 'fund_wallet' | 'income_wallet'
     flow VARCHAR(16) NOT NULL, -- 'credit' | 'debit'
-    amount NUMERIC(16, 2) NOT NULL CHECK (amount > 0),
-    fee NUMERIC(16, 2) NOT NULL DEFAULT 0.00,
-    net_amount NUMERIC(16, 2) NOT NULL,
+    amount NUMERIC(40, 18) NOT NULL CHECK (amount > 0),
+    fee NUMERIC(40, 18) NOT NULL DEFAULT 0.00,
+    net_amount NUMERIC(40, 18) NOT NULL,
     description TEXT NOT NULL,
     reference_id VARCHAR(128),
     sender_user_id VARCHAR(64),
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS usdt_bep20_recharges (
     user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     tx_hash VARCHAR(66) NOT NULL UNIQUE CHECK (tx_hash ~ '^0x[0-9a-f]{64}$'),
     deposit_address VARCHAR(42) NOT NULL CHECK (deposit_address ~ '^0x[0-9a-f]{40}$'),
-    amount_usdt NUMERIC(28,8) NOT NULL CHECK (amount_usdt > 0),
+    amount_usdt NUMERIC(40,18) NOT NULL CHECK (amount_usdt > 0),
     status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
     credit_inr NUMERIC(16,2) CHECK (credit_inr > 0),
     ledger_id VARCHAR(64) UNIQUE REFERENCES ledger_transactions(id) ON DELETE RESTRICT,
@@ -258,3 +258,14 @@ CREATE TABLE IF NOT EXISTS usdt_deposit_scan_state (
     last_scanned_block BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Widen USDT accounting precision in-place. These ALTERs preserve existing rows and balances.
+-- Existing installations need this because CREATE TABLE IF NOT EXISTS does not change column types.
+ALTER TABLE wallets
+  ALTER COLUMN fund_wallet TYPE NUMERIC(40,18) USING fund_wallet::NUMERIC(40,18);
+ALTER TABLE ledger_transactions
+  ALTER COLUMN amount TYPE NUMERIC(40,18) USING amount::NUMERIC(40,18),
+  ALTER COLUMN fee TYPE NUMERIC(40,18) USING fee::NUMERIC(40,18),
+  ALTER COLUMN net_amount TYPE NUMERIC(40,18) USING net_amount::NUMERIC(40,18);
+ALTER TABLE usdt_bep20_recharges
+  ALTER COLUMN amount_usdt TYPE NUMERIC(40,18) USING amount_usdt::NUMERIC(40,18);
