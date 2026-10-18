@@ -3,8 +3,8 @@ import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { withTransaction } from './_lib/db.js';
 import { applyActivationIncome, ensureIncomeSchema, runDailyIncome } from './_lib/incomeEngine.js';
 
-const BASIC_AMOUNTS = [200, 500, 1000, 2000, 5000, 10000, 20000, 500000, 100000, 200000, 500000];
-const FD_AMOUNTS = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+const BASIC_AMOUNTS = [2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+const FD_AMOUNTS = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
 
 function moneyCap(amount) { return Number((Number(amount || 0) * 5).toFixed(2)); }
 
@@ -32,9 +32,28 @@ function fallbackPackage(id) {
   }
   return null;
 }
+function normalizeLegacyPackage(pkg) {
+  if (!pkg) return pkg;
+  const basic = /^GF_BASE_(\\d{2})$/.exec(String(pkg.code || ''));
+  const fd = /^GF_FD_(?:BASE|PRIME)_(\\d{2})$/.exec(String(pkg.code || ''));
+  const basicLegacy = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+  const fdLegacy = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+  const match = basic || fd;
+  if (!match) return pkg;
+  const index = Number(match[1]) - 1;
+  const expectedLegacyAmount = basic ? basicLegacy[index] : fdLegacy[index];
+  if (!expectedLegacyAmount) return pkg;
+  const min = Number(pkg.min_amount);
+  const max = Number(pkg.max_amount);
+  // Only normalize untouched legacy defaults. Admin-customized values are preserved.
+  if (min === expectedLegacyAmount && max === expectedLegacyAmount) {
+    return { ...pkg, min_amount: expectedLegacyAmount / 100, max_amount: expectedLegacyAmount / 100 };
+  }
+  return pkg;
+}
 async function resolvePackage(client, packageId) {
   const dbPkg = await client.query(`SELECT id,name,code,type,min_amount,max_amount,roi_rate,duration_days,active FROM packages WHERE id=$1 OR code=$1 LIMIT 1`, [packageId]);
-  return dbPkg.rows[0] || fallbackPackage(packageId);
+  return dbPkg.rows[0] ? normalizeLegacyPackage(dbPkg.rows[0]) : fallbackPackage(packageId);
 }
 async function requireMember(req) {
   const auth = String(req.headers.authorization || '');
