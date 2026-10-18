@@ -173,7 +173,7 @@ export const AdminPackages: React.FC = () => {
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Plan Amount (USDT)</span><b className="text-white">USDT {pkg.minAmount.toFixed(2)}</b></div>
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Daily Return</span><b className="text-emerald-400">{pkg.roiRate}% = USDT {daily.toFixed(2)}</b></div>
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
-              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Total Profit</span><b className="text-emerald-300">{profit.toLocaleString('en-IN')}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Total Profit (USDT)</span><b className="text-emerald-300">USDT {profit.toFixed(2)}</b></div>
             </div>
             <div className="mt-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
               <span className="text-[11px] text-slate-400">Maturity Amount</span>
