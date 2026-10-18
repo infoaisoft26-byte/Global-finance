@@ -102,10 +102,22 @@ export default async function handler(req,res){
 
       let sponsorId=null,sponsorName=null,sponsorRef=null;
       if(sponsorCode){
-        const sponsorQuery=await transaction.get(db.collection('users').where('referralCode','==',sponsorCode).limit(1));
+        // Resolve both current referralCode and legacy memberId values.
+        let sponsorQuery=await transaction.get(db.collection('users').where('referralCode','==',sponsorCode).limit(1));
+        if(sponsorQuery.empty){
+          sponsorQuery=await transaction.get(db.collection('users').where('memberId','==',sponsorCode).limit(1));
+        }
         if(!sponsorQuery.empty){
-          const s=sponsorQuery.docs[0].data()||{};
-          if(s.status!=='suspended'){sponsorId=sponsorCode;sponsorName=s.name||null;sponsorRef=sponsorQuery.docs[0].ref;}
+          const sponsorDoc=sponsorQuery.docs[0];
+          const s=sponsorDoc.data()||{};
+          const sponsorStatus=String(s.status??'').trim().toLowerCase();
+          // Treat legacy records with no persisted status as active, but reject
+          // any explicitly non-active sponsor during the registration write.
+          if(!sponsorStatus||sponsorStatus==='active'){
+            sponsorId=safeSponsor(s.referralCode||s.memberId||sponsorCode)||sponsorCode;
+            sponsorName=String(s.name||s.displayName||s.fullName||'').trim()||null;
+            sponsorRef=sponsorDoc.ref;
+          }
         }
       }
 
