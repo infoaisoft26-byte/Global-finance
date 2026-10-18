@@ -211,7 +211,36 @@ export const Recharge: React.FC = () => {
         </div>
       )}
 
-      {info && address && (
+
+      {info?.mode === 'shared' && address && (
+        <div className="space-y-5 rounded-2xl border border-cyan-400/25 bg-[#091129] p-4 sm:p-6">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-300">Binance USDT deposit address (BEP20)</div>
+          <div className="rounded-xl border border-blue-400/20 bg-[#040a19] p-3">
+            <div className="break-all font-mono text-xs leading-6 text-cyan-100">{address}</div>
+            <button onClick={copyAddress} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600/20 px-3 py-2 text-xs font-semibold text-cyan-200">
+              {copied ? 'Copied' : 'Copy deposit address'}
+            </button>
+          </div>
+          <div className="flex justify-center rounded-xl bg-white p-4"><QRCodeSVG value={address} size={180} level="M" includeMargin /></div>
+          <p className="text-xs leading-5 text-amber-200">Only send USDT on BNB Smart Chain (BEP20). Other networks may cause permanent loss.</p>
+          <form onSubmit={submitTxid} className="space-y-3 rounded-xl border border-blue-500/20 bg-[#060d20] p-4">
+            <h4 className="text-sm font-bold text-white">Submit your deposit</h4>
+            <label className="block text-xs text-slate-300">Amount sent (USDT)
+              <input required inputMode="decimal" value={amountUsdt} onChange={e => setAmountUsdt(e.target.value)} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 text-sm text-white" placeholder="e.g. 10" />
+            </label>
+            <label className="block text-xs text-slate-300">Transaction hash / TXID
+              <input required minLength={66} maxLength={66} value={txHash} onChange={e => setTxHash(e.target.value.trim())} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 font-mono text-xs text-white" placeholder="0x..." />
+            </label>
+            <button type="submit" disabled={submitting} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit TXID for verification'}</button>
+            {submitMessage && <p className="text-xs text-emerald-300">{submitMessage}</p>}
+          </form>
+          <div className="space-y-2">
+            <h4 className="text-sm font-bold text-white">Your recharge requests</h4>
+            {requests.map(r => <div key={r.id} className="rounded-lg border border-blue-500/20 p-3 text-xs text-slate-300">{r.amountUsdt} USDT — {r.status.toUpperCase()} — {shortHash(r.txHash)}</div>)}
+          </div>
+        </div>
+      )}
+      {info && address && info.mode !== 'shared' && (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-5 rounded-2xl border border-cyan-400/25 bg-[#091129] p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
