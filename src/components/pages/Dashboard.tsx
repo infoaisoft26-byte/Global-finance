@@ -66,9 +66,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const formatInr = (val: number | undefined) => {
+  const formatUsdt = (val: number | undefined) => {
     const num = Number(val || 0);
-    return `${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `USDT ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}`;
   };
 
   return (
@@ -99,7 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             </span>
             <span className="text-slate-500">·</span>
             <span className="text-xs text-slate-400 font-mono">
-              Member ID: {profile?.referralCode || 'GF152551'}
+              Member ID: {profile?.referralCode || '—'}
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
@@ -227,7 +227,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
-            {formatInr(wallet?.basicPackageActive)}
+            {formatUsdt(wallet?.basicPackageActive)}
           </div>
           <div className="mt-4 pt-3 border-t border-blue-500/15 flex items-center justify-between text-xs">
             <span className="text-slate-400">Active Daily ROI Plan</span>
@@ -252,7 +252,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
-            {formatInr(wallet?.fdPackageActive)}
+            {formatUsdt(wallet?.fdPackageActive)}
           </div>
           <div className="mt-4 pt-3 border-t border-blue-500/15 flex items-center justify-between text-xs">
             <span className="text-slate-400">Fixed Deposit Lock Plan</span>
@@ -285,7 +285,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight tabular-nums">
-              {formatInr(wallet?.fundWallet)}
+              {formatUsdt(wallet?.fundWallet)}
             </div>
             <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between">
               <span>Deposit wallet</span>
@@ -307,7 +307,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-emerald-400 font-mono tracking-tight tabular-nums">
-              {formatInr(wallet?.incomeWallet)}
+              {formatUsdt(wallet?.incomeWallet)}
             </div>
             <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between">
               <span>Income wallet</span>
@@ -329,7 +329,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-indigo-300 font-mono tracking-tight tabular-nums">
-              {formatInr(wallet?.totalIncome)}
+              {formatUsdt(wallet?.totalIncome)}
             </div>
             <div className="mt-3 text-[11px] text-slate-400">
               Cumulative earnings
@@ -345,7 +345,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-rose-300 font-mono tracking-tight tabular-nums">
-              {formatInr(wallet?.totalWithdrawal)}
+              {formatUsdt(wallet?.totalWithdrawal)}
             </div>
             <div className="mt-3 text-[11px] text-slate-400">
               Net payout executed
@@ -441,42 +441,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Joining Bonus</span>
               <div className="text-base sm:text-lg font-bold text-white font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.joiningBonus)}
+                {formatUsdt(wallet?.joiningBonus)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Referral Income</span>
               <div className="text-base sm:text-lg font-bold text-emerald-400 font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.referralIncome)}
+                {formatUsdt(wallet?.referralIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Today ROI Income</span>
               <div className="text-base sm:text-lg font-bold text-cyan-300 font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.todayRoiIncome)}
+                {formatUsdt(wallet?.todayRoiIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Today Level Income</span>
               <div className="text-base sm:text-lg font-bold text-teal-300 font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.todayLevelIncome)}
+                {formatUsdt(wallet?.todayLevelIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Total ROI Income</span>
               <div className="text-base sm:text-lg font-bold text-white font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.totalRoiIncome)}
+                {formatUsdt(wallet?.totalRoiIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Total Level Income</span>
               <div className="text-base sm:text-lg font-bold text-white font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.totalLevelIncome)}
+                {formatUsdt(wallet?.totalLevelIncome)}
               </div>
             </div>
           </div>
@@ -502,42 +502,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Today ROI Income</span>
               <div className="text-base sm:text-lg font-bold text-amber-300 font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.fdTodayRoiIncome)}
+                {formatUsdt(wallet?.fdTodayRoiIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Today Level Income</span>
               <div className="text-base sm:text-lg font-bold text-yellow-300 font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.fdTodayLevelIncome)}
+                {formatUsdt(wallet?.fdTodayLevelIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Total ROI Income</span>
               <div className="text-base sm:text-lg font-bold text-white font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.fdTotalRoiIncome)}
+                {formatUsdt(wallet?.fdTotalRoiIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Total Level Income</span>
               <div className="text-base sm:text-lg font-bold text-white font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.fdTotalLevelIncome)}
+                {formatUsdt(wallet?.fdTotalLevelIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Referral Income</span>
               <div className="text-base sm:text-lg font-bold text-emerald-400 font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.fdReferralIncome)}
+                {formatUsdt(wallet?.fdReferralIncome)}
               </div>
             </div>
 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">FD Released</span>
               <div className="text-base sm:text-lg font-bold text-cyan-300 font-mono mt-1 tabular-nums">
-                {formatInr(wallet?.fdReleased)}
+                {formatUsdt(wallet?.fdReleased)}
               </div>
             </div>
 
@@ -547,7 +547,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
                 <p className="text-[10px] text-slate-500">Executive monthly salary payout</p>
               </div>
               <div className="text-lg sm:text-xl font-bold text-rose-300 font-mono tabular-nums">
-                {formatInr(wallet?.totalSalary)}
+                {formatUsdt(wallet?.totalSalary)}
               </div>
             </div>
           </div>
