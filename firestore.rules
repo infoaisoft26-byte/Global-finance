@@ -170,8 +170,11 @@ service cloud.firestore {
     // Transaction requests: user creates/reads own request;
     // Admin reviews/updates all requests.
     match /transaction_requests/{requestId} {
+      // Financially sensitive withdrawal/P2P requests must go through server APIs
+      // that enforce email OTP; clients cannot create these records directly.
       allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && !(request.resource.data.requestType in ['withdrawal', 'p2p_transfer']);
 
       allow read: if signedIn()
         && (
