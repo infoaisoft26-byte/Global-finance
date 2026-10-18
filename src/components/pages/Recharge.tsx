@@ -8,6 +8,8 @@ import { useAuth } from '../../context/AuthContext.tsx';
 import {
   getAutomaticDepositInfo,
   submitUsdtRecharge,
+  listUsdtRecharges,
+  type UsdtRechargeRequest,
   type AutomaticUsdtDepositInfo,
   type AutomaticUsdtDepositEvent,
 } from '../../services/usdtRechargeService.ts';
@@ -41,6 +43,7 @@ export const Recharge: React.FC = () => {
   const [txHash, setTxHash] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
+  const [submittedRequests, setSubmittedRequests] = useState<UsdtRechargeRequest[]>([]);
   const creditedSeen = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -56,6 +59,12 @@ export const Recharge: React.FC = () => {
         const next = await getAutomaticDepositInfo(user);
         if (cancelled) return;
         setInfo(next);
+        try {
+          const requestData = await listUsdtRecharges(user);
+          if (!cancelled) setSubmittedRequests(requestData.requests || []);
+        } catch {
+          // Address display should remain usable even if request history is temporarily unavailable.
+        }
         setSetupMessage('');
         setError('');
         const newlyCredited = (next.deposits || []).some((item: AutomaticUsdtDepositEvent) => {
@@ -228,6 +237,8 @@ export const Recharge: React.FC = () => {
               try {
                 const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim());
                 setSubmitMessage(String(result?.message || 'Transaction submitted. Waiting for admin verification.'));
+                const requestData = await listUsdtRecharges(user);
+                setSubmittedRequests(requestData.requests || []);
                 setAmountUsdt('');
                 setTxHash('');
               } catch (err: any) {
@@ -254,6 +265,30 @@ export const Recharge: React.FC = () => {
             <div className="text-sm font-bold text-slate-900">Scan to copy address</div>
             <div className="break-all text-[10px] leading-4 text-slate-500">{address}</div>
             <div className="text-[10px] text-slate-500">Verify the address and network in your wallet before sending.</div>
+          </div>
+        </div>
+      )}
+
+      {submittedRequests.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-blue-500/20 bg-[#091129]">
+          <div className="border-b border-blue-500/20 p-4">
+            <h3 className="text-sm font-bold text-white">Your submitted transactions</h3>
+            <p className="mt-1 text-[10px] text-slate-500">Wallet credit is added only after on-chain verification and admin approval.</p>
+          </div>
+          <div className="divide-y divide-blue-500/10">
+            {submittedRequests.map((request) => (
+              <div key={request.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-xs font-bold text-white">{formatUsdt(request.amountUsdt)} USDT</div>
+                  <div className="mt-1 font-mono text-[10px] text-slate-500">{shortHash(request.txHash)}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">{request.createdAt ? new Date(request.createdAt).toLocaleString() : '—'}</div>
+                  {request.reviewNote && <div className="mt-1 text-[10px] text-amber-200/80">{request.reviewNote}</div>}
+                </div>
+                <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${request.status === 'approved' ? 'bg-emerald-500/10 text-emerald-300' : request.status === 'rejected' ? 'bg-rose-500/10 text-rose-300' : 'bg-amber-500/10 text-amber-300'}`}>
+                  {String(request.status || 'pending').replaceAll('_', ' ').toUpperCase()}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
