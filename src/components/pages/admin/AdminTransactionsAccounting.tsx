@@ -8,6 +8,7 @@ export const AdminTransactionsAccounting: React.FC = () => {
   const { user } = useAuth();
   const [rows, setRows] = useState<UsdtRechargeRequest[]>([]);
   const [enabled, setEnabled] = useState(false);
+  const [automaticDepositReady, setAutomaticDepositReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState<Record<string,string>>({});
@@ -19,6 +20,7 @@ export const AdminTransactionsAccounting: React.FC = () => {
       const result = await listUsdtRecharges(user, 'admin');
       setRows(result.requests);
       setEnabled(result.enabled);
+      setAutomaticDepositReady(Boolean(result.automaticDepositConfigured));
       setError('');
     } catch (err: any) {
       setError(err?.message || 'Unable to load recharge accounting');
@@ -61,7 +63,7 @@ export const AdminTransactionsAccounting: React.FC = () => {
         </button>
       </div>
       {error && <div role="alert" className="p-3 rounded-xl border border-rose-500/40 text-rose-300 text-xs">{error}</div>}
-      {!enabled && <div className="p-3 rounded-xl border border-amber-500/40 text-amber-300 text-xs">Recharge approval is disabled until server payment settings and BSC RPC are configured.</div>}
+      {!automaticDepositReady && <div className="p-3 rounded-xl border border-amber-500/40 text-amber-300 text-xs">Automatic member deposits are not fully configured. Set the payment flags, BSC RPC, USDT contract, and account-level BSC_DEPOSIT_XPUB in Vercel. Members must not send USDT until a unique personal deposit address is shown.</div>}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {([['Submitted', total()], ['Pending', total('pending')], ['Approved', total('approved')], ['Rejected', total('rejected')]] as const).map(([label, value]) =>
           <div key={label} className="p-4 rounded-xl bg-[#091129] border border-blue-500/25">
