@@ -48,3 +48,8 @@ export async function requestTransactionOtp(user: FirebaseUser, payload: { purpo
 export async function verifyTransactionOtp(user: FirebaseUser, payload: { purpose: 'p2p_transfer' | 'withdrawal'; amount: number; recipientCode?: string; walletAddress?: string; note?: string; otpId:string; code:string }): Promise<{success:boolean;otpId:string;message:string}> {
   return call(user, '/api/transaction-otp', 'POST', { ...payload, action: 'verify' });
 }
+
+
+export async function submitWithdrawalWithOtp(user: FirebaseUser, payload: { amount:number; walletAddress:string; note?:string; otpId:string }): Promise<{success:boolean;request:{reference:string;status:string};message:string}> {
+  return call(user, '/api/withdrawal-request', 'POST', payload);
+}
