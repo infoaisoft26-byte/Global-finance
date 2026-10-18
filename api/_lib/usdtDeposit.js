@@ -1,5 +1,6 @@
 import { HDNodeWallet } from 'ethers';
 import { getFirestoreAdmin } from './firebaseAdmin.js';
+import { ensureIncomeSchema } from './incomeEngine.js';
 
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const CONFIRMATIONS = 12;
@@ -20,13 +21,22 @@ function xpubConfigured() {
 }
 
 export function addressGenerationConfigured() {
+  const hasDatabase = Boolean(
+    process.env.DATABASE_URL ||
+    process.env.DATABASE_URL_UNPOOLED ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.NEON_DATABASE_URL
+  );
   return Boolean(
     boolEnv('PAYMENTS_ENABLED') &&
     boolEnv('USDT_RECHARGE_ENABLED') &&
     boolEnv('PAYMENT_AUTO_CREDIT_ENABLED') &&
     /^https?:\/\//i.test(String(process.env.BSC_RPC_URL || '').trim()) &&
     /^0x[0-9a-f]{40}$/.test(contractAddress()) &&
-    xpubConfigured()
+    xpubConfigured() &&
+    hasDatabase
   );
 }
 
@@ -108,6 +118,57 @@ function safeStartBlock(head) {
   }
   return safeHead;
 }
+async function ensurePgDepositSchema() {
+  await withTransaction(async (client) => {
+    await ensureIncomeSchema(client);
+
+    // Fund-wallet and ledger precision is expanded safely so verified USDT
+    // deposits can retain 8 decimal places. Existing 2-decimal records do not change.
+    const columns = await client.query(`
+      SELECT table_name, column_name, numeric_scale
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND data_type = 'numeric'
+        AND (
+          (table_name = 'wallets' AND column_name = 'fund_wallet') OR
+          (table_name = 'ledger_transactions' AND column_name IN ('amount','fee','net_amount'))
+        )
+    `);
+    const scales = new Map(columns.rows.map((row) => [`${row.table_name}.${row.column_name}`, Number(row.numeric_scale)]));
+    if ((scales.get('wallets.fund_wallet') ?? 0) < 8) {
+      await client.query('ALTER TABLE wallets ALTER COLUMN fund_wallet TYPE NUMERIC(28,8) USING fund_wallet::NUMERIC(28,8)');
+    }
+    for (const column of ['amount', 'fee', 'net_amount']) {
+      if ((scales.get(`ledger_transactions.${column}`) ?? 0) < 8) {
+        await client.query(`ALTER TABLE ledger_transactions ALTER COLUMN ${column} TYPE NUMERIC(28,8) USING ${column}::NUMERIC(28,8)`);
+      }
+    }
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS usdt_deposit_events (
+        id VARCHAR(96) PRIMARY KEY,
+        tx_hash VARCHAR(66) NOT NULL,
+        log_index BIGINT NOT NULL,
+        user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        deposit_address VARCHAR(42) NOT NULL,
+        token_address VARCHAR(42) NOT NULL,
+        amount_usdt NUMERIC(40,18) NOT NULL CHECK (amount_usdt > 0),
+        raw_amount NUMERIC(78,0) NOT NULL CHECK (raw_amount > 0),
+        block_number BIGINT NOT NULL,
+        confirmations INTEGER NOT NULL DEFAULT 0,
+        status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('credited','ignored','pending')),
+        ledger_id VARCHAR(64) UNIQUE REFERENCES ledger_transactions(id) ON DELETE RESTRICT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        credited_at TIMESTAMPTZ,
+        firestore_synced BOOLEAN NOT NULL DEFAULT FALSE
+      )
+    `);
+    await client.query('ALTER TABLE usdt_deposit_events ADD COLUMN IF NOT EXISTS firestore_synced BOOLEAN NOT NULL DEFAULT FALSE');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_usdt_deposit_event_tx_log ON usdt_deposit_events(tx_hash, log_index)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_usdt_deposit_events_user ON usdt_deposit_events(user_id, created_at DESC)');
+  });
+}
+
 
 export async function getOrCreateDepositAddress(userId) {
   if (!addressGenerationConfigured()) throw new Error('DEPOSIT_NOT_CONFIGURED');
@@ -219,111 +280,193 @@ async function creditDepositEvent(db, log, addressToUser, decimals, safeHead) {
   if (!userId || rawAmount <= 0n) return 'ignored';
 
   const exact = decimal8(rawAmount, decimals);
-  const eventId = `${txHash.slice(2)}_${logIndex}`;
-  const ledgerId = `USDTDEP_${txHash.slice(2)}_${logIndex}`;
-  const eventRef = db.collection('usdtDepositEvents').doc(eventId);
-  const ledgerRef = db.collection('transactions').doc(ledgerId);
-  const userRef = db.collection('users').doc(userId);
-  const walletRef = db.collection('wallets').doc(userId);
-  const auditRef = db.collection('auditLogs').doc(ledgerId);
-  const now = new Date().toISOString();
+  const eventKey = `${txHash}:${logIndex}`;
+  const eventHash = crypto.createHash('sha256').update(eventKey).digest('hex');
+  const eventId = `BSCDEP-${eventHash.slice(0, 40)}`;
+  const ledgerId = `DEP_${eventHash.slice(0, 48)}`;
+  const tokenAddress = contractAddress();
   const confirmations = Number(safeHead - blockNumber + 1n);
+  const now = new Date().toISOString();
 
-  return db.runTransaction(async (transaction) => {
-    const [eventSnap, ledgerSnap, userSnap, walletSnap] = await Promise.all([
-      transaction.get(eventRef),
-      transaction.get(ledgerRef),
-      transaction.get(userRef),
-      transaction.get(walletRef),
-    ]);
-    if (eventSnap.exists || ledgerSnap.exists) return 'duplicate';
-
-    const member = userSnap.data() || {};
-    const baseEvent = {
-      txHash,
-      logIndex,
-      userId,
-      depositAddress: recipient,
-      tokenAddress: contractAddress(),
-      rawAmount: rawAmount.toString(),
-      blockNumber: blockNumber.toString(),
-      confirmations,
+  if (!exact) {
+    const eventRef = db.collection('usdtDepositEvents').doc(eventId);
+    await eventRef.set({
+      txHash, logIndex, userId, depositAddress: recipient, tokenAddress,
+      amountUsdt: '0', rawAmount: rawAmount.toString(), blockNumber: blockNumber.toString(),
+      confirmations, status: 'pending',
+      note: 'Token precision exceeds the supported 8 decimal places. Contact support; do not resubmit the transaction.',
       createdAt: now,
+    }, { merge: true });
+    return 'pending';
+  }
+
+  const userSnap = await db.collection('users').doc(userId).get();
+  const profile = userSnap.data() || {};
+  if (!userSnap.exists || profile.status !== 'active' || (profile.role && profile.role !== 'user')) {
+    await db.collection('usdtDepositEvents').doc(eventId).set({
+      txHash, logIndex, userId, depositAddress: recipient, tokenAddress,
+      amountUsdt: exact.text, rawAmount: rawAmount.toString(), blockNumber: blockNumber.toString(),
+      confirmations, status: 'ignored',
+      note: 'Account is not active; contact support for review.',
+      createdAt: now,
+    }, { merge: true });
+    return 'ignored';
+  }
+  const email = String(profile.email || '').trim().toLowerCase();
+  const name = String(profile.name || '').trim();
+  const referralCode = String(profile.referralCode || '').trim().toUpperCase();
+  if (!email || !name || !/^GF\d{6}$/.test(referralCode)) {
+    throw new Error('MEMBER_PROFILE_INCOMPLETE');
+  }
+
+  const pgResult = await withTransaction(async (client) => {
+    // The PostgreSQL wallet is used by package purchases. Credit it first in
+    // an idempotent SQL transaction, then mirror the same ledger entry to
+    // Firestore for the live dashboard balance.
+    await client.query(
+      `INSERT INTO users(id,email,name,phone,referral_code,sponsor_id,role,status,kyc_status,created_at,updated_at)
+       VALUES($1,$2,$3,$4,$5,$6,'user','active',$7,NOW(),NOW())
+       ON CONFLICT(id) DO NOTHING`,
+      [userId,email,name,profile.phone ? String(profile.phone) : null,referralCode,profile.sponsorId ? String(profile.sponsorId) : null,String(profile.kycStatus || 'unverified')]
+    );
+    const member = await client.query('SELECT id,email,role,status FROM users WHERE id=$1 FOR UPDATE', [userId]);
+    if (!member.rowCount || member.rows[0].status !== 'active' || member.rows[0].role !== 'user') {
+      // An existing suspended/admin account must never receive a member deposit.
+      await client.query(
+        `INSERT INTO usdt_deposit_events(id,tx_hash,log_index,user_id,deposit_address,token_address,amount_usdt,raw_amount,block_number,confirmations,status)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ignored')
+         ON CONFLICT(tx_hash,log_index) DO UPDATE SET status='ignored',confirmations=EXCLUDED.confirmations`,
+        [eventId,txHash,logIndex,userId,recipient,tokenAddress,exact.text,rawAmount.toString(),blockNumber.toString(),confirmations]
+      );
+      return { status: 'ignored', firestoreSynced: false };
+    }
+
+    await client.query(
+      `INSERT INTO usdt_deposit_events(id,tx_hash,log_index,user_id,deposit_address,token_address,amount_usdt,raw_amount,block_number,confirmations,status)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
+       ON CONFLICT(tx_hash,log_index) DO NOTHING`,
+      [eventId,txHash,logIndex,userId,recipient,tokenAddress,exact.text,rawAmount.toString(),blockNumber.toString(),confirmations]
+    );
+    const existing = await client.query(
+      'SELECT status,ledger_id,firestore_synced FROM usdt_deposit_events WHERE tx_hash=$1 AND log_index=$2 FOR UPDATE',
+      [txHash,logIndex]
+    );
+    const event = existing.rows[0];
+    if (!event) throw new Error('DEPOSIT_EVENT_WRITE_FAILED');
+    if (event.status === 'ignored') return { status: 'ignored', firestoreSynced: false };
+    if (event.status === 'credited') return {
+      status: 'credited',
+      ledgerId: event.ledger_id || ledgerId,
+      firestoreSynced: Boolean(event.firestore_synced),
     };
 
-    if (!exact) {
-      transaction.set(eventRef, {
-        ...baseEvent,
-        amountUsdt: '0',
-        status: 'pending',
-        note: 'Token precision exceeds the supported 8 decimal places. Contact support; do not resubmit the transaction.',
-      });
-      return 'pending';
-    }
-    if (!userSnap.exists || member.status !== 'active' || (member.role && member.role !== 'user')) {
-      transaction.set(eventRef, {
-        ...baseEvent,
-        amountUsdt: exact.text,
-        status: 'ignored',
-        note: 'Account is not active; support review is required.',
-      });
-      return 'ignored';
-    }
+    await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING', [userId]);
+    await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE', [userId]);
 
-    const wallet = walletSnap.exists ? walletSnap.data() || {} : {};
-    const currentFund = Number(wallet.fundWallet || 0);
-    if (!Number.isFinite(currentFund) || !Number.isFinite(exact.number)) throw new Error('WALLET_AMOUNT_INVALID');
-    const newFund = Number((currentFund + exact.number).toFixed(8));
-    transaction.set(walletRef, {
-      ...wallet,
-      userId,
-      fundWallet: newFund,
-      updatedAt: now,
-    }, { merge: true });
-    transaction.set(ledgerRef, {
-      id: ledgerId,
-      userId,
-      type: 'recharge',
-      category: 'fund_wallet',
-      flow: 'credit',
-      amount: exact.number,
-      fee: 0,
-      netAmount: exact.number,
-      description: `Automatic USDT deposit via BNB Smart Chain (BEP20)`,
-      referenceId: txHash,
-      status: 'completed',
-      metadata: {
-        asset: 'USDT',
-        network: 'BSC',
-        txHash,
-        logIndex,
-        blockNumber: blockNumber.toString(),
-        depositAddress: recipient,
-        tokenAddress: contractAddress(),
-        amountUsdt: exact.text,
-        confirmations,
-        automatic: true,
-      },
+    await client.query(
+      `INSERT INTO ledger_transactions(
+        id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata
+      ) VALUES($1,$2,'usdt_bep20_auto_deposit','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)
+      ON CONFLICT(id) DO NOTHING`,
+      [
+        ledgerId,userId,exact.text,
+        'Automatically verified USDT deposit on BNB Smart Chain (BEP20)',
+        `${txHash}:${logIndex}`,
+        JSON.stringify({
+          asset: 'USDT', network: 'BSC', txHash, logIndex,
+          blockNumber: blockNumber.toString(), depositAddress: recipient,
+          tokenAddress, amountUsdt: exact.text, confirmations, automatic: true,
+        }),
+      ]
+    );
+    await client.query(
+      'UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',
+      [exact.text,userId]
+    );
+    await client.query(
+      `UPDATE usdt_deposit_events
+       SET status='credited',ledger_id=$3,confirmations=$4,credited_at=NOW(),firestore_synced=FALSE
+       WHERE tx_hash=$1 AND log_index=$2`,
+      [txHash,logIndex,ledgerId,confirmations]
+    );
+    return { status: 'credited', ledgerId, firestoreSynced: false };
+  });
+
+  if (pgResult.status !== 'credited') {
+    await db.collection('usdtDepositEvents').doc(eventId).set({
+      txHash, logIndex, userId, depositAddress: recipient, tokenAddress,
+      amountUsdt: exact.text, rawAmount: rawAmount.toString(), blockNumber: blockNumber.toString(),
+      confirmations, status: 'ignored',
+      note: 'Account is not eligible for automatic credit; contact support for review.',
       createdAt: now,
-    });
+    }, { merge: true });
+    return 'ignored';
+  }
+
+  // Idempotent Firestore mirror: a retry after partial failure will see the
+  // deterministic ledger document and will not increment the visible wallet twice.
+  const eventRef = db.collection('usdtDepositEvents').doc(eventId);
+  const ledgerRef = db.collection('transactions').doc(pgResult.ledgerId || ledgerId);
+  const walletRef = db.collection('wallets').doc(userId);
+  const auditRef = db.collection('auditLogs').doc(pgResult.ledgerId || ledgerId);
+  await db.runTransaction(async (transaction) => {
+    const [eventSnap, ledgerSnap, walletSnap] = await Promise.all([
+      transaction.get(eventRef), transaction.get(ledgerRef), transaction.get(walletRef),
+    ]);
+    const alreadyMirrored = eventSnap.exists &&
+      eventSnap.data()?.status === 'credited' &&
+      ledgerSnap.exists;
+    if (alreadyMirrored) return;
+
+    if (!ledgerSnap.exists) {
+      const wallet = walletSnap.exists ? walletSnap.data() || {} : {};
+      const fund = Number(wallet.fundWallet || 0);
+      if (!Number.isFinite(fund) || !Number.isFinite(exact.number)) throw new Error('WALLET_AMOUNT_INVALID');
+      transaction.set(walletRef, {
+        ...wallet,
+        userId,
+        fundWallet: Number((fund + exact.number).toFixed(8)),
+        updatedAt: now,
+      }, { merge: true });
+      transaction.set(ledgerRef, {
+        id: pgResult.ledgerId || ledgerId, userId,
+        type: 'usdt_bep20_auto_deposit', category: 'fund_wallet', flow: 'credit',
+        amount: exact.number, fee: 0, netAmount: exact.number,
+        description: 'Automatic USDT deposit via BNB Smart Chain (BEP20)',
+        referenceId: `${txHash}:${logIndex}`, status: 'completed',
+        metadata: {
+          asset: 'USDT', network: 'BSC', txHash, logIndex,
+          blockNumber: blockNumber.toString(), depositAddress: recipient,
+          tokenAddress, amountUsdt: exact.text, confirmations, automatic: true,
+        },
+        createdAt: now,
+      });
+    }
     transaction.set(eventRef, {
-      ...baseEvent,
-      amountUsdt: exact.text,
-      status: 'credited',
-      creditedAt: now,
-      ledgerId,
-    });
+      txHash, logIndex, userId, depositAddress: recipient, tokenAddress,
+      amountUsdt: exact.text, rawAmount: rawAmount.toString(),
+      blockNumber: blockNumber.toString(), confirmations,
+      status: 'credited', ledgerId: pgResult.ledgerId || ledgerId,
+      createdAt: now, creditedAt: now,
+    }, { merge: true });
     transaction.set(auditRef, {
-      actorUserId: 'SYSTEM',
-      actorEmail: null,
-      action: 'USDT_DEPOSIT_AUTO_CREDITED',
-      entityType: 'ledger',
-      entityId: ledgerId,
+      actorUserId: 'SYSTEM', actorEmail: null,
+      action: 'USDT_DEPOSIT_AUTO_CREDITED', entityType: 'ledger',
+      entityId: pgResult.ledgerId || ledgerId,
       metadata: { userId, txHash, logIndex, amountUsdt: exact.text, depositAddress: recipient },
       timestamp: now,
-    });
-    return 'credited';
+    }, { merge: true });
   });
+
+  // If the mirror succeeded but updating this flag failed, the next scan
+  // safely replays the deterministic Firestore write without a second credit.
+  await withTransaction(async (client) => {
+    await client.query(
+      'UPDATE usdt_deposit_events SET firestore_synced=TRUE WHERE tx_hash=$1 AND log_index=$2 AND status=\'credited\'',
+      [txHash,logIndex]
+    );
+  });
+  return 'credited';
 }
 
 export async function scanAndCreditDeposits() {
@@ -332,6 +475,7 @@ export async function scanAndCreditDeposits() {
   }
 
   const db = getFirestoreAdmin();
+  await ensurePgDepositSchema();
   const [chainId, headHex, decimals] = await Promise.all([
     rpcCall('eth_chainId', []),
     rpcCall('eth_blockNumber', []),
