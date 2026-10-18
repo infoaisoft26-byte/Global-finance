@@ -92,7 +92,7 @@ export const MonthlyIncomeReport: React.FC = () => {
       header: 'Basic ROI Total',
       render: (item) => (
         <span className="font-mono text-xs text-cyan-300">
-          ₹{item.basicRoi.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.basicRoi.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
@@ -101,7 +101,7 @@ export const MonthlyIncomeReport: React.FC = () => {
       header: 'FD ROI Total',
       render: (item) => (
         <span className="font-mono text-xs text-amber-300">
-          ₹{item.fdRoi.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.fdRoi.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
@@ -110,7 +110,7 @@ export const MonthlyIncomeReport: React.FC = () => {
       header: 'Referral Direct Income',
       render: (item) => (
         <span className="font-mono text-xs text-emerald-300">
-          ₹{item.referral.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.referral.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
@@ -119,7 +119,7 @@ export const MonthlyIncomeReport: React.FC = () => {
       header: 'Level Generations',
       render: (item) => (
         <span className="font-mono text-xs text-teal-300">
-          ₹{item.level.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.level.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
@@ -128,7 +128,7 @@ export const MonthlyIncomeReport: React.FC = () => {
       header: 'Monthly Salary',
       render: (item) => (
         <span className="font-mono text-xs text-rose-300">
-          ₹{item.salary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.salary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
@@ -137,7 +137,7 @@ export const MonthlyIncomeReport: React.FC = () => {
       header: 'Gross Monthly Earnings',
       render: (item) => (
         <span className="font-mono text-xs font-bold text-white bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-500/30">
-          ₹{item.grossEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.grossEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     }
@@ -161,7 +161,7 @@ export const MonthlyIncomeReport: React.FC = () => {
         <div className="p-4 rounded-xl bg-[#0e173a] border border-blue-500/30 text-right">
           <span className="text-xs text-slate-400">Cumulative Income</span>
           <div className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono tabular-nums">
-            ₹{(wallet?.totalIncome || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            USDT {(wallet?.totalIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
           </div>
         </div>
       </div>
