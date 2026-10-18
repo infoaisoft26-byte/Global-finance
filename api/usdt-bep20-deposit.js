@@ -202,7 +202,7 @@ export default async function handler(req,res) {
     const action = String(body.action||'verify_deposit');
     // Retired self-service deposit submission is rejected before auth so this endpoint
     // can never accidentally fall back to the legacy direct-credit flow.
-    if (action==='verify_deposit') return json(res,410,{error:'Direct deposit credit is retired. Submit a recharge request for admin review.'});
+    if (action==='verify_deposit') return json(res,410,{error:'Direct deposit credit is retired. Submit a recharge request that must be reviewed by an admin.'});
     const member = await requireMember(req);
     if (action==='package_history') return await handlePackageHistory(member,res);
     if (action==='admin_package_history') return await handleAdminPackageHistory(member,res);
