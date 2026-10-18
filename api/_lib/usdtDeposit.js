@@ -18,7 +18,7 @@ export function addressGenerationConfigured() {
   if (!/^xpub[1-9A-HJ-NP-Za-km-z]{40,120}$/.test(xpub)) return false;
   try {
     const node = HDNodeWallet.fromExtendedKey(xpub);
-    return node.depth === 3 && node.index === 0x80000000;
+    return node.depth === 3;
   } catch {
     return false;
   }
