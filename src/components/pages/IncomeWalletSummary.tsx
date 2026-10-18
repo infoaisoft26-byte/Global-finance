@@ -5,6 +5,8 @@ import { getTransactions } from '../../services/financeService.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionLedger } from '../../types/index.ts';
 
+const displayUsdtText = (value: unknown) => String(value ?? '').replace(/₹/g, 'USDT ').replace(/\bINR\b/gi, 'USDT');
+
 export const IncomeWalletSummary: React.FC = () => {
   const { profile, wallet, refreshWallet } = useAuth();
   const [transactions, setTransactions] = useState<TransactionLedger[]>([]);
@@ -68,13 +70,13 @@ export const IncomeWalletSummary: React.FC = () => {
       header: 'Ledger Description',
       render: (item) => (
         <span className="text-xs text-slate-200">
-          {item.description}
+          {displayUsdtText(item.description)}
         </span>
       )
     },
     {
       key: 'amount',
-      header: 'Amount',
+      header: 'Amount (USDT)',
       render: (item) => {
         const isCredit = item.flow === 'credit';
         return (
