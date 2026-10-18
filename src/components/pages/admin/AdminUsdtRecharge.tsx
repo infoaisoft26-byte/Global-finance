@@ -10,7 +10,6 @@ export const AdminUsdtRecharge: React.FC = () => {
   const [busyId, setBusyId] = useState('');
   const [search, setSearch] = useState('');
   const [note, setNote] = useState<Record<string, string>>({});
-  const [credit, setCredit] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -43,23 +42,14 @@ export const AdminUsdtRecharge: React.FC = () => {
     if (!user) return;
     const reviewNote = (note[r.id] || '').trim();
 
-    let reviewedCredit = '';
-    if (action === 'approve') {
-      reviewedCredit = (credit[r.id] || r.amountUsdt || '').trim();
-      if (!/^(?:0|[1-9][0-9]{0,12})\\.[0-9]{2}$/.test(reviewedCredit) || Number(reviewedCredit) <= 0) {
-        setError('For approval, enter the wallet credit with exactly two decimals, e.g. 50.00.');
-        return;
-      }
-    }
-
     if (!window.confirm(action === 'approve'
-      ? `Approve ${r.id} and credit ${reviewedCredit} to the member Fund Wallet?`
+      ? `Verify ${r.id} on BSC and credit the exact submitted amount ${r.amountUsdt} USDT to the member Fund Wallet?`
       : `Reject ${r.id}?`)) return;
 
     setBusyId(r.id);
     setError('');
     try {
-      await reviewUsdtRecharge(user, r.id, action, reviewNote, action === 'approve' ? reviewedCredit : undefined);
+      await reviewUsdtRecharge(user, r.id, action, reviewNote);
       await load();
     } catch (err: any) {
       setError(err?.message || 'Recharge review failed.');
@@ -77,7 +67,7 @@ export const AdminUsdtRecharge: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-blue-500/20 pb-4">
         <div>
           <h2 className="text-xl font-bold text-white">USDT Recharge Requests</h2>
-          <p className="text-xs text-slate-400 mt-1">Real database requests only. Approve or reject member BEP20 payment confirmations.</p>
+          <p className="text-xs text-slate-400 mt-1">Real database requests only. Review pending member TXIDs. Approval verifies the BSC transfer, recipient, exact amount and 12 confirmations before Fund Wallet credit.</p>
         </div>
         <button onClick={load} disabled={loading} className="px-3 py-2 rounded-xl border border-blue-500/25 bg-[#0d1530] text-cyan-300 text-xs font-semibold flex items-center gap-2">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -121,7 +111,6 @@ export const AdminUsdtRecharge: React.FC = () => {
 
                 {r.status === 'pending' && (
                   <div className="w-full xl:w-80 space-y-2">
-                    <input value={credit[r.id] ?? r.amountUsdt.replace(/^(\\d+)$/, '$1.00')} onChange={e => setCredit(v => ({...v, [r.id]: e.target.value}))} placeholder="Wallet credit e.g. 50.00" className="w-full px-3 py-2.5 rounded-xl border border-blue-500/25 bg-[#060b1c] text-xs text-white" />
                     <textarea value={note[r.id] || ''} onChange={e => setNote(v => ({...v, [r.id]: e.target.value}))} placeholder="Admin review note..." rows={2} className="w-full px-3 py-2.5 rounded-xl border border-blue-500/25 bg-[#060b1c] text-xs text-white resize-none" />
                     <div className="grid grid-cols-2 gap-2">
                       <button disabled={busyId === r.id} onClick={() => review(r, 'approve')} className="py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold disabled:opacity-50"><CheckCircle2 className="w-4 h-4 inline mr-1" />Approve</button>
