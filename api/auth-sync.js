@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { getFirestoreAdmin, verifyFirebaseIdToken, getMaintenanceState } from './_lib/firebaseAdmin.js';
 import { createSessionToken, sessionCookie } from './_lib/session.js';
 import { sendWelcomeEmail } from './_lib/email.js';
+import { syncMemberToNeon } from './_lib/syncMemberToNeon.js';
 
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(body));}
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}
@@ -168,6 +169,10 @@ export default async function handler(req,res){
     });
 
     if(result.profile.status!=='active')return json(res,403,{error:'Account is suspended. Please contact support.'});
+
+    // Admin/network pages and financial APIs read Neon; mirror the verified profile
+    // there as well as Firestore. Wallet rows are created only when missing.
+    await syncMemberToNeon(result.profile, result.wallet);
     if(result.isNewRegistration&&registrationEmail){
       try{await sendWelcomeEmail(registrationEmail);}
       catch(error){console.error('Welcome email failed:',error instanceof Error?error.message:error);}
