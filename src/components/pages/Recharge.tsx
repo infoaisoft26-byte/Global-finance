@@ -236,7 +236,10 @@ export const Recharge: React.FC = () => {
               setError('');
               try {
                 const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim());
-                setSubmitMessage(String(result?.message || 'Transaction submitted. Waiting for admin verification.'));
+                setSubmitMessage(String(result?.message || 'Transaction submitted. Waiting for verification.'));
+                if (result?.autoCredited || result?.status === 'approved') {
+                  await refreshWallet();
+                }
                 const requestData = await listUsdtRecharges(user);
                 setSubmittedRequests(requestData.requests || []);
                 setAmountUsdt('');
