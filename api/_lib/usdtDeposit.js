@@ -1,6 +1,6 @@
 import { HDNodeWallet } from 'ethers';
 import crypto from 'node:crypto';
-import { getPool, withTransaction } from './db.js';
+import { withTransaction } from './db.js';
 
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const CONFIRMATIONS = 12;
@@ -17,8 +17,8 @@ export function addressGenerationConfigured() {
   const xpub = String(process.env.BSC_DEPOSIT_XPUB || '').trim();
   if (!/^xpub[1-9A-HJ-NP-Za-km-z]{40,120}$/.test(xpub)) return false;
   try {
-    HDNodeWallet.fromExtendedKey(xpub);
-    return true;
+    const node = HDNodeWallet.fromExtendedKey(xpub);
+    return node.depth === 3 && node.index === 0x80000000;
   } catch {
     return false;
   }
