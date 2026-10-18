@@ -112,3 +112,24 @@ export async function sendWelcomeEmail({ to, name, memberId, transactionPassword
 
   return { sent: true, id: payload?.id || null };
 }
+
+
+export async function sendTransactionOtp({ to, name, code, purpose }) {
+  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
+  const from = String(process.env.EMAIL_FROM || '').trim();
+  if (!apiKey || !from) throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
+  const label = purpose === 'p2p_transfer' ? 'P2P transfer' : 'USDT withdrawal';
+  const brand = process.env.EMAIL_BRAND_NAME || DEFAULT_BRAND;
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: \`Bearer \${apiKey}\`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from, to: [to], subject: \`\${brand}: OTP for \${label}\`,
+      text: \`Hello \${name || 'Member'}, your OTP for \${label} is \${code}. It expires in 10 minutes. Do not share this code. If you did not request this, ignore this email.\`,
+      html: \`<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;color:#10203a"><h2>\${escapeHtml(brand)} security verification</h2><p>Your one-time code for <b>\${escapeHtml(label)}</b> is:</p><div style="font-size:30px;font-weight:800;letter-spacing:8px;padding:18px;background:#f1f5f9;border-radius:10px;text-align:center">\${escapeHtml(code)}</div><p>This code expires in 10 minutes. Never share it with anyone.</p></div>\`,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(\`EMAIL_PROVIDER_ERROR_\${response.status}\`);
+  return { sent: true, id: payload?.id || null };
+}
