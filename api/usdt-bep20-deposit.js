@@ -34,8 +34,8 @@ function fallbackPackage(id) {
 }
 function normalizeLegacyPackage(pkg) {
   if (!pkg) return pkg;
-  const basic = /^GF_BASE_(\\d{2})$/.exec(String(pkg.code || ''));
-  const fd = /^GF_FD_(?:BASE|PRIME)_(\\d{2})$/.exec(String(pkg.code || ''));
+  const basic = /^GF_BASE_(\d{2})$/.exec(String(pkg.code || ''));
+  const fd = /^GF_FD_(?:BASE|PRIME)_(\d{2})$/.exec(String(pkg.code || ''));
   const basicLegacy = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
   const fdLegacy = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
   const match = basic || fd;
