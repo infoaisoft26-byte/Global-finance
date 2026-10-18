@@ -29,7 +29,7 @@ function mapRecharge(d,id){
     txHash:d.txHash,
     amountUsdt:String(d.amountUsdt),
     status:d.status,
-    creditUsdt:d.creditUsdt==null?(d.creditInr==null?null:String(d.creditInr)):String(d.creditUsdt),
+    creditUsdt:d.creditUsdt==null?null:String(d.creditUsdt),
     reviewNote:d.reviewNote||null,
     proofUrl:d.proofUrl||null,
     createdAt:iso(d.createdAt),
@@ -232,7 +232,9 @@ export default async function handler(req,res){
   if(!['GET','POST'].includes(req.method)) return json(res,405,{error:'Method not allowed'});
   try{
     const actor=await actorFromToken(req);
-    const scope=new URL(req.url,'http://localhost').searchParams.get('scope');
+    const searchParams=new URL(req.url,'http://localhost').searchParams;
+    const scope=searchParams.get('scope');
+    const action=String(searchParams.get('action')||'').trim().toLowerCase();
     const admin=['admin','super_admin','administrator'].includes(actor.role)||adminEmailAllowed(actor.email);
 
     if(req.method==='GET'){
