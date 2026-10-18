@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Search, Users, Network, Wallet, Package, IndianRupee, ChevronDown, ChevronRight } from 'lucide-react';
+import { RefreshCw, Search, Users, Network, Wallet, Package, Coins, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext.tsx';
 
 type Member = {
@@ -41,7 +41,7 @@ export const AdminNetwork: React.FC = () => {
     return members.filter(m => [m.name,m.email,m.phone,m.referralCode,m.sponsorId,m.latestPackageName].some(v => String(v||'').toLowerCase().includes(q)));
   }, [members, search]);
 
-  const money = (n:number) => `USDT ${Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:6})}`;
+  const money = (n:number) => `USDT ${Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:8})}`;
 
   return <div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
