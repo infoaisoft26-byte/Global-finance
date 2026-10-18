@@ -229,6 +229,52 @@ async function review(actor,id,action,note){
 }
 export { autoCreditRecharge };
 
+
+// Return the authenticated member's real Firestore downline. Never trust a
+// referral code supplied by the browser; scope the query to the signed-in user.
+async function loadDownline(db, actor) {
+  const rootCode = String(actor.referralCode || '').trim().toUpperCase();
+  if (!rootCode) return [];
+  const seen = new Set([actor.id]);
+  let frontier = [{ code: rootCode, level: 1 }];
+  const members = [];
+  for (let level = 1; level <= 15 && frontier.length; level++) {
+    const next = [];
+    const snapshots = await Promise.all(frontier.map(({ code }) =>
+      db.collection('users').where('sponsorId', '==', code).get()
+    ));
+    for (const snap of snapshots) {
+      for (const doc of snap.docs) {
+        if (seen.has(doc.id)) continue;
+        seen.add(doc.id);
+        const u = doc.data() || {};
+        const code = String(u.referralCode || u.memberId || '').trim().toUpperCase();
+        const statusValue = String(u.status || 'active').trim().toLowerCase();
+        const created = u.createdAt;
+        const joinDate = created?.toDate?.()?.toISOString?.() || (created ? String(created) : '');
+        members.push({
+          id: doc.id,
+          userId: doc.id,
+          sponsorId: String(u.sponsorId || ''),
+          referralCode: code,
+          name: String(u.name || u.displayName || u.fullName || 'Member'),
+          email: String(u.email || ''),
+          phone: String(u.phone || ''),
+          level,
+          joinDate,
+          activePackage: 0,
+          status: statusValue === 'active' ? 'active' : 'inactive',
+          commissionFromMember: 0,
+          totalCommissionFromMember: 0,
+        });
+        if (code && level < 15) next.push({ code, level: level + 1 });
+      }
+    }
+    frontier = next;
+  }
+  return members.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+}
+
 export default async function handler(req,res){
   if(!['GET','POST'].includes(req.method)) return json(res,405,{error:'Method not allowed'});
   try{
@@ -275,6 +321,12 @@ export default async function handler(req,res){
     }
 
     const body=bodyOf(req);
+    if(body.action==='downline'){
+      if(admin) return json(res,403,{error:'Member account required'});
+      const members=await loadDownline(getFirestoreAdmin(),actor);
+      return json(res,200,{members,total:members.length});
+    }
+
     if(body.action==='submit'){
       if(admin) return json(res,403,{error:'Member account required'});
       if(!rechargeConfigured()) return json(res,503,{error:'USDT recharge is not configured yet. Please contact support before sending funds.'});
