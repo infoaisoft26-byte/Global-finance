@@ -300,8 +300,11 @@ export async function runDailyIncome(client,businessDate) {
     // ROI is credited only once, but level income is evaluated on every run
     // so missing level credits can be safely recovered without duplicating ROI.
     if(roiEventCreated){
-      if(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date})) roiCredits++;
-      await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roi]);
+      const roiWasCredited = await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date});
+      if(roiWasCredited) {
+        roiCredits++;
+        await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roi]);
+      }
     }
     for(const u of await uplines(client,a.user_id)){
       if(u.status!=='active') continue;
@@ -326,7 +329,7 @@ export async function runDailyIncome(client,businessDate) {
       })) levelCredits++;
     }
     packagesProcessed++;
-    if(money(already+roi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1`,[a.id]);
+    if(money(already+roi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1 AND status='active'`,[a.id]);
   }
   // Release signup maturity points only after the member has had at least one
   // real package and every package activation is no longer active. Points stay
