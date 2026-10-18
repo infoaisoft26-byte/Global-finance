@@ -38,6 +38,13 @@ function mapActivationRow(row: any): PackageActivationRequest {
     createdAt: row.activated_at,
     updatedAt: row.activated_at,
     activatedAt: row.activated_at,
+    capMultiple: row.cap_multiple == null ? 5 : Number(row.cap_multiple),
+    capAmount: row.cap_amount == null ? null : Number(row.cap_amount),
+    creditedTotal: Number(row.credited_total || 0),
+    capReconciled: row.cap_reconciled === true,
+    completedAt: row.completed_at || null,
+    principalReturned: row.principal_returned === true,
+    principalReturnAmount: Number(row.principal_return_amount || 0),
   } as PackageActivationRequest;
 }
 
