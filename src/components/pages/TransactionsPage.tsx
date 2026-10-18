@@ -70,7 +70,7 @@ export const TransactionsPage: React.FC = () => {
     { key:'createdAt',header:'Date & Time',render:r=><span className="text-xs text-slate-300">{new Date(r.createdAt).toLocaleString('en-IN')}</span> },
     { key:'reference',header:'Request ID',render:r=><span className="font-mono text-xs text-cyan-300">{r.reference}</span> },
     { key:'requestType',header:'Type',render:r=><span className="text-xs capitalize">{r.requestType.replace(/_/g,' ')}</span> },
-    { key:'amountRupees',header:'Amount',render:r=><span className="font-mono text-xs font-bold">{money(r.amountRupees, r.requestType)}</span> },
+    { key:'amountRupees',header:'Amount (USDT)',render:r=><span className="font-mono text-xs font-bold">{money(r.amountRupees, r.requestType)}</span> },
     { key:'status',header:'Status',render:r=><span className="text-xs font-bold uppercase">{r.status}</span> }
   ];
 
