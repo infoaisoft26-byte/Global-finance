@@ -1,7 +1,7 @@
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
-import { getPool, withTransaction } from './_lib/db.js';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { sendTransactionOtp } from './_lib/email.js';
+import { getPool, withTransaction } from './db.js';
+import { verifyFirebaseIdToken } from './firebaseAdmin.js';
+import { sendTransactionOtp } from './email.js';
 
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');return res.end(JSON.stringify(body));}
 function hash(value){const secret=String(process.env.OTP_HASH_SECRET||process.env.RESEND_API_KEY||'').trim();if(!secret)throw new Error('OTP_SECRET_NOT_CONFIGURED');return createHash('sha256').update(secret+':'+value).digest('hex');}
