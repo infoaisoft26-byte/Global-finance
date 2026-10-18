@@ -289,6 +289,13 @@ export default async function handler(req,res){
     const admin=['admin','super_admin','administrator'].includes(actor.role)||adminEmailAllowed(actor.email);
 
     if(req.method==='GET'){
+      // Support both GET and POST callers for the authenticated downline API.
+      // Some existing dashboard clients pass action in the query string.
+      if(action==='downline'){
+        if(admin) return json(res,403,{error:'Member account required'});
+        const members=await loadDownline(getFirestoreAdmin(),actor);
+        return json(res,200,{members,total:members.length});
+      }
       if(action==='deposit-address'){
         if(admin) return json(res,403,{error:'Member account required'});
         if(addressGenerationConfigured()){
