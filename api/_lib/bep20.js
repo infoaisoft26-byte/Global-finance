@@ -1,4 +1,4 @@
-export const BEP20_WALLET = '0x062D87BE020291b34D08fdCfa7E432248680910E';
+// Configure this to the Binance USDT deposit address on BNB Smart Chain (BEP20).\n// Never fall back to an old hard-coded wallet.\nexport const BEP20_WALLET = String(process.env.USDT_DEPOSIT_WALLET_ADDRESS || '').trim();
 // BNB Smart Chain USDT / BEP20 contract (18 decimals).
 export const DEFAULT_USDT_BEP20_CONTRACT = '0x55d398326f99059fF775485246999027B3197955';
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
@@ -15,10 +15,10 @@ export function rechargeConfigured() {
     paymentsEnabled,
     rechargeEnabled,
     contractValid,
-    rpcConfigured,
+    rpcConfigured,\n    walletConfigured: walletValid,
   });
 
-  return paymentsEnabled && rechargeEnabled && contractValid && rpcConfigured;
+  return paymentsEnabled && rechargeEnabled && contractValid && rpcConfigured && walletValid;
 }
 
 export function autoCreditConfigured() {
@@ -30,7 +30,7 @@ export function getAutoCreditRate() {
   return '1';
 }
 
-export async function verifyBep20(txHash, claimedAmount) {
+export async function verifyBep20(txHash, claimedAmount, destinationAddress = BEP20_WALLET) {
   if (!rechargeConfigured()) throw new Error('RECHARGE_DISABLED');
 
   const token = String(process.env.USDT_BEP20_CONTRACT_ADDRESS || DEFAULT_USDT_BEP20_CONTRACT).trim().toLowerCase();
@@ -109,7 +109,7 @@ export async function verifyBep20(txHash, claimedAmount) {
     BigInt(whole) * 10n ** BigInt(decimals) +
     BigInt(fraction.padEnd(decimals, '0') || '0');
 
-  const target = '0x' + BEP20_WALLET.slice(2).toLowerCase().padStart(64, '0');
+  if (!/^0x[0-9a-fA-F]{40}$/.test(String(destinationAddress || ''))) throw new Error('DEPOSIT_WALLET_NOT_CONFIGURED');\n  const target = '0x' + String(destinationAddress).slice(2).toLowerCase().padStart(64, '0');
 
   const logs = (receipt.logs || []).filter(log =>
     log.address?.toLowerCase() === token &&
