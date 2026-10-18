@@ -234,7 +234,7 @@ async function creditDepositEvent(log, recipientAddress, addressToUser, decimals
 
     // Keep full USDT token precision; accounting columns are NUMERIC(40,18).
     const walletCredit = amountUsdt;
-    if (!/^\\d+(?:\\.\\d{1,18})?$/.test(walletCredit) || rawAmount <= 0n) {
+    if (!/^\d+(?:\.\d{1,18})?$/.test(walletCredit) || rawAmount <= 0n) {
       await client.query(
         `INSERT INTO usdt_deposit_events(id,tx_hash,log_index,user_id,deposit_address,token_address,amount_usdt,raw_amount,block_number,confirmations,status)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ignored')`,
