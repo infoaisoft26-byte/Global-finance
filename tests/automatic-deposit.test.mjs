@@ -12,7 +12,7 @@ const keys = [
   'BSC_DEPOSIT_XPUB',
 ];
 const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-const testXpub = HDNodeWallet.fromPhrase('test test test test test test test test test test test junk').neuter().extendedKey;
+const testXpub = HDNodeWallet.fromPhrase('test test test test test test test test test test test junk', undefined, "m/44'/60'/0'").neuter().extendedKey;
 const contract = '0x55d398326f99059ff775485246999027b3197955';
 
 after(() => {
