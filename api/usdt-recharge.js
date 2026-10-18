@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
 import { addressGenerationConfigured, getMemberDepositDetails } from './_lib/usdtDeposit.js';
+import { getPool } from './_lib/db.js';
 
 // Keep the configured receiving wallet local to this route. This avoids a
 // cold-start failure if the deployed helper export differs during rollout.
@@ -236,47 +237,86 @@ export { autoCreditRecharge };
 
 // Return the authenticated member's real Firestore downline. Never trust a
 // referral code supplied by the browser; scope the query to the signed-in user.
-async function loadDownline(db, actor) {
-  const rootCode = String(actor.referralCode || '').trim().toUpperCase();
-  if (!rootCode) return [];
-  const seen = new Set([actor.id]);
-  let frontier = [{ code: rootCode, level: 1 }];
-  const members = [];
-  for (let level = 1; level <= 15 && frontier.length; level++) {
-    const next = [];
-    const snapshots = await Promise.all(frontier.map(({ code }) =>
-      db.collection('users').where('sponsorId', '==', code).get()
-    ));
-    for (const snap of snapshots) {
-      for (const doc of snap.docs) {
-        if (seen.has(doc.id)) continue;
-        seen.add(doc.id);
-        const u = doc.data() || {};
-        const code = String(u.referralCode || u.memberId || '').trim().toUpperCase();
-        const statusValue = String(u.status || 'active').trim().toLowerCase();
-        const created = u.createdAt;
-        const joinDate = created?.toDate?.()?.toISOString?.() || (created ? String(created) : '');
-        members.push({
-          id: doc.id,
-          userId: doc.id,
-          sponsorId: String(u.sponsorId || ''),
-          referralCode: code,
-          name: String(u.name || u.displayName || u.fullName || 'Member'),
-          email: String(u.email || ''),
-          phone: String(u.phone || ''),
-          level,
-          joinDate,
-          activePackage: 0,
-          status: statusValue === 'active' ? 'active' : 'inactive',
-          commissionFromMember: 0,
-          totalCommissionFromMember: 0,
-        });
-        if (code && level < 15) next.push({ code, level: level + 1 });
-      }
-    }
-    frontier = next;
-  }
-  return members.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+async function loadDownline(pool, actor) {
+  // The live network, referral links, packages, and ledger are stored in Neon
+  // Postgres. Read the production relational records instead of a possibly
+  // stale Firestore copy; this is strictly read-only.
+  const result = await pool.query(`
+    WITH RECURSIVE network AS (
+      SELECT
+        u.id::text AS id,
+        u.sponsor_id,
+        u.referral_code,
+        u.name,
+        u.email,
+        u.phone,
+        u.status,
+        u.created_at,
+        1::int AS level,
+        ARRAY[u.id::text] AS path
+      FROM users u
+      WHERE u.sponsor_id = (
+        SELECT root.referral_code FROM users root WHERE root.id::text = $1 LIMIT 1
+      )
+      UNION ALL
+      SELECT
+        child.id::text,
+        child.sponsor_id,
+        child.referral_code,
+        child.name,
+        child.email,
+        child.phone,
+        child.status,
+        child.created_at,
+        parent.level + 1,
+        parent.path || child.id::text
+      FROM users child
+      JOIN network parent ON child.sponsor_id = parent.referral_code
+      WHERE parent.level < 15
+        AND NOT child.id::text = ANY(parent.path)
+    )
+    SELECT
+      n.id, n.sponsor_id, n.referral_code, n.name, n.email, n.phone,
+      n.status, n.created_at, n.level,
+      COALESCE(pkg.active_package, 0)::numeric AS active_package,
+      COALESCE(comm.total_commission, 0)::numeric AS total_commission
+    FROM network n
+    LEFT JOIN LATERAL (
+      SELECT SUM(p.amount) AS active_package
+      FROM package_activations p
+      WHERE p.user_id::text = n.id AND p.status = 'active'
+    ) pkg ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT SUM(l.net_amount) AS total_commission
+      FROM ledger_transactions l
+      WHERE l.user_id::text = n.id
+        AND l.flow = 'credit'
+        AND l.status = 'completed'
+        AND l.type IN ('referral_bonus','referral_income','direct_referral','basic_referral','fd_referral','level_bonus','level_income','basic_level','fd_level','rd_level')
+    ) comm ON TRUE
+    ORDER BY n.level ASC, COALESCE(n.name, '') ASC
+  `, [actor.id]);
+
+  return result.rows.map((u) => {
+    const activePackage = Number(u.active_package || 0);
+    const totalCommission = Number(u.total_commission || 0);
+    const createdAt = u.created_at ? new Date(u.created_at).toISOString() : '';
+    return {
+      id: String(u.id),
+      userId: String(u.id),
+      sponsorId: String(u.sponsor_id || ''),
+      referralCode: String(u.referral_code || ''),
+      name: String(u.name || 'Member'),
+      email: String(u.email || ''),
+      phone: String(u.phone || ''),
+      level: Number(u.level || 1),
+      joinDate: createdAt,
+      activePackage,
+      status: String(u.status || '').toLowerCase() === 'active' ? 'active' : 'inactive',
+      commissionFromMember: totalCommission,
+      totalCommissionFromMember: totalCommission,
+    };
+  });
 }
 
 export default async function handler(req,res){
@@ -293,7 +333,7 @@ export default async function handler(req,res){
       // Some existing dashboard clients pass action in the query string.
       if(action==='downline'){
         if(admin) return json(res,403,{error:'Member account required'});
-        const members=await loadDownline(getFirestoreAdmin(),actor);
+        const members=await loadDownline(getPool(),actor);
         return json(res,200,{members,total:members.length});
       }
       if(action==='deposit-address'){
@@ -334,7 +374,7 @@ export default async function handler(req,res){
     const body=bodyOf(req);
     if(body.action==='downline'){
       if(admin) return json(res,403,{error:'Member account required'});
-      const members=await loadDownline(getFirestoreAdmin(),actor);
+      const members=await loadDownline(getPool(),actor);
       return json(res,200,{members,total:members.length});
     }
 
