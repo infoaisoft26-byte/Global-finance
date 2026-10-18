@@ -11,6 +11,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/transaction-otp",
+      "destination": "/api/p2p-transfer?__handler=transaction-otp"
+    },
+    {
       "source": "/admin",
       "destination": "/index.html"
     },
