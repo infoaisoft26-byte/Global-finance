@@ -6,6 +6,7 @@ import { getLedgerTransactions, reconcileReferralIncome, type AdjudicationTransa
 import { DataTable, type Column } from '../../common/DataTable.tsx';
 import type { TransactionRequest, TransactionRequestStatus } from '../../../types/index.ts';
 
+const displayUsdtText = (value: unknown) => String(value ?? '').replace(/₹/g, 'USDT ').replace(/\bINR\b/gi, 'USDT');
 const money=(n:number,_type?:string)=>`USDT ${Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:8})}`;
 const isReferral=(t:string)=>t.includes('referral')||t.includes('level');
 
@@ -19,12 +20,12 @@ export const AdminTransactions: React.FC=()=>{
   const timer=window.setInterval(()=>{if(document.visibilityState==='visible')load()},10000);
   return()=>window.clearInterval(timer);
  },[]);
- const filteredLedger=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return ledger;return ledger.filter(t=>[t.id,t.referenceId,t.type,t.description,t.userName,t.userEmail,t.userReferralCode,t.referralLevel,t.referrerReferralCode,t.referredUserName].filter(Boolean).some(v=>String(v).toLowerCase().includes(q)))},[ledger,search]);
+ const filteredLedger=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return ledger;return ledger.filter(t=>[t.id,t.referenceId,t.type,displayUsdtText(t.description),t.userName,t.userEmail,t.userReferralCode,t.referralLevel,t.referrerReferralCode,t.referredUserName].filter(Boolean).some(v=>String(v).toLowerCase().includes(q)))},[ledger,search]);
  const columns:Column<AdjudicationTransaction>[]=[
  {key:'createdAt',header:'Date',render:t=><span className="text-xs">{new Date(t.createdAt).toLocaleString('en-IN')}</span>},
  {key:'userName',header:'Member',render:t=><div><div className="text-xs font-bold text-white">{t.userName||'Member'}</div><div className="text-[10px] text-cyan-300">{t.userReferralCode||t.userEmail||'—'}</div></div>},
  {key:'referenceId',header:'Transaction ID',render:t=><div><div className="font-mono text-xs text-cyan-300">{t.referenceId||t.id}</div><div className="text-[10px] text-slate-500">{t.type}</div></div>},
- {key:'description',header:'Transaction / Referral Detail',render:t=><div className="max-w-lg text-xs text-slate-300"><div>{t.description}</div>{isReferral(String(t.type))&&<div className="mt-1 flex flex-wrap gap-2"><span className="px-2 py-0.5 rounded bg-violet-500/10 text-violet-300">Level {t.referralLevel??'—'}</span><span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300">Level Amount {money(t.referralAmount||t.amount,String(t.type))}</span>{t.referredUserName&&<span className="text-slate-400">Referred: {t.referredUserName}</span>}{t.referrerReferralCode&&<span className="text-slate-400">Referrer: {t.referrerReferralCode}</span>}</div>}</div>},
+ {key:'description',header:'Transaction / Referral Detail',render:t=><div className="max-w-lg text-xs text-slate-300"><div>{displayUsdtText(t.description)}</div>{isReferral(String(t.type))&&<div className="mt-1 flex flex-wrap gap-2"><span className="px-2 py-0.5 rounded bg-violet-500/10 text-violet-300">Level {t.referralLevel??'—'}</span><span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300">Level Amount {money(t.referralAmount||t.amount,String(t.type))}</span>{t.referredUserName&&<span className="text-slate-400">Referred: {t.referredUserName}</span>}{t.referrerReferralCode&&<span className="text-slate-400">Referrer: {t.referrerReferralCode}</span>}</div>}</div>},
  {key:'amount',header:'Amount',render:t=><span className={`font-mono text-xs font-bold ${t.flow==='credit'?'text-emerald-400':'text-rose-400'}`}>{t.flow==='credit'?'+':'-'}{money(t.amount,String(t.type))}</span>},
  {key:'status',header:'Status',render:t=><span className="text-[10px] font-bold uppercase text-emerald-400">{t.status}</span>}
  ];
