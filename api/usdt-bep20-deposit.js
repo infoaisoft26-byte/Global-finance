@@ -6,6 +6,8 @@ import { applyActivationIncome, ensureIncomeSchema, runDailyIncome } from './_li
 const BASIC_AMOUNTS = [200, 500, 1000, 2000, 5000, 10000, 20000, 500000, 100000, 200000, 500000];
 const FD_AMOUNTS = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
 
+function moneyCap(amount) { return Number((Number(amount || 0) * 5).toFixed(2)); }
+
 function json(res, status, body) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
@@ -70,9 +72,10 @@ async function handleCron(req, res) {
 
 async function handlePackageHistory(member, res) {
   const rows = await withTransaction(async (client) => {
+    await ensureIncomeSchema(client);
     const user = await client.query('SELECT id,status FROM users WHERE id=$1 AND email=$2 LIMIT 1', [member.uid, member.email]);
     if (!user.rowCount || user.rows[0].status !== 'active') throw new Error('ACTIVE_MEMBER_REQUIRED');
-    const q = await client.query(`SELECT id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at FROM package_activations WHERE user_id=$1 ORDER BY activated_at DESC LIMIT 100`, [member.uid]);
+    const q = await client.query(`SELECT id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at,cap_multiple,cap_amount,credited_total,cap_reconciled,completed_at FROM package_activations WHERE user_id=$1 ORDER BY activated_at DESC LIMIT 100`, [member.uid]);
     return q.rows;
   });
   return json(res, 200, { items: rows });
@@ -172,7 +175,7 @@ async function handlePackagePurchase(member, body, res) {
     const now = new Date();
     const expires = new Date(now.getTime() + Number(pkg.duration_days) * 86400000);
     await client.query(`UPDATE wallets SET fund_wallet=fund_wallet-$2,basic_package_active=basic_package_active+CASE WHEN $3='basic' THEN $2 ELSE 0 END,fd_package_active=fd_package_active+CASE WHEN $3='fd' THEN $2 ELSE 0 END,updated_at=NOW() WHERE user_id=$1`, [member.uid, amount, pkg.type]);
-    await client.query(`INSERT INTO package_activations (id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'active',$9,$10)`, [purchaseId, member.uid, pkg.id, pkg.type, pkg.name, amount, Number(pkg.roi_rate), Number(pkg.duration_days), now, expires]);
+    await client.query(`INSERT INTO package_activations (id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at,cap_multiple,cap_amount,credited_total,cap_reconciled) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'active',$9,$10,5,$11,0,TRUE)`, [purchaseId, member.uid, pkg.id, pkg.type, pkg.name, amount, Number(pkg.roi_rate), Number(pkg.duration_days), now, expires, moneyCap(amount)]);
     await client.query(`INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata) VALUES ($1,$2,'package_purchase','fund_wallet','debit',$3,0,$3,$4,$5,'completed',$6::jsonb)`, [`LED-${purchaseId}`, member.uid, amount, `USDT package purchase: ${pkg.name}`, purchaseId, JSON.stringify({ packageId: pkg.id, packageName: pkg.name, packageType: pkg.type, asset: 'USDT' })]);
     const commissions = await applyActivationIncome(client, { activationId: purchaseId, userId: member.uid, amount, packageName: pkg.name, packageType: pkg.type });
     await client.query(`INSERT INTO audit_logs (id,actor_user_id,actor_email,action,entity_type,entity_id,metadata) VALUES ($1,$2,$3,'PACKAGE_PURCHASE_COMPLETED','package_activation',$4,$5::jsonb)`, [crypto.randomUUID(), member.uid, member.email, purchaseId, JSON.stringify({ packageId: pkg.id, packageName: pkg.name, packageType: pkg.type, amount, asset: 'USDT', automaticIncomeCredits: commissions.credited })]);
