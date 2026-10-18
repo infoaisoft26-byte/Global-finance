@@ -41,7 +41,7 @@ export const AdminPackages: React.FC = () => {
 
   const mergeWithTemplates = (saved: PackageDefinition[]) => {
     const byCode = new Map(saved.map(p => [p.code, p]));
-    const defaults = templates.map(t => byCode.get(t.code) || t);
+    const defaults = templates.map(t => { const savedPkg = byCode.get(t.code); if (!savedPkg) return t; const legacyAmount = t.minAmount * 100; return Number(savedPkg.minAmount) === legacyAmount && Number(savedPkg.maxAmount) === legacyAmount ? { ...savedPkg, minAmount: t.minAmount, maxAmount: t.maxAmount } : savedPkg; });
     const custom = saved.filter(p => !templates.some(t => t.code === p.code));
     return [...defaults, ...custom];
   };
