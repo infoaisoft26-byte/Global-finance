@@ -22,4 +22,4 @@ jobs:
           curl --fail --silent --show-error \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "User-Agent: global-finance-usdt-monitor" \
-            "https://globalfin-aijobs.vercel.app/api/usdt-deposit-auto-credit-cron"
+            "https://globalfinance1.online/api/usdt-deposit-auto-credit-cron"
