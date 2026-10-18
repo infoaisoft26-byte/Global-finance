@@ -88,7 +88,8 @@ async function createRecharge(db,actor,amount,txHash,proofUrl){
   return id;
 }
 async function autoCreditRecharge({id,actor,txHash,amount}){
-  // Shared-address TXID claims require admin review to prevent another member claiming a public TXID.\n  if(!autoCreditConfigured() || !addressGenerationConfigured()) return {attempted:false,status:'pending'};
+  // Shared-address TXID claims require admin review to prevent another member claiming a public TXID.
+  if(!autoCreditConfigured() || !addressGenerationConfigured()) return {attempted:false,status:'pending'};
   let proof;
   try{proof=await verifyBep20(txHash,amount);}
   catch(error){
