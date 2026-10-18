@@ -1,4 +1,5 @@
 import { getFirestoreAdmin } from './_lib/firebaseAdmin.js';
+import { getPool } from './_lib/db.js';
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -33,7 +34,15 @@ async function findSponsor(db, code) {
     .get();
   if (!byMemberId.empty) return byMemberId.docs[0];
 
-  return null;
+  // Canonical and legacy aliases map to the stable Firebase UID in Neon.
+  const pool = getPool();
+  const mapped = await pool.query(
+    'SELECT id FROM users WHERE referral_code=$1 UNION SELECT user_id AS id FROM referral_id_aliases WHERE old_referral_code=$1 OR new_referral_code=$1 LIMIT 1',
+    [code],
+  );
+  if (!mapped.rows.length) return null;
+  const doc = await db.collection('users').doc(String(mapped.rows[0].id)).get();
+  return doc.exists ? doc : null;
 }
 
 export default async function handler(req, res) {
@@ -53,7 +62,8 @@ export default async function handler(req, res) {
       return json(res, 404, { valid: false, error: 'This referral ID belongs to an inactive account.' });
     }
 
-    const canonicalCode = safeSponsor(sponsor.referralCode || sponsor.memberId) || code;
+    const canonicalLookup = await getPool().query('SELECT referral_code FROM users WHERE id=$1 LIMIT 1', [sponsorDoc.id]);
+    const canonicalCode = safeSponsor(canonicalLookup.rows[0]?.referral_code || sponsor.referralCode || sponsor.memberId) || code;
     const name = String(sponsor.name || sponsor.displayName || sponsor.fullName || '').trim();
     if (!name) {
       return json(res, 409, { valid: false, error: 'The referral account has no registered name. Please contact support.' });
