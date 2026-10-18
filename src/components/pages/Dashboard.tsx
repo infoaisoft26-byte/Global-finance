@@ -33,7 +33,9 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile }) => {
-  const { profile, wallet } = useAuth();
+  const { user, profile, wallet } = useAuth();
+  const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name: string; package_type: string; amount: string | number; cap_multiple: number; cap_amount: string | number | null; credited_total: string | number; cap_reconciled: boolean; status: string; completed_at: string | null }>>([]);
+  const [capLoading, setCapLoading] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -41,6 +43,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const [showOffer, setShowOffer] = useState(false);
 
   const referralCode = profile?.referralCode || '';
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      setCapCycles([]);
+      setCapLoading(false);
+      return;
+    }
+    setCapLoading(true);
+    user.getIdToken().then((idToken) => fetch('/api/usdt-bep20-deposit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ action: 'package_history' }),
+      cache: 'no-store',
+    })).then(async (response) => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to load investment cap status');
+      if (!cancelled) setCapCycles(Array.isArray(data.items) ? data.items : []);
+    }).catch((error) => {
+      console.warn('Investment cap status unavailable:', error);
+      if (!cancelled) setCapCycles([]);
+    }).finally(() => {
+      if (!cancelled) setCapLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [user?.uid]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -265,6 +293,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           </div>
         </div>
       </div>
+
+      {/* 5X INVESTMENT CAP */}
+      <section className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-cyan-500/25 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-300">5X Investment Cap</h3>
+            <p className="text-xs text-slate-400 mt-1">ROI, referral, level and bonus credits are counted toward each eligible investment cap. Principal return is subject to the same cap when processed through the capped income ledger.</p>
+          </div>
+          <span className="self-start rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-bold text-cyan-300">5X LIMIT</span>
+        </div>
+        {capLoading ? <p className="text-sm text-slate-400">Loading verified investment cap status…</p> : capCycles.length === 0 ? (
+          <p className="text-sm text-slate-400">No investment cycles found. Cap progress will appear after a package activation is recorded.</p>
+        ) : <div className="space-y-3">
+          {capCycles.map((cycle) => {
+            const invested = Number(cycle.amount || 0);
+            const cap = Number(cycle.cap_amount ?? invested * 5);
+            const counted = Number(cycle.credited_total || 0);
+            const remaining = Math.max(0, cap - counted);
+            const progress = cap > 0 ? Math.min(100, Math.max(0, counted / cap * 100)) : 0;
+            const completed = cycle.status === 'completed' || counted >= cap;
+            const review = cycle.cap_reconciled !== true;
+            const statusLabel = review ? 'Admin Review' : completed ? 'Completed' : cycle.status === 'active' ? 'Active' : cycle.status;
+            const statusStyle = review ? 'text-amber-300 bg-amber-500/10 border-amber-500/25' : completed ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25' : 'text-cyan-300 bg-cyan-500/10 border-cyan-500/25';
+            return <div key={cycle.id} className="rounded-xl border border-blue-500/20 bg-[#0e173a]/55 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-white">{cycle.package_name || (cycle.package_type === 'fd' ? 'FD Package' : 'Basic Package')}</div>
+                  <div className="text-xs text-slate-400 mt-1">Investment: {formatUsdt(invested)} · Maximum 5X cap: {formatUsdt(cap)}</div>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusStyle}`}>{statusLabel}</span>
+              </div>
+              {review ? <p className="mt-3 text-xs leading-relaxed text-amber-200">Historical income needs admin reconciliation before this cycle can safely participate in cap-limited credits. Displayed progress is not yet verified.</p> : <>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Counted toward cap</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(counted)}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Cap remaining</div><div className="mt-1 text-sm font-bold text-cyan-300">{formatUsdt(remaining)}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Progress</div><div className="mt-1 text-sm font-bold text-white">{progress.toFixed(1)}%</div></div>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all" style={{ width: `${progress}%` }} /></div>
+                {completed && <p className="mt-3 text-xs font-semibold text-emerald-300">This investment cycle is completed. A new cycle requires a new package activation.</p>}
+              </>}
+            </div>;
+          })}
+        </div>}
+      </section>
 
       {/* BALANCE SUMMARY SECTION */}
       <div>
