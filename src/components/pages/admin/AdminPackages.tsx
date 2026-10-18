@@ -176,7 +176,7 @@ export const AdminPackages: React.FC = () => {
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Total Profit (USDT)</span><b className="text-emerald-300">USDT {profit.toFixed(2)}</b></div>
             </div>
             <div className="mt-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">Maturity Amount</span>
+              <span className="text-[11px] text-slate-400">Maturity Amount (USDT)</span>
               <b className="text-lg text-white">USDT {maturity.toFixed(2)}</b>
             </div>
             <div className="mt-3 text-[11px] text-slate-400">{pkg.active ? 'Active & visible to members' : 'Inactive / hidden from members'}</div>
@@ -200,7 +200,7 @@ export const AdminPackages: React.FC = () => {
               <div><span className="text-[10px] text-slate-500 block">Daily Income (USDT)</span><b className="text-cyan-300">USDT {previewDaily.toFixed(2)}</b></div>
               <div><span className="text-[10px] text-slate-500 block">Total Profit (USDT)</span><b className="text-emerald-300">USDT {previewProfit.toFixed(2)}</b></div>
               <div><span className="text-[10px] text-slate-500 block mt-2">Principal (USDT)</span><b className="text-white">USDT {Number(editingPkg.minAmount || 0).toFixed(2)}</b></div>
-              <div><span className="text-[10px] text-slate-500 block mt-2">Maturity Amount</span><b className="text-lg text-white">USDT {previewMaturity.toFixed(2)}</b></div>
+              <div><span className="text-[10px] text-slate-500 block mt-2">Maturity Amount (USDT)</span><b className="text-lg text-white">USDT {previewMaturity.toFixed(2)}</b></div>
               <div className="col-span-2 mt-2 text-[10px] text-slate-500">Formula: USDT amount + (USDT amount × daily % ÷ 100 × days)</div>
             </div>
 
