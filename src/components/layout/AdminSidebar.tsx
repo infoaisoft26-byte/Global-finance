@@ -67,17 +67,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'
         } no-print`}
       >
-        <div className="h-16 px-5 border-b border-rose-500/20 flex items-center justify-between bg-[#080d22]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-600 via-blue-600 to-cyan-500 flex items-center justify-center border border-rose-400/40">
-              <ShieldCheck className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="text-sm font-extrabold tracking-wider text-white">GLOBAL FINANCE</div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-rose-300">Administration</div>
-            </div>
+        <div className="h-20 px-5 border-b border-amber-400/20 flex items-center justify-center bg-[#080d22]">
+          <div className="text-center text-[18px] font-extrabold tracking-[0.12em] text-amber-300">
+            GLOBAL FINANCE
           </div>
-          <button onClick={onCloseMobile} className="lg:hidden p-1.5 text-slate-400 hover:text-white">
+          <button onClick={onCloseMobile} className="absolute right-4 lg:hidden p-1.5 text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
