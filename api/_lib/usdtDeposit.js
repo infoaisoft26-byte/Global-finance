@@ -1,15 +1,27 @@
-import { HDNodeWallet } from 'ethers';
+import { HDNodeVoidWallet } from 'ethers';
 import crypto from 'node:crypto';
 import { getPool, withTransaction } from './db.js';
 
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
-const ZERO = '0x' + '0'.repeat(64);
 const CONFIRMATIONS = 12;
-const SCAN_CHUNK = 1500;
-const ADDRESS_TOPIC_CHUNK = 150;
+const SCAN_CHUNK = 500;
+const ADDRESS_TOPIC_CHUNK = 100;
+const BSC_CHAIN_ID = '0x38';
+const BSC_USDT_CONTRACT = '0x55d398326f99059ff775485246999027b3197955';
 
 function boolEnv(name) {
   return String(process.env[name] || '').trim().toLowerCase() === 'true';
+}
+
+export function addressGenerationConfigured() {
+  const xpub = String(process.env.BSC_DEPOSIT_XPUB || '').trim();
+  if (!/^xpub[1-9A-HJ-NP-Za-km-z]{40,120}$/.test(xpub)) return false;
+  try {
+    HDNodeVoidWallet.fromExtendedKey(xpub);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function uniqueDepositConfigured() {
@@ -18,13 +30,9 @@ export function uniqueDepositConfigured() {
     boolEnv('USDT_RECHARGE_ENABLED') &&
     boolEnv('PAYMENT_AUTO_CREDIT_ENABLED') &&
     /^https?:\/\//i.test(String(process.env.BSC_RPC_URL || '').trim()) &&
-    /^0x[0-9a-fA-F]{40}$/.test(String(process.env.USDT_BEP20_CONTRACT_ADDRESS || '').trim()) &&
-    /^xpub[1-9A-HJ-NP-Za-km-z]{40,120}$/.test(String(process.env.BSC_DEPOSIT_XPUB || '').trim())
+    String(process.env.USDT_BEP20_CONTRACT_ADDRESS || '').trim().toLowerCase() === BSC_USDT_CONTRACT &&
+    addressGenerationConfigured()
   );
-}
-
-export function addressGenerationConfigured() {
-  return /^xpub[1-9A-HJ-NP-Za-km-z]{40,120}$/.test(String(process.env.BSC_DEPOSIT_XPUB || '').trim());
 }
 
 export async function ensureDepositSchema(client) {
@@ -95,7 +103,7 @@ export async function ensureDepositSchema(client) {
 function deriveDepositAddress(index) {
   if (!addressGenerationConfigured()) throw new Error('DEPOSIT_XPUB_NOT_CONFIGURED');
   const xpub = String(process.env.BSC_DEPOSIT_XPUB).trim();
-  const accountNode = HDNodeWallet.fromExtendedKey(xpub);
+  const accountNode = HDNodeVoidWallet.fromExtendedKey(xpub);
   const child = accountNode.deriveChild(0).deriveChild(Number(index));
   return child.address;
 }
@@ -119,15 +127,26 @@ export async function getOrCreateDepositAddress(userId) {
 
     const next = await client.query(`SELECT nextval('usdt_deposit_address_seq')::bigint AS n`);
     const derivationIndex = Number(next.rows[0].n);
+    if (!Number.isSafeInteger(derivationIndex) || derivationIndex < 0) throw new Error('INVALID_DERIVATION_INDEX');
     const address = deriveDepositAddress(derivationIndex);
 
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO usdt_deposit_addresses(user_id,derivation_index,address)
-       VALUES($1,$2,$3)`,
+       VALUES($1,$2,$3)
+       ON CONFLICT (user_id) DO NOTHING
+       RETURNING address,derivation_index`,
       [userId, derivationIndex, address]
     );
+    if (inserted.rowCount) {
+      return { address: inserted.rows[0].address, derivationIndex: Number(inserted.rows[0].derivation_index) };
+    }
 
-    return { address, derivationIndex };
+    const raced = await client.query(
+      'SELECT address,derivation_index FROM usdt_deposit_addresses WHERE user_id=$1 LIMIT 1',
+      [userId]
+    );
+    if (!raced.rowCount) throw new Error('DEPOSIT_ADDRESS_CREATE_FAILED');
+    return { address: raced.rows[0].address, derivationIndex: Number(raced.rows[0].derivation_index) };
   });
 }
 
@@ -171,6 +190,7 @@ function formatUnits(raw, decimals) {
 
 async function creditDepositEvent(log, recipientAddress, addressToUser, decimals, safeHead) {
   const txHash = String(log.transactionHash || '').toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(txHash)) throw new Error('INVALID_TRANSACTION_HASH');
   const logIndex = BigInt(log.logIndex);
   const blockNumber = BigInt(log.blockNumber);
   const rawAmount = BigInt(log.data);
@@ -178,7 +198,7 @@ async function creditDepositEvent(log, recipientAddress, addressToUser, decimals
   if (!userId || rawAmount <= 0n) return 'ignored';
 
   const amountUsdt = formatUnits(rawAmount, decimals);
-  const id = `BSCDEP-${txHash.slice(2, 18)}-${logIndex.toString()}`;
+  const id = `BSCDEP-${txHash}-${logIndex.toString()}`;
   const ledgerId = `DEP-${crypto.randomUUID().replaceAll('-', '').slice(0, 26)}`;
 
   return withTransaction(async (client) => {
@@ -212,12 +232,9 @@ async function creditDepositEvent(log, recipientAddress, addressToUser, decimals
       await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE', [userId]);
     }
 
-    const creditResult = await client.query(
-      'SELECT ROUND($1::numeric,2)::text AS credit',
-      [amountUsdt]
-    );
-    const walletCredit = String(creditResult.rows[0]?.credit || '0.00');
-    if (!/^\d+\.\d{2}$/.test(walletCredit) || Number(walletCredit) <= 0) {
+    // Keep full USDT token precision; accounting columns are NUMERIC(40,18).
+    const walletCredit = amountUsdt;
+    if (!/^\\d+(?:\\.\\d{1,18})?$/.test(walletCredit) || rawAmount <= 0n) {
       await client.query(
         `INSERT INTO usdt_deposit_events(id,tx_hash,log_index,user_id,deposit_address,token_address,amount_usdt,raw_amount,block_number,confirmations,status)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ignored')`,
@@ -279,6 +296,9 @@ async function creditDepositEvent(log, recipientAddress, addressToUser, decimals
 export async function scanAndCreditDeposits() {
   if (!uniqueDepositConfigured()) return { configured: false, scannedTo: null, found: 0, credited: 0 };
 
+  const chainId = await rpcCall('eth_chainId', []);
+  if (String(chainId).toLowerCase() !== BSC_CHAIN_ID) throw new Error('WRONG_BSC_NETWORK');
+
   const headHex = await rpcCall('eth_blockNumber', []);
   const head = BigInt(headHex);
   if (head <= BigInt(CONFIRMATIONS - 2)) {
@@ -287,7 +307,8 @@ export async function scanAndCreditDeposits() {
   const safeHead = head - BigInt(CONFIRMATIONS) + 1n;
 
   const token = String(process.env.USDT_BEP20_CONTRACT_ADDRESS).trim().toLowerCase();
-  const decimals = Number(process.env.USDT_BEP20_DECIMALS || await tokenDecimals());
+  const decimals = await tokenDecimals();
+  if (decimals !== 18) throw new Error('UNEXPECTED_USDT_DECIMALS');
 
   const result = await withTransaction(async (client) => {
     await ensureDepositSchema(client);
