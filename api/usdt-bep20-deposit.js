@@ -113,6 +113,49 @@ async function handleAdminReconcileCap(member, body, res) {
   return json(res, 200, { success: true, ...result });
 }
 
+async function handleAdminReturnPrincipal(member, body, res) {
+  requireAdmin(member);
+  const activationId = String(body.activationId || '').trim();
+  if (!activationId) return json(res, 400, { error: 'activationId is required' });
+  const result = await withTransaction(async (client) => {
+    await ensureIncomeSchema(client);
+    const q = await client.query(`SELECT id,user_id,package_name,amount,status,cap_amount,credited_total,cap_reconciled,principal_returned
+      FROM package_activations WHERE id=$1 FOR UPDATE`, [activationId]);
+    const cycle = q.rows[0];
+    if (!cycle) throw new Error('ACTIVATION_NOT_FOUND');
+    if (cycle.status === 'active') throw new Error('PRINCIPAL_RETURN_NOT_MATURED');
+    if (cycle.cap_reconciled !== true) throw new Error('CAP_RECONCILIATION_REQUIRED');
+    if (cycle.principal_returned === true) throw new Error('PRINCIPAL_ALREADY_RETURNED');
+    const cap = Number(cycle.cap_amount ?? Number(cycle.amount) * 5);
+    const counted = Number(Number(cycle.credited_total || 0).toFixed(2));
+    const headroom = Math.max(0, Number((cap-counted).toFixed(2)));
+    const principalAmount = Number(Math.min(Number(cycle.amount),headroom).toFixed(2));
+    if (principalAmount <= 0) throw new Error('CAP_REACHED_NO_PRINCIPAL_HEADROOM');
+    await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[cycle.user_id]);
+    await client.query('UPDATE wallets SET fund_wallet=fund_wallet+$2,updated_at=NOW() WHERE user_id=$1',[cycle.user_id,principalAmount]);
+    const ledgerId = `PRINCIPAL-${crypto.randomUUID()}`;
+    await client.query(`INSERT INTO ledger_transactions
+      (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
+      VALUES($1,$2,'principal_return','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)`,[
+        ledgerId,cycle.user_id,principalAmount,`Matured investment principal return (5X capped): ${cycle.package_name}`,activationId,
+        JSON.stringify({activationId,capMultiple:5,capAmount:cap,priorCounted:counted,principalRequested:Number(cycle.amount),principalCredited:principalAmount,asset:'USDT'})
+      ]);
+    const nextCounted = Number((counted+principalAmount).toFixed(2));
+    const nextStatus = nextCounted >= cap ? 'completed' : 'completed';
+    await client.query(`UPDATE package_activations
+      SET credited_total=$2,principal_returned=TRUE,principal_return_amount=$3,status=$4,
+          completed_at=COALESCE(completed_at,NOW())
+      WHERE id=$1`,[activationId,nextCounted,principalAmount,nextStatus]);
+    await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+      VALUES($1,$2,$3,'PRINCIPAL_RETURN_CREDITED','package_activation',$4,$5::jsonb)`,[
+        crypto.randomUUID(),member.uid,member.email,activationId,
+        JSON.stringify({userId:cycle.user_id,ledgerId,principalRequested:Number(cycle.amount),principalCredited:principalAmount,capAmount:cap,creditedTotal:nextCounted,capRemaining:Number(Math.max(0,cap-nextCounted).toFixed(2))})
+      ]);
+    return {activationId,userId:cycle.user_id,ledgerId,principalRequested:Number(cycle.amount),principalCredited:principalAmount,capAmount:cap,creditedTotal:nextCounted,capRemaining:Number(Math.max(0,cap-nextCounted).toFixed(2)),status:'completed'};
+  });
+  return json(res,200,{success:true,...result});
+}
+
 async function handleAdminPackageHistory(member, res) {
   requireAdmin(member);
   const rows = await withTransaction(async (client) => {
@@ -241,6 +284,7 @@ export default async function handler(req,res) {
     if (action==='package_history') return await handlePackageHistory(member,res);
     if (action==='admin_package_history') return await handleAdminPackageHistory(member,res);
     if (action==='admin_reconcile_cap') return await handleAdminReconcileCap(member,body,res);
+    if (action==='admin_return_principal') return await handleAdminReturnPrincipal(member,body,res);
     if (action==='admin_reconcile_referral_income') return await handleAdminReconcileReferralIncome(member,res);
     if (action==='package_purchase') return await handlePackagePurchase(member,body,res);
     if (action==='verify_deposit') return json(res,410,{error:'Direct deposit credit is retired. Submit a recharge request for admin review.'});
