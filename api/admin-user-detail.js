@@ -173,9 +173,9 @@ export default async function handler(req, res) {
         const amount = Number(amountText).toFixed(8);
         const ledgerId = 'MD_' + requestId.replaceAll('-', '');
         const result = await withTransaction(async (client) => {
-          const target = await client.query('SELECT id,status FROM users WHERE id=$1 FOR UPDATE', [userId]);
+          const target = await client.query('SELECT id,status,role FROM users WHERE id=$1 FOR UPDATE', [userId]);
           if (!target.rowCount) throw new Error('USER_NOT_FOUND');
-          if (target.rows[0].status !== 'active') throw new Error('ACTIVE_MEMBER_REQUIRED');
+          if (target.rows[0].status !== 'active' || target.rows[0].role !== 'user') throw new Error('ACTIVE_MEMBER_REQUIRED');
           await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING', [userId]);
           const wallet = await client.query('SELECT fund_wallet FROM wallets WHERE user_id=$1 FOR UPDATE', [userId]);
           const existing = await client.query('SELECT id,user_id,amount FROM ledger_transactions WHERE id=$1 LIMIT 1', [ledgerId]);
