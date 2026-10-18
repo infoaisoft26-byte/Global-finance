@@ -1,5 +1,4 @@
-import { getPool } from './_lib/db.js';
-import { ensureIncomeSchema } from './_lib/incomeEngine.js';
+import { getFirestoreAdmin } from './_lib/firebaseAdmin.js';
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -15,36 +14,33 @@ function safeSponsor(value) {
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
-
   const code = safeSponsor(req.query?.code);
-  if (!code) return json(res, 400, { valid: false, error: 'A valid referral ID is required.' });
+  if (!code) return json(res, 400, { valid: false, error: 'Enter a valid referral ID.' });
 
   try {
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await ensureIncomeSchema(client);
-      const result = await client.query(
-        'SELECT referral_code, name FROM users WHERE referral_code=$1 AND status=\'active\' LIMIT 1',
-        [code]
-      );
-
-      if (!result.rowCount) {
-        return json(res, 404, { valid: false, error: 'Active sponsor not found.' });
-      }
-
-      return json(res, 200, {
-        valid: true,
-        sponsor: {
-          referralCode: result.rows[0].referral_code,
-          name: result.rows[0].name,
-        },
-      });
-    } finally {
-      client.release();
+    // Registration and auth-sync use Firestore as the member profile source.
+    // Looking up sponsors in PostgreSQL returned false negatives for valid
+    // Firebase members who were not mirrored into the SQL users table.
+    const db = getFirestoreAdmin();
+    const result = await db.collection('users').where('referralCode', '==', code).limit(1).get();
+    if (result.empty) {
+      return json(res, 404, { valid: false, error: 'Referral ID was not found.' });
     }
+
+    const sponsor = result.docs[0].data() || {};
+    if (sponsor.status !== 'active') {
+      return json(res, 404, { valid: false, error: 'This referral ID is not active.' });
+    }
+
+    return json(res, 200, {
+      valid: true,
+      sponsor: {
+        referralCode: code,
+        name: String(sponsor.name || '').trim() || 'Global Finance Member',
+      },
+    });
   } catch (error) {
     console.error('referral lookup failed:', error instanceof Error ? error.message : error);
-    return json(res, 500, { valid: false, error: 'Unable to verify referral ID.' });
+    return json(res, 500, { valid: false, error: 'Unable to verify referral ID right now.' });
   }
 }

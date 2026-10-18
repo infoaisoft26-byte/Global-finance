@@ -79,7 +79,7 @@ export const IncomeWalletSummary: React.FC = () => {
         const isCredit = item.flow === 'credit';
         return (
           <span className={`font-mono text-xs font-bold ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {isCredit ? '+' : '-'}₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            {isCredit ? '+' : '-'}USDT {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
           </span>
         );
       }
@@ -113,7 +113,7 @@ export const IncomeWalletSummary: React.FC = () => {
         <div className="p-4 rounded-xl bg-[#0e173a] border border-emerald-500/30 text-right">
           <span className="text-xs text-slate-400">Current Available Balance</span>
           <div className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono tabular-nums">
-            ₹{(wallet?.incomeWallet || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            USDT {(wallet?.incomeWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
           </div>
         </div>
       </div>

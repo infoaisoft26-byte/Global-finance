@@ -200,7 +200,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-blue-500/20">
         <div>
           <h2 className="text-xl font-bold tracking-tight">USDT Withdrawal</h2>
-          <p className="text-xs mt-1">Withdraw only USDT on BEP20 / BNB Smart Chain. INR, bank account and UPI payout options are removed.</p>
+          <p className="text-xs mt-1">Withdrawals support USDT on BEP20 / BNB Smart Chain only. Bank and UPI payouts are unavailable.</p>
         </div>
         <div className="p-3 rounded-xl bg-white border border-blue-200 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600"><Wallet className="w-5 h-5" /></div>

@@ -6,7 +6,7 @@ import { getLedgerTransactions, reconcileReferralIncome, type AdjudicationTransa
 import { DataTable, type Column } from '../../common/DataTable.tsx';
 import type { TransactionRequest, TransactionRequestStatus } from '../../../types/index.ts';
 
-const money=(n:number,type?:string)=>` ${type==='salary'?'₹':''}${Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:6})}`;
+const money=(n:number,_type?:string)=>`USDT ${Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:8})}`;
 const isReferral=(t:string)=>t.includes('referral')||t.includes('level');
 
 export const AdminTransactions: React.FC=()=>{

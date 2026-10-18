@@ -79,7 +79,7 @@ export const FundWalletSummary: React.FC = () => {
         const isCredit = item.flow === 'credit';
         return (
           <span className={`font-mono text-xs font-bold ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {isCredit ? '+' : '-'}₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            {isCredit ? '+' : '-'}USDT {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
           </span>
         );
       }
@@ -113,7 +113,7 @@ export const FundWalletSummary: React.FC = () => {
         <div className="p-4 rounded-xl bg-[#0e173a] border border-blue-500/30 text-right">
           <span className="text-xs text-slate-400">Current Available Fund</span>
           <div className="text-xl sm:text-2xl font-extrabold text-cyan-400 font-mono tabular-nums">
-            ₹{(wallet?.fundWallet || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            USDT {(wallet?.fundWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
           </div>
         </div>
       </div>

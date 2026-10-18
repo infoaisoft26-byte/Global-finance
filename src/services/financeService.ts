@@ -470,7 +470,7 @@ export async function executeP2PTransfer(
 
     const available = sourceWalletType === 'fund_wallet' ? senderWallet.fundWallet : senderWallet.incomeWallet;
     if (available < amount) {
-      throw new Error(`Insufficient balance in selected wallet. Available: ₹${available.toFixed(2)}`);
+      throw new Error(`Insufficient balance in selected wallet. Available: USDT ${available.toFixed(2)}`);
     }
 
     // Deduct from sender
@@ -550,7 +550,7 @@ export async function transferIncomeToFund(
 
     const wallet = walletDoc.data() as WalletData;
     if ((wallet.incomeWallet || 0) < amount) {
-      throw new Error(`Insufficient Available Balance. Available: ₹${(wallet.incomeWallet || 0).toFixed(2)}`);
+      throw new Error(`Insufficient Available Balance. Available: USDT ${(wallet.incomeWallet || 0).toFixed(2)}`);
     }
 
     const newIncome = Number((wallet.incomeWallet - amount).toFixed(2));
@@ -572,7 +572,7 @@ export async function transferIncomeToFund(
       amount,
       fee: 0,
       netAmount: amount,
-      description: `Transferred ₹${amount.toFixed(2)} from Available Balance to Available Fund`,
+      description: `Transferred USDT ${amount.toFixed(2)} from Available Balance to Available Fund`,
       referenceId: txnId,
       status: 'completed',
       createdAt: new Date().toISOString()
@@ -592,7 +592,7 @@ export async function requestWithdrawal(
   destinationDetails: string
 ): Promise<{ success: boolean; transactionId: string; netAmount: number; tdsFee: number }> {
   if (amount < 500) {
-    throw new Error('Minimum withdrawal amount is ₹500.00');
+    throw new Error('Minimum withdrawal amount is USDT 500.00');
   }
 
   const walletRef = doc(db, 'wallets', userId);
@@ -606,7 +606,7 @@ export async function requestWithdrawal(
 
     const wallet = walletDoc.data() as WalletData;
     if ((wallet.incomeWallet || 0) < amount) {
-      throw new Error(`Insufficient Available Balance. Available: ₹${(wallet.incomeWallet || 0).toFixed(2)}`);
+      throw new Error(`Insufficient Available Balance. Available: USDT ${(wallet.incomeWallet || 0).toFixed(2)}`);
     }
 
     const newIncomeWallet = Number((wallet.incomeWallet - amount).toFixed(2));
@@ -628,7 +628,7 @@ export async function requestWithdrawal(
       amount,
       fee: tdsFee,
       netAmount,
-      description: `Withdrawal via ${withdrawalType.toUpperCase()} to ${destinationDetails} (5% TDS/Govt deduction applied: ₹${tdsFee})`,
+      description: `Withdrawal via ${withdrawalType.toUpperCase()} to ${destinationDetails} (5% TDS/Govt deduction applied: USDT ${tdsFee})`,
       referenceId: txnId,
       status: 'completed',
       createdAt: new Date().toISOString()
@@ -949,7 +949,7 @@ export async function adminAuditedFinancialAdjustment(
       newVal = currentVal + amount;
     } else {
       if (currentVal < amount) {
-        throw new Error(`Insufficient wallet balance for debit. Current balance: ₹${currentVal}`);
+        throw new Error(`Insufficient wallet balance for debit. Current balance: USDT ${currentVal}`);
       }
       newVal = currentVal - amount;
     }
@@ -970,7 +970,7 @@ export async function adminAuditedFinancialAdjustment(
       amount,
       fee: 0,
       netAmount: amount,
-      description: `[Audited Adjustment] ${flow.toUpperCase()} ₹${amount.toFixed(2)}: ${reason}`,
+      description: `[Audited Adjustment] ${flow.toUpperCase()} USDT ${amount.toFixed(2)}: ${reason}`,
       referenceId: txnId,
       status: 'completed',
       metadata: { adminUserId, reason },

@@ -5,7 +5,7 @@
   "outputDirectory": "dist",
   "crons": [
     {
-      "path": "/api/usdt-bep20-deposit",
+      "path": "/api/usdt-auto-credit-cron",
       "schedule": "0 19 * * *"
     }
   ],

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Search, Users, Network, Wallet, Package, IndianRupee, ChevronDown, ChevronRight } from 'lucide-react';
+import { RefreshCw, Search, Users, Network, Wallet, Package, Coins, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext.tsx';
 
 type Member = {
@@ -41,7 +41,7 @@ export const AdminNetwork: React.FC = () => {
     return members.filter(m => [m.name,m.email,m.phone,m.referralCode,m.sponsorId,m.latestPackageName].some(v => String(v||'').toLowerCase().includes(q)));
   }, [members, search]);
 
-  const money = (n:number) => `USDT ${Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:6})}`;
+  const money = (n:number) => `USDT ${Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:8})}`;
 
   return <div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -59,7 +59,7 @@ export const AdminNetwork: React.FC = () => {
         ['Members', summary?.totalMembers||0, Users],
         ['Referral Links', summary?.totalDirectLinks||0, Network],
         ['Active Packages', money(summary?.totalActivePackageAmount||0), Package],
-        ['Referral Income', money(summary?.totalReferralIncome||0), IndianRupee],
+        ['Referral Income', money(summary?.totalReferralIncome||0), Coins],
         ['Level Income', money(summary?.totalLevelIncome||0), Wallet],
       ].map(([label,value,Icon]:any)=><div key={label} className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><Icon className="w-4 h-4 text-cyan-400 mb-2"/><div className="text-[10px] uppercase text-slate-500">{label}</div><div className="text-lg font-bold text-white mt-1">{value}</div></div>)}
     </div>

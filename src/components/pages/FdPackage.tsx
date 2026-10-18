@@ -65,7 +65,7 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
   const columns: Column<PackageActivationRequest>[] = useMemo(() => [
     { key:'createdAt', header:'Date', render:item => <span className="text-xs">{new Date(item.createdAt).toLocaleString('en-IN')}</span> },
     { key:'packageName', header:'FD Plan', render:item => <span className="text-xs font-semibold">{item.packageName}</span> },
-    { key:'amountRupees', header:'Amount', render:item => <span className="text-xs font-mono">{item.amountRupees.toFixed(2)}</span> },
+    { key:'amountRupees', header:'Amount (USDT)', render:item => <span className="text-xs font-mono">USDT {item.amountRupees.toFixed(8)}</span> },
     { key:'status', header:'Status', render:item => <span className="inline-flex px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-500">{item.status.toUpperCase()}</span> }
   ], []);
 
