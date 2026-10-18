@@ -59,7 +59,7 @@ export const AdminNetwork: React.FC = () => {
         ['Members', summary?.totalMembers||0, Users],
         ['Referral Links', summary?.totalDirectLinks||0, Network],
         ['Active Packages', money(summary?.totalActivePackageAmount||0), Package],
-        ['Referral Income', money(summary?.totalReferralIncome||0), IndianRupee],
+        ['Referral Income', money(summary?.totalReferralIncome||0), Coins],
         ['Level Income', money(summary?.totalLevelIncome||0), Wallet],
       ].map(([label,value,Icon]:any)=><div key={label} className="p-4 rounded-2xl bg-[#091129] border border-blue-500/20"><Icon className="w-4 h-4 text-cyan-400 mb-2"/><div className="text-[10px] uppercase text-slate-500">{label}</div><div className="text-lg font-bold text-white mt-1">{value}</div></div>)}
     </div>
