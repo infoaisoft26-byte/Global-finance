@@ -20,7 +20,7 @@ import type {
 
 /**
  * Currency conversion utilities:
- * All internal accounting and request validation must use integer paise (1 INR = 100 paise).
+ * All legacy amount request validation uses two-decimal minor units (1 USDT = 100 minor units); keep this layer to two-decimal-compatible amounts only.
  */
 export function rupeesToPaise(rupees: number): number {
   return Math.round(Number(rupees) * 100);
@@ -188,10 +188,10 @@ export async function createBalancedLedgerTransaction(
         const currentIncomePaise = rupeesToPaise(wallet.incomeWallet || 0);
 
         if (currentFundPaise + diffs.fundDiffPaise < 0) {
-          throw new Error(`Insufficient Available Fund balance for user ${userId}. Required: ${paiseToRupees(Math.abs(diffs.fundDiffPaise))} INR`);
+          throw new Error(`Insufficient Available Fund balance for user ${userId}. Required: ${paiseToRupees(Math.abs(diffs.fundDiffPaise))} USDT`);
         }
         if (currentIncomePaise + diffs.incomeDiffPaise < 0) {
-          throw new Error(`Insufficient Available Balance for user ${userId}. Required: ${paiseToRupees(Math.abs(diffs.incomeDiffPaise))} INR`);
+          throw new Error(`Insufficient Available Balance for user ${userId}. Required: ${paiseToRupees(Math.abs(diffs.incomeDiffPaise))} USDT`);
         }
 
         // Update cached snapshot
@@ -325,7 +325,7 @@ export async function executeLedgerIncomeToFund(
       flow: 'debit',
       amountPaise,
       type: 'income_to_fund',
-      description: `Internal transfer of ₹${amountRupees.toFixed(2)} from Available Balance to Available Fund`,
+      description: `Internal transfer of USDT ${amountRupees.toFixed(2)} from Available Balance to Available Fund`,
       metadata: { source: 'income_wallet', target: 'fund_wallet' }
     },
     {
@@ -334,7 +334,7 @@ export async function executeLedgerIncomeToFund(
       flow: 'credit',
       amountPaise,
       type: 'income_to_fund',
-      description: `Credit of ₹${amountRupees.toFixed(2)} from Available Balance to Available Fund`,
+      description: `Credit of USDT ${amountRupees.toFixed(2)} from Available Balance to Available Fund`,
       metadata: { source: 'income_wallet', target: 'fund_wallet' }
     }
   ];
