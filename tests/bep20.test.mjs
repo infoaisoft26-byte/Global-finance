@@ -18,7 +18,7 @@ before(() => {
   };
 });
 after(() => { globalThis.fetch=savedFetch; for(const [key,value] of Object.entries(saved)){if(value===undefined)delete process.env[key];else process.env[key]=value;} });
-const valid = () => ({transactionHash:tx,status:'0x1',blockNumber:'0x64',logs:[{address:contract,topics:[topic,`0x${'0'.repeat(64)}`,target],data:`0x${(10n*10n**18n).toString(16)}`}]});
+const valid = () => ({transactionHash:tx,status:'0x1',blockNumber:'0x64',logs:[{address:contract,topics:[topic,`0x${'0'.repeat(64)}`,target],data:`0x${(10n*10n**18n).toString(16).padStart(64,'0')}`}]});
 
 test('matching confirmed transfer is accepted',async()=>{receipt=valid();const proof=await verifyBep20(tx,'10.00000000');assert.equal(proof.confirmations,'19');});
 test('failed or mismatched token transfer is rejected',async()=>{
