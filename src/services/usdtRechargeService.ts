@@ -30,6 +30,7 @@ export interface AutomaticUsdtDepositEvent {
 
 export interface AutomaticUsdtDepositInfo {
   configured: boolean;
+  mode?: 'personal' | 'shared';
   network: string;
   token: 'USDT' | string;
   contractAddress: string;
