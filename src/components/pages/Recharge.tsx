@@ -7,6 +7,9 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import {
   getAutomaticDepositInfo,
+  submitUsdtRecharge,
+  listUsdtRecharges,
+  type UsdtRechargeRequest,
   type AutomaticUsdtDepositInfo,
   type AutomaticUsdtDepositEvent,
 } from '../../services/usdtRechargeService.ts';
@@ -35,6 +38,11 @@ export const Recharge: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [setupMessage, setSetupMessage] = useState('');
+  const [amountUsdt, setAmountUsdt] = useState('');
+  const [txHash, setTxHash] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [requests, setRequests] = useState<UsdtRechargeRequest[]>([]);
+  const [submitMessage, setSubmitMessage] = useState('');
   const [error, setError] = useState('');
   const creditedSeen = useRef<Set<string>>(new Set());
 
@@ -53,6 +61,10 @@ export const Recharge: React.FC = () => {
         setInfo(next);
         setSetupMessage('');
         setError('');
+        if (next.mode === 'shared') {
+          const history = await listUsdtRecharges(user);
+          if (!cancelled) setRequests(history.requests || []);
+        }
         const newlyCredited = (next.deposits || []).some((item: AutomaticUsdtDepositEvent) => {
           if (item.status !== 'credited') return false;
           if (creditedSeen.current.has(item.id)) return false;
@@ -86,6 +98,26 @@ export const Recharge: React.FC = () => {
   }, [user?.uid]);
 
   const address = info?.depositAddress || '';
+
+  const submitTxid = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user || submitting) return;
+    setSubmitting(true);
+    setError('');
+    setSubmitMessage('');
+    try {
+      const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim());
+      setSubmitMessage(String(result?.message || 'TXID submitted for verification.'));
+      setAmountUsdt('');
+      setTxHash('');
+      const history = await listUsdtRecharges(user);
+      setRequests(history.requests || []);
+    } catch (err: any) {
+      setError(String(err?.message || 'Could not submit this TXID. Please check it and retry.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const copyAddress = async () => {
     if (!address) return;
