@@ -78,7 +78,7 @@ export async function getAutomaticDepositInfo(user: FirebaseUser): Promise<Autom
 export async function listUsdtRecharges(
   user: FirebaseUser,
   scope: 'member' | 'admin' = 'member'
-): Promise<{ requests: UsdtRechargeRequest[]; enabled: boolean; autoCreditEnabled?: boolean; depositAddress: string }> {
+): Promise<{ requests: UsdtRechargeRequest[]; enabled: boolean; automaticDepositConfigured?: boolean; autoCreditEnabled?: boolean; depositAddress: string }> {
   return call(user, scope, 'GET');
 }
 
