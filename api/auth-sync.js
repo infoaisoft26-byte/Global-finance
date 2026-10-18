@@ -195,7 +195,7 @@ export default async function handler(req,res){
     if (canonicalResult.rows.length) {
       const canonicalCode=canonicalResult.rows[0].referral_code;
       const canonicalSponsor=canonicalResult.rows[0].sponsor_id || result.profile.sponsorId || null;
-      if (canonicalCode && canonicalCode !== result.profile.referralCode) {
+      if (canonicalCode && (canonicalCode !== result.profile.referralCode || canonicalSponsor !== (result.profile.sponsorId || null))) {
         await db.collection('users').doc(uid).set({
           referralCode:canonicalCode, memberId:canonicalCode,
           sponsorId:canonicalSponsor, updatedAt:new Date(),
