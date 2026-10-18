@@ -1,4 +1,4 @@
-import { getPool } from './_lib/db.js';
+import { getPool } from '../_lib/db.js';
 
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');

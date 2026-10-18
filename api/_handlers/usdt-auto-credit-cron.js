@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { getPool } from './_lib/db.js';
+import { getPool } from '../_lib/db.js';
 import { autoCreditRecharge } from './usdt-recharge.js';
-import { autoCreditConfigured } from './_lib/bep20.js';
+import { autoCreditConfigured } from '../_lib/bep20.js';
 
 function json(res,status,body){
   res.statusCode=status;

@@ -1,6 +1,6 @@
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { getPool, withTransaction } from './_lib/db.js';
-import { getOrCreateDepositAddress, addressGenerationConfigured } from './_lib/usdtDeposit.js';
+import { verifyFirebaseIdToken } from '../_lib/firebaseAdmin.js';
+import { getPool, withTransaction } from '../_lib/db.js';
+import { getOrCreateDepositAddress, addressGenerationConfigured } from '../_lib/usdtDeposit.js';
 
 function json(res,status,body){
   res.statusCode=status;

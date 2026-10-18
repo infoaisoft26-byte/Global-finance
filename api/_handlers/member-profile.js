@@ -1,6 +1,6 @@
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { getPool } from './_lib/db.js';
-import { ensureIncomeSchema } from './_lib/incomeEngine.js';
+import { verifyFirebaseIdToken } from '../_lib/firebaseAdmin.js';
+import { getPool } from '../_lib/db.js';
+import { ensureIncomeSchema } from '../_lib/incomeEngine.js';
 
 function json(res, status, body) {
   res.statusCode = status;

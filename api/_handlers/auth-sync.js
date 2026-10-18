@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { withTransaction } from './_lib/db.js';
-import { createSessionToken, sessionCookie } from './_lib/session.js';
-import { sendWelcomeEmail } from './_lib/email.js';
-import { ensureIncomeSchema } from './_lib/incomeEngine.js';
+import { verifyFirebaseIdToken } from '../_lib/firebaseAdmin.js';
+import { withTransaction } from '../_lib/db.js';
+import { createSessionToken, sessionCookie } from '../_lib/session.js';
+import { sendWelcomeEmail } from '../_lib/email.js';
+import { ensureIncomeSchema } from '../_lib/incomeEngine.js';
 
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.end(JSON.stringify(body));}
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}

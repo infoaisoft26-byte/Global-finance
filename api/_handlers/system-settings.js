@@ -1,7 +1,7 @@
 // Secure production system-settings API. Firestore client permissions are intentionally not required.
 import crypto from 'node:crypto';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { getPool } from './_lib/db.js';
+import { verifyFirebaseIdToken } from '../_lib/firebaseAdmin.js';
+import { getPool } from '../_lib/db.js';
 
 const SETTINGS_ID = 'global_finance_system_settings';
 

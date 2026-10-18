@@ -1,5 +1,5 @@
-import { getPool } from './_lib/db.js';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
+import { getPool } from '../_lib/db.js';
+import { verifyFirebaseIdToken } from '../_lib/firebaseAdmin.js';
 
 function json(res, status, body) {
   res.statusCode = status;

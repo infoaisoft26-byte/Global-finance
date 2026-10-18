@@ -1,4 +1,4 @@
-import { scanAndCreditDeposits } from './_lib/usdtDeposit.js';
+import { scanAndCreditDeposits } from '../_lib/usdtDeposit.js';
 
 function json(res,status,body){
   res.statusCode=status;

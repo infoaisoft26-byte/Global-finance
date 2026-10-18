@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { getPool, withTransaction } from './_lib/db.js';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
-import { applyActivationIncome, ensureIncomeSchema } from './_lib/incomeEngine.js';
+import { getPool, withTransaction } from '../_lib/db.js';
+import { verifyFirebaseIdToken } from '../_lib/firebaseAdmin.js';
+import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from '../_lib/bep20.js';
+import { applyActivationIncome, ensureIncomeSchema } from '../_lib/incomeEngine.js';
 import { GoogleGenAI } from '@google/genai';
 
 function json(res, status, body) {
