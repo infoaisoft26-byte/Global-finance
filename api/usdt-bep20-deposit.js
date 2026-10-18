@@ -116,9 +116,11 @@ async function handleAdminReconcileCap(member, body, res) {
 async function handleAdminPackageHistory(member, res) {
   requireAdmin(member);
   const rows = await withTransaction(async (client) => {
+    await ensureIncomeSchema(client);
     const q = await client.query(`
       SELECT pa.id, pa.user_id, pa.package_id, pa.package_type, pa.package_name, pa.amount,
              pa.roi_daily_rate, pa.duration_days, pa.total_earned, pa.status, pa.activated_at, pa.expires_at,
+             pa.cap_multiple, pa.cap_amount, pa.credited_total, pa.cap_reconciled, pa.completed_at,
              u.name AS user_name, u.email AS user_email
       FROM package_activations pa
       LEFT JOIN users u ON u.id = pa.user_id
