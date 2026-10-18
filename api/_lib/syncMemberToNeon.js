@@ -33,7 +33,7 @@ export async function syncMemberToNeon(profile, wallet = {}) {
         profile.role || 'user',
         profile.status || 'active',
         profile.kycStatus || 'unverified',
-        profile.createdAt || null,
+        profile.createdAt?.toDate?.()?.toISOString?.() || profile.createdAt || null,
       ],
     );
 
