@@ -16,7 +16,9 @@ export async function ensureIncomeSchema(client) {
     ADD COLUMN IF NOT EXISTS cap_amount NUMERIC(16,2),
     ADD COLUMN IF NOT EXISTS credited_total NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS cap_reconciled BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ`);
+    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS principal_returned BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS principal_return_amount NUMERIC(16,2) NOT NULL DEFAULT 0`);
   await client.query(`UPDATE package_activations SET cap_amount=ROUND(amount*5,2) WHERE cap_amount IS NULL`);
   await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rank_code VARCHAR(32) NOT NULL DEFAULT 'MEMBER'`);
   await client.query(`ALTER TABLE users
@@ -228,7 +230,7 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
 
   await client.query(`INSERT INTO income_distributions(id,event_key,recipient_user_id,source_user_id,income_type,level,percentage,base_amount,amount,ledger_id)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[id,eventKey,recipient,source,incomeType,level,rate,money(base),amount,ledgerId]);
-  return true;
+  return amount;
 }
 
 export async function applyActivationIncome(client,{activationId,userId,amount,packageName,packageType='basic'}) {
@@ -299,11 +301,12 @@ export async function runDailyIncome(client,businessDate) {
 
     // ROI is credited only once, but level income is evaluated on every run
     // so missing level credits can be safely recovered without duplicating ROI.
-    if(roiEventCreated){
-      const roiWasCredited = await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date});
-      if(roiWasCredited) {
+    const priorRoiCredit = await client.query(`SELECT 1 FROM income_distributions WHERE event_key=$1 AND recipient_user_id=$2 AND income_type=$3 AND level=0 LIMIT 1`,[key,a.user_id,roiType]);
+    if(roiEventCreated || !priorRoiCredit.rowCount){
+      const roiCredited = Number(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date}) || 0);
+      if(roiCredited > 0) {
         roiCredits++;
-        await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roi]);
+        await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roiCredited]);
       }
     }
     for(const u of await uplines(client,a.user_id)){
