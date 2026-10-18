@@ -25,13 +25,15 @@ export default async function handler(req,res){
   }
   if(body.action==='verify'){
    const otpId=String(body.otpId||'');const code=String(body.code||'').trim();if(!/^[0-9]{6}$/.test(code)||!otpId)return json(res,400,{error:'Enter the 6-digit email OTP.'});
-   await withTransaction(async client=>{
+   const verified = await withTransaction(async client=>{
     const q=await client.query('SELECT * FROM transaction_email_otps WHERE id=$1 AND user_id=$2 AND purpose=$3 FOR UPDATE',[otpId,user.id,purpose]);const row=q.rows[0];
     if(!row||row.consumed_at||new Date(row.expires_at).getTime()<Date.now())throw new Error('OTP_EXPIRED');if(row.verified_at)throw new Error('OTP_ALREADY_VERIFIED');if(row.payload_hash!==payloadHash)throw new Error('OTP_PAYLOAD_MISMATCH');if(Number(row.attempts)>=5)throw new Error('OTP_ATTEMPTS_EXCEEDED');
     const supplied=Buffer.from(hash(user.id+':'+purpose+':'+code),'hex');const expected=Buffer.from(row.code_hash,'hex');
-    if(supplied.length!==expected.length||!timingSafeEqual(supplied,expected)){await client.query('UPDATE transaction_email_otps SET attempts=attempts+1 WHERE id=$1',[otpId]);throw new Error('OTP_INVALID');}
+    if(supplied.length!==expected.length||!timingSafeEqual(supplied,expected)){await client.query('UPDATE transaction_email_otps SET attempts=attempts+1 WHERE id=$1',[otpId]);return false;}
     await client.query('UPDATE transaction_email_otps SET verified_at=NOW() WHERE id=$1',[otpId]);
+    return true;
    });
+   if(!verified)throw new Error('OTP_INVALID');
    return json(res,200,{success:true,otpId,message:'Email OTP verified. Complete the transaction now.'});
   }
   return json(res,400,{error:'Invalid OTP action.'});
