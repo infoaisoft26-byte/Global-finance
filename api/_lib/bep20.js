@@ -8,6 +8,7 @@ export function rechargeConfigured() {
   const rechargeEnabled = String(process.env.USDT_RECHARGE_ENABLED || '').trim().toLowerCase() === 'true';
   const contract = String(process.env.USDT_BEP20_CONTRACT_ADDRESS || DEFAULT_USDT_BEP20_CONTRACT).trim();
   const rpc = String(process.env.BSC_RPC_URL || '').trim();
+  const walletValid = /^0x[0-9a-fA-F]{40}$/.test(String(process.env.USDT_DEPOSIT_WALLET_ADDRESS || '').trim());
   const contractValid = /^0x[0-9a-fA-F]{40}$/.test(contract);
   const rpcConfigured = /^https?:\/\//i.test(rpc);
 
@@ -15,7 +16,8 @@ export function rechargeConfigured() {
     paymentsEnabled,
     rechargeEnabled,
     contractValid,
-    rpcConfigured,\n    walletConfigured: walletValid,
+    rpcConfigured,
+    walletConfigured: walletValid,
   });
 
   return paymentsEnabled && rechargeEnabled && contractValid && rpcConfigured && walletValid;
@@ -109,7 +111,8 @@ export async function verifyBep20(txHash, claimedAmount, destinationAddress = BE
     BigInt(whole) * 10n ** BigInt(decimals) +
     BigInt(fraction.padEnd(decimals, '0') || '0');
 
-  if (!/^0x[0-9a-fA-F]{40}$/.test(String(destinationAddress || ''))) throw new Error('DEPOSIT_WALLET_NOT_CONFIGURED');\n  const target = '0x' + String(destinationAddress).slice(2).toLowerCase().padStart(64, '0');
+  if (!/^0x[0-9a-fA-F]{40}$/.test(String(destinationAddress || ''))) throw new Error('DEPOSIT_WALLET_NOT_CONFIGURED');
+  const target = '0x' + String(destinationAddress).slice(2).toLowerCase().padStart(64, '0');
 
   const logs = (receipt.logs || []).filter(log =>
     log.address?.toLowerCase() === token &&
