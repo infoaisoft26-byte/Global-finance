@@ -147,7 +147,8 @@ export default async function handler(req,res){
         const candidate=formatReferralCode(candidateNumber);
         const referralCollision=await transaction.get(db.collection('users').where('referralCode','==',candidate).limit(1));
         const memberIdCollision=await transaction.get(db.collection('users').where('memberId','==',candidate).limit(1));
-        if(referralCollision.empty&&memberIdCollision.empty){code=candidate;break;}
+        const neonCollision=await getPool().query('SELECT 1 FROM users WHERE referral_code=$1 LIMIT 1',[candidate]);
+        if(referralCollision.empty&&memberIdCollision.empty&&neonCollision.rows.length===0){code=candidate;break;}
         candidateNumber++;
       }
       if(!code)throw new Error('Referral ID sequence exhausted');
