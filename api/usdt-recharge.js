@@ -305,9 +305,7 @@ export default async function handler(req,res){
       if(!/^RCH_[0-9a-f]{24}$/.test(id)) return json(res,400,{error:'A valid recharge request is required'});
       const note=String(body.note||'').trim()|| (body.action==='approve'?'Approved by admin after manual payment verification.':'Rejected by admin after manual payment review.');
       if(note.length>1000) return json(res,400,{error:'Review note is too long'});
-      const credit=String(body.creditInr||'').trim();
-      if(body.action==='approve'&&!/^\d+\.\d{2}$/.test(credit)) return json(res,400,{error:'Enter the reviewed wallet credit with two decimals'});
-      return json(res,200,{success:true,...await review(actor,id,body.action,note,credit)});
+      return json(res,200,{success:true,...await review(actor,id,body.action,note)});
     }
     return json(res,400,{error:'Invalid action'});
   }catch(error){
