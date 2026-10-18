@@ -108,7 +108,7 @@ export const DailyIncomeReport: React.FC = () => {
       header: 'Salary Bonus',
       render: (item) => (
         <span className="font-mono text-xs text-rose-300">
-          ₹{item.salaryIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          USDT {item.salaryIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
