@@ -383,7 +383,7 @@ const COUNTRIES = [
 
           {sponsorReferralParam && mode === 'register' && (
             <div className="mb-4 p-3 rounded-xl bg-cyan-500/10 border border-cyan-400/30 text-cyan-200 text-xs">
-              Referral link detected. Sponsor Member ID <span className="font-mono font-bold text-white">{sponsorReferralParam}</span> will be attached to this new account.
+              Referral link detected. Referral ID <span className="font-mono font-bold text-white">{sponsorReferralParam}</span> and the referrer name below will be attached to this new account.
             </div>
           )}
 
@@ -400,14 +400,20 @@ const COUNTRIES = [
             {mode === 'register' && <>
               <div><label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label><div className="relative"><User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="Enter your name" value={name} onChange={(e)=>setName(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Sponsor Member ID</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Referral ID (Sponsor)</label>
                 <div className="relative"><Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="GF123456" value={sponsorCode} readOnly={Boolean(sponsorReferralParam)} onChange={(e)=>setSponsorCode(e.target.value.toUpperCase())} className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-cyan-300 font-mono text-xs uppercase transition-shadow ${sponsorReferralParam ? 'bg-cyan-950/30 border-cyan-400/40 cursor-not-allowed' : 'bg-[#081632]/90 border-blue-400/25 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10'}`}/></div>
                 {sponsorReferralParam && <p className="mt-1 text-[10px] text-cyan-300">Referral sponsor locked from the referral link.</p>}
                 {/^GF\d{6}$/.test(sponsorCode.trim().toUpperCase()) && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-cyan-500/10 border border-cyan-400/20 px-3 py-2 text-[10px]">
-                    <Users className="w-3.5 h-3.5 text-cyan-400 shrink-0"/>
-                    <span className="text-slate-400">Referred by:</span>
-                    {sponsorLookupLoading ? <span className="text-cyan-300">Checking sponsor...</span> : sponsorName ? <span className="font-semibold text-white">{sponsorName}</span> : <span className="text-amber-300">Active sponsor not found</span>}
+                  <div className="mt-2 rounded-lg bg-cyan-500/10 border border-cyan-400/20 px-3 py-2 text-[10px] space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-cyan-400 shrink-0"/>
+                      <span className="text-slate-400">Referral ID:</span>
+                      <span className="font-mono font-bold text-cyan-100">{sponsorCode.trim().toUpperCase()}</span>
+                    </div>
+                    <div className="pl-5">
+                      <span className="text-slate-400">Referrer name:</span>{' '}
+                      {sponsorLookupLoading ? <span className="text-cyan-300">Checking...</span> : sponsorName ? <span className="font-semibold text-white">{sponsorName}</span> : <span className="text-amber-300">Referral ID not found or inactive</span>}
+                    </div>
                   </div>
                 )}
               </div>
