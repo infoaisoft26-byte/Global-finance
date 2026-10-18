@@ -32,7 +32,7 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
       if (saved.length) {
         const savedBasic = saved.filter(p => p.type === 'basic');
         const byCode = new Map(savedBasic.map(p => [p.code, p]));
-        const merged = BASIC_PACKAGE_TEMPLATES.map(t => byCode.get(t.code) || t).filter(p => p.active);
+        const merged = BASIC_PACKAGE_TEMPLATES.map(t => { const savedPkg = byCode.get(t.code); if (!savedPkg) return t; const legacyAmount = t.minAmount * 100; return Number(savedPkg.minAmount) === legacyAmount && Number(savedPkg.maxAmount) === legacyAmount ? { ...savedPkg, minAmount: t.minAmount, maxAmount: t.maxAmount } : savedPkg; }).filter(p => p.active);
         const custom = savedBasic.filter(p => p.active && !BASIC_PACKAGE_TEMPLATES.some(t => t.code === p.code));
         setPackages([...merged, ...custom]);
       }
