@@ -256,6 +256,7 @@ export default async function handler(req,res){
       return json(res,200,{
         requests:await listRequests(actor,scope==='admin'),
         enabled:rechargeConfigured(),
+        automaticDepositConfigured:addressGenerationConfigured(),
         autoCreditEnabled:autoCreditConfigured(),
         depositAddress:''
       });
@@ -263,28 +264,7 @@ export default async function handler(req,res){
 
     const body=bodyOf(req);
     if(body.action==='submit'){
-      if(admin) return json(res,403,{error:'Member account required'});
-      if(!rechargeConfigured()) return json(res,503,{error:'Recharge is not available yet'});
-      const amount=String(body.amountUsdt||'').trim();
-      const txHash=String(body.txHash||'').trim().toLowerCase();
-      if(!amountPattern.test(amount)||Number(amount)<=0||!hashPattern.test(txHash)) return json(res,400,{error:'Enter a valid USDT amount and BSC TXID'});
-      const proofUrl=String(body.paymentProofUrl||'').trim();
-      if(proofUrl){
-        let url;
-        try{url=new URL(proofUrl);}catch{throw new Error('INVALID_PROOF_URL');}
-        if(url.protocol!=='https:'||url.hostname!=='firebasestorage.googleapis.com'||!decodeURIComponent(url.pathname).includes(`/payment_proofs/${actor.id}/${txHash}/`)) throw new Error('INVALID_PROOF_URL');
-      }
-      const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl);
-      let autoResult={attempted:false,status:'pending'};
-      if(autoCreditConfigured()){
-        try{autoResult=await autoCreditRecharge({id,actor,txHash,amount});}
-        catch(error){
-          console.error('Firestore recharge auto-credit failed:',error instanceof Error?error.stack||error.message:error);
-          await getFirestoreAdmin().collection('usdtRecharges').doc(id).set({reviewNote:'Automatic verification failed. Recharge remains pending admin review.',updatedAt:new Date()},{merge:true});
-          autoResult={attempted:true,status:'pending',deferred:true};
-        }
-      }
-      return json(res,201,{success:true,id,status:autoResult.status||'pending',autoCredit:autoResult});
+      return json(res,410,{error:'Manual TXID submission has been retired. Open Recharge and send USDT only to your personal deposit address when it is displayed. Do not use the old shared address.'});
     }
 
     if(body.action==='retry'){
