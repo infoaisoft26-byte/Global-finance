@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import handler from '../api/usdt-bep20-deposit.js';
+import handler from '../api/_handlers/usdt-bep20-deposit.js';
 
 test('legacy self-service auto-credit route is retired', () => {
   const headers = {};
