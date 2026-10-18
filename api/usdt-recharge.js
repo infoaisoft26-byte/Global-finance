@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
-import { addressGenerationConfigured, getMemberDepositDetails } from './_lib/usdtDeposit.js';
+import { addressGenerationConfigured } from './_lib/usdtDeposit.js';
 
 function json(res,status,body){
   res.statusCode=status;
