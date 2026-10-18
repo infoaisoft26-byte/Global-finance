@@ -10,6 +10,14 @@ const money = (v) => Number(Number(v || 0).toFixed(2));
 const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100);
 
 export async function ensureIncomeSchema(client) {
+  // Per-investment 5X cap. Legacy activations remain blocked pending audited reconciliation.
+  await client.query(`ALTER TABLE package_activations
+    ADD COLUMN IF NOT EXISTS cap_multiple INT NOT NULL DEFAULT 5,
+    ADD COLUMN IF NOT EXISTS cap_amount NUMERIC(16,2),
+    ADD COLUMN IF NOT EXISTS credited_total NUMERIC(16,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS cap_reconciled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ`);
+  await client.query(`UPDATE package_activations SET cap_amount=ROUND(amount*5,2) WHERE cap_amount IS NULL`);
   await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rank_code VARCHAR(32) NOT NULL DEFAULT 'MEMBER'`);
   await client.query(`ALTER TABLE users
     ADD COLUMN IF NOT EXISTS transaction_password_hash TEXT,
@@ -133,6 +141,36 @@ async function eventOnce(client, key, type, sourceUserId, activationId, baseAmou
 
 async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=0,base,amount,description,businessDate}) {
   amount=money(amount); if(amount<=0) return false;
+  // Serialize cap allocation against all active investment cycles for this recipient.
+  // Legacy cycles are intentionally blocked until an administrator reconciles history.
+  const cycleResult = await client.query(`SELECT id,amount,cap_amount,credited_total,cap_reconciled
+    FROM package_activations
+    WHERE user_id=$1 AND status='active'
+    ORDER BY activated_at ASC,id ASC
+    FOR UPDATE`, [recipient]);
+  const cycles = cycleResult.rows;
+  if (!cycles.length || cycles.some(cycle => cycle.cap_reconciled !== true)) return false;
+  let remainingRequest = amount;
+  let allowedAmount = 0;
+  const allocations = [];
+  for (const cycle of cycles) {
+    if (remainingRequest <= 0) break;
+    const cap = money(cycle.cap_amount ?? Number(cycle.amount) * 5);
+    const already = money(cycle.credited_total || 0);
+    const headroom = money(Math.max(0, cap - already));
+    if (headroom <= 0) {
+      await client.query(`UPDATE package_activations SET status='completed',completed_at=COALESCE(completed_at,NOW()) WHERE id=$1 AND status='active'`, [cycle.id]);
+      continue;
+    }
+    const allocation = money(Math.min(remainingRequest, headroom));
+    if (allocation <= 0) continue;
+    allocations.push({ id: cycle.id, amount: allocation, nextTotal: money(already + allocation), cap });
+    allowedAmount = money(allowedAmount + allocation);
+    remainingRequest = money(remainingRequest - allocation);
+  }
+  if (allowedAmount <= 0) return false;
+  amount = allowedAmount;
+
   const id='INC-'+crypto.createHash('sha256').update(`${eventKey}:${recipient}:${incomeType}:${level}`).digest('hex').slice(0,28);
   const exists=await client.query('SELECT 1 FROM income_distributions WHERE id=$1',[id]); if(exists.rowCount) return false;
   await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[recipient]);
@@ -179,6 +217,14 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
     fd_total_level_income=fd_total_level_income+$9,
     income_stat_date=CASE WHEN $5::date IS NULL THEN income_stat_date ELSE $5::date END,
     updated_at=NOW() WHERE user_id=$1`,[recipient,amount,basicReferral,fdReferral,businessDate||null,basicRoi,basicLevel,fdRoi,fdLevel]);
+
+  for (const allocation of allocations) {
+    await client.query(`UPDATE package_activations
+      SET credited_total=$2,
+          status=CASE WHEN $2 >= cap_amount THEN 'completed' ELSE status END,
+          completed_at=CASE WHEN $2 >= cap_amount THEN COALESCE(completed_at,NOW()) ELSE completed_at END
+      WHERE id=$1 AND status='active'`, [allocation.id, allocation.nextTotal]);
+  }
 
   await client.query(`INSERT INTO income_distributions(id,event_key,recipient_user_id,source_user_id,income_type,level,percentage,base_amount,amount,ledger_id)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[id,eventKey,recipient,source,incomeType,level,rate,money(base),amount,ledgerId]);
