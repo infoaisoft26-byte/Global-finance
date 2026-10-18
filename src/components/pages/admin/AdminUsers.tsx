@@ -27,7 +27,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ onSelectUser }) => {
   const [tokenReason, setTokenReason] = useState<Record<string,string>>({});
   const [tokenBusy, setTokenBusy] = useState('');
 
-  const money = (n:number) => `₹${Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const money = (n:number) => `USDT ${Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:8})}`;
 
   const load = async (silent=false) => {
     if (!user) return;
