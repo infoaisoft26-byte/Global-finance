@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
+import { BEP20_WALLET, DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
 import { addressGenerationConfigured, getMemberDepositDetails } from './_lib/usdtDeposit.js';
 
 function json(res,status,body){
@@ -88,7 +88,8 @@ async function createRecharge(db,actor,amount,txHash,proofUrl){
   return id;
 }
 async function autoCreditRecharge({id,actor,txHash,amount}){
-  if(!autoCreditConfigured()) return {attempted:false,status:'pending'};
+  // Shared-address TXID claims require admin review to prevent another member claiming a public TXID.
+  if(!autoCreditConfigured() || !addressGenerationConfigured()) return {attempted:false,status:'pending'};
   let proof;
   try{proof=await verifyBep20(txHash,amount);}
   catch(error){
@@ -178,7 +179,7 @@ async function review(actor,id,action,note){
   let proof=null;
   let credit=0;
   if(action==='approve'){
-    proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''));
+    proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''),String(initial.depositAddress||BEP20_WALLET));
     credit=Number(Number(initial.amountUsdt).toFixed(8));
     if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
   }
@@ -240,9 +241,18 @@ export default async function handler(req,res){
     if(req.method==='GET'){
       if(action==='deposit-address'){
         if(admin) return json(res,403,{error:'Member account required'});
-        if(!addressGenerationConfigured()) return json(res,503,{configured:false,error:'Automatic personal deposit addresses are not configured. Do not send USDT until your personal address is visible.'});
-        const deposit=await getMemberDepositDetails(actor.id);
-        return json(res,200,deposit);
+        if(addressGenerationConfigured()){
+          const deposit=await getMemberDepositDetails(actor.id);
+          return json(res,200,{...deposit,mode:'personal'});
+        }
+        if(rechargeConfigured()){
+          return json(res,200,{
+            configured:true,mode:'shared',network:'BNB Smart Chain (BEP20)',token:'USDT',
+            contractAddress:String(process.env.USDT_BEP20_CONTRACT_ADDRESS||DEFAULT_USDT_BEP20_CONTRACT),
+            depositAddress:BEP20_WALLET,derivationIndex:0,confirmationsRequired:12,deposits:[]
+          });
+        }
+        return json(res,503,{configured:false,error:'Recharge setup is incomplete. The Binance BEP20 address and BSC verification settings must be configured by the site administrator before deposits can be accepted.'});
       }
       if(scope==='ledger'){
         const q=admin
@@ -266,7 +276,19 @@ export default async function handler(req,res){
 
     const body=bodyOf(req);
     if(body.action==='submit'){
-      return json(res,410,{error:'Manual TXID submission has been retired. Open Recharge and send USDT only to your personal deposit address when it is displayed. Do not use the old shared address.'});
+      if(admin) return json(res,403,{error:'Member account required'});
+      if(!rechargeConfigured()) return json(res,503,{error:'USDT recharge is not configured yet. Please contact support before sending funds.'});
+      const amount=String(body.amountUsdt||'').trim();
+      const txHash=String(body.txHash||'').trim().toLowerCase();
+      const proofUrl=String(body.paymentProofUrl||'').trim();
+      if(!amountPattern.test(amount)||!Number.isFinite(Number(amount))||Number(amount)<=0)
+        return json(res,400,{error:'Enter a valid USDT amount greater than zero.'});
+      if(!hashPattern.test(txHash))
+        return json(res,400,{error:'Enter the transaction hash (TXID) from BNB Smart Chain.'});
+      if(proofUrl && !/^https:\/\//i.test(proofUrl))
+        return json(res,400,{error:'Payment proof must be a valid HTTPS URL.'});
+      const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl||null);
+      return json(res,201,{success:true,id,status:'pending',message:'TXID submitted. Your recharge will be credited after on-chain verification and admin review.'});
     }
 
     if(body.action==='retry'){
