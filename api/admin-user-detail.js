@@ -237,6 +237,9 @@ export default async function handler(req, res) {
     return json(res, 405, { error: 'Method not allowed' });
   } catch (error) {
     if (String(error?.message) === 'ADMIN_REQUIRED') return json(res, 403, { error: 'Admin access required' });
+    if (String(error?.message) === 'USER_NOT_FOUND') return json(res, 404, { error: 'User not found' });
+    if (String(error?.message) === 'ACTIVE_MEMBER_REQUIRED') return json(res, 403, { error: 'Manual deposit is only available for active members.' });
+    if (String(error?.message) === 'IDEMPOTENCY_CONFLICT') return json(res, 409, { error: 'This request ID was already used for a different deposit. Refresh the member details and submit a new verified deposit.' });
     console.error('admin-user-detail failed:', error instanceof Error ? error.message : error);
     return json(res, 500, { error: 'Unable to load or update member details' });
   }
