@@ -198,14 +198,16 @@ export default async function handler(req,res) {
   try {
     if (req.method === 'GET') return await handleCron(req, res);
     if (req.method !== 'POST') return json(res,405,{error:'Method not allowed'});
-    const member = await requireMember(req);
     const body = typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
     const action = String(body.action||'verify_deposit');
+    // Retired self-service deposit submission is rejected before auth so this endpoint
+    // can never accidentally fall back to the legacy direct-credit flow.
+    if (action==='verify_deposit') return json(res,410,{error:'Direct deposit credit is retired. Submit a recharge request for admin review.'});
+    const member = await requireMember(req);
     if (action==='package_history') return await handlePackageHistory(member,res);
     if (action==='admin_package_history') return await handleAdminPackageHistory(member,res);
     if (action==='admin_reconcile_referral_income') return await handleAdminReconcileReferralIncome(member,res);
     if (action==='package_purchase') return await handlePackagePurchase(member,body,res);
-    if (action==='verify_deposit') return json(res,410,{error:'Direct deposit credit is retired. Submit a recharge request for admin review.'});
     return json(res,400,{error:'Invalid action'});
   } catch (error) {
     const message = String(error?.message||'');
