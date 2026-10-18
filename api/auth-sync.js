@@ -3,6 +3,7 @@ import { getFirestoreAdmin, verifyFirebaseIdToken, getMaintenanceState } from '.
 import { createSessionToken, sessionCookie } from './_lib/session.js';
 import { sendWelcomeEmail } from './_lib/email.js';
 import { syncMemberToNeon } from './_lib/syncMemberToNeon.js';
+import { getPool } from './_lib/db.js';
 
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(body));}
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}
@@ -44,15 +45,20 @@ async function memberLookup(identifier){
   }
 
   const normalized=value.toUpperCase();
-  // Support both the current referralCode field and legacy memberId fields
-  // so existing real accounts remain login-compatible after the Firestore migration.
   const byReferral=await db.collection('users').where('referralCode','==',normalized).limit(1).get();
   if(!byReferral.empty) return byReferral.docs[0].data()||null;
-
   const byMemberId=await db.collection('users').where('memberId','==',normalized).limit(1).get();
   if(!byMemberId.empty) return byMemberId.docs[0].data()||null;
 
-  return null;
+  // Map current or old public IDs to the stable Firebase UID.
+  const pool=getPool();
+  const mapped=await pool.query(
+    'SELECT id FROM users WHERE referral_code=$1 UNION SELECT user_id AS id FROM referral_id_aliases WHERE old_referral_code=$1 OR new_referral_code=$1 LIMIT 1',
+    [normalized],
+  );
+  if(!mapped.rows.length) return null;
+  const doc=await db.collection('users').doc(String(mapped.rows[0].id)).get();
+  return doc.exists ? (doc.data()||null) : null;
 }
 
 export default async function handler(req,res){
@@ -104,10 +110,19 @@ export default async function handler(req,res){
 
       let sponsorId=null,sponsorName=null,sponsorRef=null;
       if(sponsorCode){
-        // Resolve both current referralCode and legacy memberId values.
+        // Resolve old and canonical codes via Neon if Firestore still has a legacy ID.
         let sponsorQuery=await transaction.get(db.collection('users').where('referralCode','==',sponsorCode).limit(1));
+        if(sponsorQuery.empty) sponsorQuery=await transaction.get(db.collection('users').where('memberId','==',sponsorCode).limit(1));
         if(sponsorQuery.empty){
-          sponsorQuery=await transaction.get(db.collection('users').where('memberId','==',sponsorCode).limit(1));
+          const pool=getPool();
+          const mapped=await pool.query(
+            'SELECT id FROM users WHERE referral_code=$1 UNION SELECT user_id AS id FROM referral_id_aliases WHERE old_referral_code=$1 OR new_referral_code=$1 LIMIT 1',
+            [sponsorCode],
+          );
+          if(mapped.rows.length){
+            const mappedDoc=await transaction.get(db.collection('users').doc(String(mapped.rows[0].id)));
+            if(mappedDoc.exists) sponsorQuery={empty:false,docs:[mappedDoc]};
+          }
         }
         if(!sponsorQuery.empty){
           const sponsorDoc=sponsorQuery.docs[0];
@@ -170,8 +185,24 @@ export default async function handler(req,res){
 
     if(result.profile.status!=='active')return json(res,403,{error:'Account is suspended. Please contact support.'});
 
-    // Admin/network pages and financial APIs read Neon; mirror the verified profile
-    // there as well as Firestore. Wallet rows are created only when missing.
+    // Neon contains canonical member IDs. Update Firestore when this existing
+    // member signs in, without changing the stable Firebase UID or wallet data.
+    const canonicalResult = await getPool().query(
+      'SELECT referral_code, sponsor_id FROM users WHERE id=$1 LIMIT 1',
+      [uid],
+    );
+    if (canonicalResult.rows.length) {
+      const canonicalCode=canonicalResult.rows[0].referral_code;
+      const canonicalSponsor=canonicalResult.rows[0].sponsor_id || result.profile.sponsorId || null;
+      if (canonicalCode && canonicalCode !== result.profile.referralCode) {
+        await db.collection('users').doc(uid).set({
+          referralCode:canonicalCode, memberId:canonicalCode,
+          sponsorId:canonicalSponsor, updatedAt:new Date(),
+        }, {merge:true});
+        result.profile={...result.profile,referralCode:canonicalCode,memberId:canonicalCode,sponsorId:canonicalSponsor};
+      }
+    }
+    // Admin/network pages and financial APIs read Neon; wallet rows are created only when missing.
     await syncMemberToNeon(result.profile, result.wallet);
     if(result.isNewRegistration&&registrationEmail){
       try{await sendWelcomeEmail(registrationEmail);}
