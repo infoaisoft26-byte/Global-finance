@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { getPool, withTransaction } from './_lib/db.js';
 import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
+import transactionOtpHandler from './_lib/transaction-otp.js';
 
 const SETTINGS_ID = 'global_finance_system_settings';
 const codePattern = /^GF\d{6}$/;
@@ -68,6 +69,10 @@ function historyRow(row) {
 }
 
 export default async function handler(req, res) {
+  const dispatchUrl = new URL(req.url, 'http://localhost');
+  if (dispatchUrl.searchParams.get('__handler') === 'transaction-otp' || dispatchUrl.pathname === '/api/transaction-otp') {
+    return transactionOtpHandler(req, res);
+  }
   if (!['GET', 'POST'].includes(req.method)) return json(res, 405, { error: 'Method not allowed' });
   try {
     const actor = await actorFromRequest(req);
