@@ -290,7 +290,14 @@ export default async function handler(req,res){
         if(parsed.protocol!=='https:') return json(res,400,{error:'Invalid payment screenshot URL'});
       }
       const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl);
-      return json(res,201,{success:true,id,status:'pending',message:'Transaction submitted. Wallet credit is pending admin on-chain verification.'});
+      if(autoCreditConfigured()){
+        const result=await autoCreditRecharge({id,actor,txHash,amount});
+        if(result.status==='approved'&&result.autoCredited){
+          return json(res,200,{success:true,id,...result,message:'USDT transfer verified and credited to your Fund Wallet.'});
+        }
+        return json(res,202,{success:true,id,...result,message:'Transaction submitted. Wallet credit will appear automatically after the BSC transfer has 12 confirmations and passes verification. You do not need to submit the TXID again.'});
+      }
+      return json(res,201,{success:true,id,status:'pending',message:'Transaction submitted. Automatic credit is currently disabled; this request remains pending review.'});
     }
 
     if(body.action==='retry'){
