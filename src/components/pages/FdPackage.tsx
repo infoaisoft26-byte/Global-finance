@@ -27,7 +27,7 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
       if (saved.length) {
         const savedFd = saved.filter(p => p.type === 'fd');
         const byCode = new Map(savedFd.map(p => [p.code, p]));
-        const merged = FD_PACKAGE_TEMPLATES.map(t => byCode.get(t.code) || t).filter(p => p.active);
+        const merged = FD_PACKAGE_TEMPLATES.map(t => { const savedPkg = byCode.get(t.code); if (!savedPkg) return t; const legacyAmount = t.minAmount * 100; return Number(savedPkg.minAmount) === legacyAmount && Number(savedPkg.maxAmount) === legacyAmount ? { ...savedPkg, minAmount: t.minAmount, maxAmount: t.maxAmount } : savedPkg; }).filter(p => p.active);
         const custom = savedFd.filter(p => p.active && !FD_PACKAGE_TEMPLATES.some(t => t.code === p.code));
         setPackages([...merged, ...custom]);
       }
