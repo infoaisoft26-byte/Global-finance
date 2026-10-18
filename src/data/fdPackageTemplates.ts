@@ -1,7 +1,7 @@
 import type { PackageDefinition } from '../types/index.ts';
 
 const createdAt = '2026-09-27T00:00:00.000Z';
-const amounts = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+const amounts = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
 
 /**
  * FD package templates reproduced from the user-supplied reference structure.
@@ -20,8 +20,8 @@ export const FD_PACKAGE_TEMPLATES: PackageDefinition[] = amounts.flatMap((amount
     maxAmount: amount,
     roiRate: 1,
     durationDays: 365,
-    description: `Fixed ${amount.toLocaleString('en-IN')} FD plan for 365 days.`,
-    terms: 'Configured daily rate: 1% for 365 days. Credits depend on recorded platform transactions and admin controls.',
+    description: `Fixed USDT ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} FD plan for 365 days.`,
+    terms: 'All plan values are denominated in USDT. Configured daily rate: 1% for 365 days. Credits depend on recorded platform transactions and admin controls.',
     active: true,
     createdAt,
     updatedAt: createdAt
@@ -35,8 +35,8 @@ export const FD_PACKAGE_TEMPLATES: PackageDefinition[] = amounts.flatMap((amount
     maxAmount: amount,
     roiRate: 1.5,
     durationDays: 515,
-    description: `Fixed ${amount.toLocaleString('en-IN')} Prime FD plan for 515 days.`,
-    terms: 'Configured daily rate: 1.5% for 515 days. Credits depend on recorded platform transactions and admin controls.',
+    description: `Fixed USDT ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Prime FD plan for 515 days.`,
+    terms: 'All plan values are denominated in USDT. Configured daily rate: 1.5% for 515 days. Credits depend on recorded platform transactions and admin controls.',
     active: true,
     createdAt,
     updatedAt: createdAt
@@ -45,15 +45,15 @@ export const FD_PACKAGE_TEMPLATES: PackageDefinition[] = amounts.flatMap((amount
 });
 
 export function getFdPlanDailyReturn(pkg: PackageDefinition): number {
-  return Number(((pkg.minAmount * pkg.roiRate) / 100).toFixed(4));
+  return Number(((pkg.minAmount * pkg.roiRate) / 100).toFixed(2));
 }
 
 /** Total FD profit over the configured duration. */
 export function getFdPlanScheduledReturn(pkg: PackageDefinition): number {
-  return Number((getFdPlanDailyReturn(pkg) * pkg.durationDays).toFixed(4));
+  return Number((getFdPlanDailyReturn(pkg) * pkg.durationDays).toFixed(2));
 }
 
 /** Final maturity amount = principal + total FD profit. */
 export function getFdPlanMaturityValue(pkg: PackageDefinition): number {
-  return Number((pkg.minAmount + getFdPlanScheduledReturn(pkg)).toFixed(4));
+  return Number((pkg.minAmount + getFdPlanScheduledReturn(pkg)).toFixed(2));
 }
