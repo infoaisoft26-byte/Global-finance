@@ -165,7 +165,7 @@ export default async function handler(req, res) {
         const amountText = String(req.body?.amount ?? '').trim();
         const reason = String(req.body?.reason ?? '').trim();
         const requestId = String(req.body?.requestId ?? '').trim();
-        if (!/^(?:0|[1-9]\\d{0,8})(?:\\.\\d{1,8})?$/.test(amountText) || !Number.isFinite(Number(amountText)) || Number(amountText) <= 0) {
+        if (!/^(?:0|[1-9]\d{0,8})(?:\.\d{1,8})?$/.test(amountText) || !Number.isFinite(Number(amountText)) || Number(amountText) <= 0) {
           return json(res, 400, { error: 'Enter a valid USDT amount greater than zero (up to 8 decimal places).' });
         }
         if (!reason || reason.length > 500) return json(res, 400, { error: 'A reason of 1–500 characters is required.' });
