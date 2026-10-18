@@ -7,6 +7,9 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import {
   getAutomaticDepositInfo,
+  submitUsdtRecharge,
+  listUsdtRecharges,
+  type UsdtRechargeRequest,
   type AutomaticUsdtDepositInfo,
   type AutomaticUsdtDepositEvent,
 } from '../../services/usdtRechargeService.ts';
@@ -36,6 +39,11 @@ export const Recharge: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [setupMessage, setSetupMessage] = useState('');
   const [error, setError] = useState('');
+  const [amountUsdt, setAmountUsdt] = useState('');
+  const [txHash, setTxHash] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [submittedRequests, setSubmittedRequests] = useState<UsdtRechargeRequest[]>([]);
   const creditedSeen = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -51,6 +59,12 @@ export const Recharge: React.FC = () => {
         const next = await getAutomaticDepositInfo(user);
         if (cancelled) return;
         setInfo(next);
+        try {
+          const requestData = await listUsdtRecharges(user);
+          if (!cancelled) setSubmittedRequests(requestData.requests || []);
+        } catch {
+          // Address display should remain usable even if request history is temporarily unavailable.
+        }
         setSetupMessage('');
         setError('');
         const newlyCredited = (next.deposits || []).some((item: AutomaticUsdtDepositEvent) => {
@@ -132,7 +146,7 @@ export const Recharge: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-500/20 pb-4">
         <div>
           <h2 className="text-xl font-bold text-white">USDT Deposit — BEP20</h2>
-          <p className="mt-1 text-xs text-slate-400">Send USDT to your personal address. Blockchain verification updates your Fund Wallet automatically.</p>
+          <p className="mt-1 text-xs text-slate-400">Send USDT to the confirmed BEP20 address, then submit the transaction hash for verification.</p>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-cyan-400/25 bg-[#091129] px-4 py-3">
           <Wallet className="h-5 w-5 text-cyan-400" />
@@ -147,8 +161,8 @@ export const Recharge: React.FC = () => {
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
           <div className="space-y-1">
-            <h3 className="text-sm font-bold text-white">Automatic deposit verification</h3>
-            <p className="text-xs leading-5 text-slate-400">No TXID, payment screenshot, or manual form is required. Deposits are detected from BNB Smart Chain token-transfer logs and credited after {info?.confirmationsRequired || 12} confirmations, subject to scanner availability.</p>
+            <h3 className="text-sm font-bold text-white">On-chain verification before wallet credit</h3>
+            <p className="text-xs leading-5 text-slate-400">Submit the transaction hash and exact USDT amount after sending. The request remains pending until an administrator verifies the BNB Smart Chain transfer, receiving address, token, amount, and {info?.confirmationsRequired || 12} confirmations.</p>
           </div>
         </div>
       </div>
@@ -158,9 +172,9 @@ export const Recharge: React.FC = () => {
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
             <div>
-              <h3 className="text-sm font-bold text-amber-200">Personal deposit address not ready</h3>
+              <h3 className="text-sm font-bold text-amber-200">Deposit address not ready</h3>
               <p className="mt-1 text-xs leading-5 text-amber-100/80">{setupMessage}</p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-white">Please do not send USDT to the old shared wallet. Wait until your personal deposit address is shown here.</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-white">Do not send USDT until the confirmed address is shown here.</p>
             </div>
           </div>
         </div>
@@ -184,10 +198,10 @@ export const Recharge: React.FC = () => {
           <div className="space-y-5 rounded-2xl border border-cyan-400/25 bg-[#091129] p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-300">Your unique deposit address</div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-300">Confirmed deposit address</div>
                 <h3 className="mt-1 text-lg font-bold text-white">USDT on BNB Smart Chain</h3>
               </div>
-              <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold tracking-wide text-emerald-300">AUTO CREDIT ENABLED</span>
+              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[10px] font-bold tracking-wide text-amber-200">ADMIN VERIFICATION</span>
             </div>
 
             <div className="rounded-xl border border-blue-400/20 bg-[#040a19] p-3 sm:p-4">
@@ -214,6 +228,39 @@ export const Recharge: React.FC = () => {
             {info.contractAddress && (
               <div className="text-[10px] leading-5 text-slate-500">USDT token contract: <span className="break-all font-mono text-slate-400">{info.contractAddress}</span></div>
             )}
+            <form onSubmit={async (event) => {
+              event.preventDefault();
+              if (!user || submitting) return;
+              setSubmitting(true);
+              setSubmitMessage('');
+              setError('');
+              try {
+                const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim());
+                setSubmitMessage(String(result?.message || 'Transaction submitted. Waiting for verification.'));
+                if (result?.autoCredited || result?.status === 'approved') {
+                  await refreshWallet();
+                }
+                const requestData = await listUsdtRecharges(user);
+                setSubmittedRequests(requestData.requests || []);
+                setAmountUsdt('');
+                setTxHash('');
+              } catch (err: any) {
+                setError(String(err?.message || 'Could not submit transaction. Please retry.'));
+              } finally {
+                setSubmitting(false);
+              }
+            }} className="space-y-3 rounded-xl border border-blue-500/20 bg-[#060d20] p-4">
+              <h4 className="text-sm font-bold text-white">Submit your transfer</h4>
+              <label className="block text-xs text-slate-300">Amount sent (USDT)
+                <input value={amountUsdt} onChange={(event) => setAmountUsdt(event.target.value)} inputMode="decimal" required pattern="(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?" placeholder="e.g. 10" className="mt-1 w-full rounded-lg border border-blue-500/30 bg-[#040a19] px-3 py-2 text-sm text-white outline-none focus:border-cyan-400" />
+              </label>
+              <label className="block text-xs text-slate-300">BSC transaction hash (TXID)
+                <input value={txHash} onChange={(event) => setTxHash(event.target.value)} required minLength={66} maxLength={66} pattern="0x[0-9a-fA-F]{64}" placeholder="0x…" className="mt-1 w-full rounded-lg border border-blue-500/30 bg-[#040a19] px-3 py-2 font-mono text-xs text-white outline-none focus:border-cyan-400" />
+              </label>
+              <button type="submit" disabled={submitting} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit transaction for verification'}</button>
+              {submitMessage && <p role="status" className="text-xs leading-5 text-emerald-300">{submitMessage}</p>}
+              <p className="text-[10px] leading-4 text-slate-500">Only submit a completed transfer to the address above. Submitting a TXID does not instantly credit your wallet; admin approval follows on-chain verification.</p>
+            </form>
           </div>
 
           <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-blue-500/25 bg-white p-5 text-center">
@@ -221,6 +268,30 @@ export const Recharge: React.FC = () => {
             <div className="text-sm font-bold text-slate-900">Scan to copy address</div>
             <div className="break-all text-[10px] leading-4 text-slate-500">{address}</div>
             <div className="text-[10px] text-slate-500">Verify the address and network in your wallet before sending.</div>
+          </div>
+        </div>
+      )}
+
+      {submittedRequests.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-blue-500/20 bg-[#091129]">
+          <div className="border-b border-blue-500/20 p-4">
+            <h3 className="text-sm font-bold text-white">Your submitted transactions</h3>
+            <p className="mt-1 text-[10px] text-slate-500">Wallet credit is added only after on-chain verification and admin approval.</p>
+          </div>
+          <div className="divide-y divide-blue-500/10">
+            {submittedRequests.map((request) => (
+              <div key={request.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-xs font-bold text-white">{formatUsdt(request.amountUsdt)} USDT</div>
+                  <div className="mt-1 font-mono text-[10px] text-slate-500">{shortHash(request.txHash)}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">{request.createdAt ? new Date(request.createdAt).toLocaleString() : '—'}</div>
+                  {request.reviewNote && <div className="mt-1 text-[10px] text-amber-200/80">{request.reviewNote}</div>}
+                </div>
+                <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${request.status === 'approved' ? 'bg-emerald-500/10 text-emerald-300' : request.status === 'rejected' ? 'bg-rose-500/10 text-rose-300' : 'bg-amber-500/10 text-amber-300'}`}>
+                  {String(request.status || 'pending').replaceAll('_', ' ').toUpperCase()}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}

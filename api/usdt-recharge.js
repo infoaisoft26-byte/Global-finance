@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
-import { addressGenerationConfigured, getMemberDepositDetails } from './_lib/usdtDeposit.js';
+import { addressGenerationConfigured } from './_lib/usdtDeposit.js';
 
 function json(res,status,body){
   res.statusCode=status;
@@ -240,9 +240,18 @@ export default async function handler(req,res){
     if(req.method==='GET'){
       if(action==='deposit-address'){
         if(admin) return json(res,403,{error:'Member account required'});
-        if(!addressGenerationConfigured()) return json(res,503,{configured:false,error:'Automatic personal deposit addresses are not configured. Do not send USDT until your personal address is visible.'});
-        const deposit=await getMemberDepositDetails(actor.id);
-        return json(res,200,deposit);
+        if(!rechargeConfigured()) return json(res,503,{configured:false,error:'USDT recharge is not enabled yet. Do not send USDT until the address is visible.'});
+        return json(res,200,{
+          configured:true,
+          network:'BNB Smart Chain (BEP20)',
+          token:'USDT',
+          contractAddress:String(process.env.USDT_BEP20_CONTRACT_ADDRESS||'0x55d398326f99059fF775485246999027B3197955').trim(),
+          depositAddress:BEP20_WALLET,
+          derivationIndex:-1,
+          confirmationsRequired:12,
+          deposits:[],
+          depositMode:'shared-address-manual-review'
+        });
       }
       if(scope==='ledger'){
         const q=admin
@@ -266,7 +275,29 @@ export default async function handler(req,res){
 
     const body=bodyOf(req);
     if(body.action==='submit'){
-      return json(res,410,{error:'Manual TXID submission has been retired. Open Recharge and send USDT only to your personal deposit address when it is displayed. Do not use the old shared address.'});
+      if(admin) return json(res,403,{error:'Member account required'});
+      if(!rechargeConfigured()) return json(res,503,{error:'USDT recharge is not enabled yet'});
+      const amount=String(body.amountUsdt||'').trim();
+      const txHash=String(body.txHash||'').trim().toLowerCase();
+      const proofUrl=String(body.paymentProofUrl||'').trim();
+      if(!amountPattern.test(amount)||!Number.isFinite(Number(amount))||Number(amount)<=0){
+        return json(res,400,{error:'Enter a valid USDT amount greater than zero (up to 8 decimal places)'});
+      }
+      if(!hashPattern.test(txHash)) return json(res,400,{error:'Enter a valid BSC transaction hash'});
+      if(proofUrl){
+        let parsed;
+        try{parsed=new URL(proofUrl);}catch{ return json(res,400,{error:'Invalid payment screenshot URL'}); }
+        if(parsed.protocol!=='https:') return json(res,400,{error:'Invalid payment screenshot URL'});
+      }
+      const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl);
+      if(autoCreditConfigured()){
+        const result=await autoCreditRecharge({id,actor,txHash,amount});
+        if(result.status==='approved'&&result.autoCredited){
+          return json(res,200,{success:true,id,...result,message:'USDT transfer verified and credited to your Fund Wallet.'});
+        }
+        return json(res,202,{success:true,id,...result,message:'Transaction submitted. Wallet credit will appear automatically after the BSC transfer has 12 confirmations and passes verification. You do not need to submit the TXID again.'});
+      }
+      return json(res,201,{success:true,id,status:'pending',message:'Transaction submitted. Automatic credit is currently disabled; this request remains pending review.'});
     }
 
     if(body.action==='retry'){
