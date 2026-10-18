@@ -36,6 +36,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const { user, profile, wallet } = useAuth();
   const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name: string; package_type: string; amount: string | number; cap_multiple: number; cap_amount: string | number | null; credited_total: string | number; cap_reconciled: boolean; status: string; completed_at: string | null; principal_returned?: boolean; principal_return_amount?: string | number }>>([]);
   const [capLoading, setCapLoading] = useState(true);
+  const [capError, setCapError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -47,10 +48,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     let cancelled = false;
     if (!user) {
       setCapCycles([]);
+      setCapError('');
       setCapLoading(false);
       return;
     }
     setCapLoading(true);
+    setCapError('');
     user.getIdToken().then((idToken) => fetch('/api/usdt-bep20-deposit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
@@ -62,7 +65,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       if (!cancelled) setCapCycles(Array.isArray(data.items) ? data.items : []);
     }).catch((error) => {
       console.warn('Investment cap status unavailable:', error);
-      if (!cancelled) setCapCycles([]);
+      if (!cancelled) { setCapCycles([]); setCapError(error instanceof Error ? error.message : 'Unable to load investment cap status.'); }
     }).finally(() => {
       if (!cancelled) setCapLoading(false);
     });
@@ -303,8 +306,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           </div>
           <span className="self-start rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-bold text-cyan-300">5X LIMIT</span>
         </div>
-        {capLoading ? <p className="text-sm text-slate-400">Loading verified investment cap status…</p> : capCycles.length === 0 ? (
-          <p className="text-sm text-slate-400">No investment cycles found. Cap progress will appear after a package activation is recorded.</p>
+        {capLoading ? <p className="text-sm text-slate-400">Loading verified investment cap status…</p> : capError ? (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 p-3 text-sm text-rose-200">Investment cap data could not be loaded: {capError}. Please refresh or contact support if this continues.</div>
+        ) : capCycles.length === 0 ? (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-950/10 p-3"><p className="text-sm text-amber-200">No investment cycles were returned by the cap API for this account.</p><p className="mt-1 text-xs text-slate-400">If an investment is visible in Package Activations but not here, its record may be in the legacy store and needs to be linked for cap tracking.</p></div>
         ) : <div className="space-y-3">
           {capCycles.map((cycle) => {
             const invested = Number(cycle.amount || 0);
