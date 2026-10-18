@@ -431,11 +431,11 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({
                           <div className={`font-mono text-sm sm:text-base font-extrabold tracking-tight tabular-nums ${
                             isCredit ? 'text-emerald-400' : 'text-rose-400'
                           }`}>
-                            {isCredit ? '+' : '-'}₹{txn.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {isCredit ? '+' : '-'}USDT {txn.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
                           </div>
                           {txn.fee > 0 && (
                             <span className="text-[10px] text-rose-300/80 font-mono block">
-                              Fee: -₹{txn.fee.toFixed(2)}
+                              Fee: -USDT {txn.fee.toFixed(8)}
                             </span>
                           )}
                         </div>
@@ -477,7 +477,7 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({
               <div className={`text-2xl sm:text-3xl font-extrabold font-mono tabular-nums ${
                 selectedTxn.flow === 'credit' ? 'text-emerald-400' : 'text-rose-400'
               }`}>
-                {selectedTxn.flow === 'credit' ? '+' : '-'}₹{selectedTxn.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {selectedTxn.flow === 'credit' ? '+' : '-'}USDT {selectedTxn.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
               </div>
               <div className="pt-1 flex justify-center">
                 {renderStatusBadge(selectedTxn.status)}
@@ -507,13 +507,13 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({
               {selectedTxn.fee > 0 && (
                 <div className="flex justify-between py-1.5 border-b border-blue-500/10">
                   <span className="text-slate-400">Deduction / TDS:</span>
-                  <span className="font-mono text-rose-400">-₹{selectedTxn.fee.toFixed(2)}</span>
+                  <span className="font-mono text-rose-400">-USDT {selectedTxn.fee.toFixed(8)}</span>
                 </div>
               )}
               {selectedTxn.netAmount !== selectedTxn.amount && (
                 <div className="flex justify-between py-1.5 border-b border-blue-500/10">
                   <span className="text-slate-400">Net Disbursal:</span>
-                  <span className="font-mono text-emerald-400 font-bold">₹{selectedTxn.netAmount.toFixed(2)}</span>
+                  <span className="font-mono text-emerald-400 font-bold">USDT {selectedTxn.netAmount.toFixed(8)}</span>
                 </div>
               )}
               <div className="flex justify-between py-1.5 border-b border-blue-500/10">
