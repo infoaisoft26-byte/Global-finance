@@ -60,10 +60,10 @@ export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onO
   const [fontMode, setFontMode] = useState<FontMode>(() => (localStorage.getItem('gf-font') as FontMode) || 'normal');
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
-  const referralCode = profile?.referralCode || 'GF152551';
-  const referralUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/register?r=${referralCode}`
-    : `https://globalfinance1.vercel.app/register?r=${referralCode}`;
+  const referralCode = String(profile?.referralCode || '').trim().toUpperCase();
+  const referralUrl = typeof window !== 'undefined' && referralCode
+    ? `${window.location.origin}/register?r=${encodeURIComponent(referralCode)}`
+    : '';
 
   useEffect(() => {
     document.documentElement.dataset.gfTheme = theme;
@@ -129,12 +129,12 @@ export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onO
           </>}
 
           <button onClick={handleCopyReferral} title="Copy referral link" className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyan-500/30 text-xs transition-all">
-            <span className="text-slate-400">Ref:</span><span className="font-mono font-bold text-cyan-400">{referralCode}</span>{copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+            <span className="text-slate-400">Ref:</span><span className="font-mono font-bold text-cyan-400">{referralCode || 'Not assigned'}</span>{copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
           </button>
 
           <button onClick={onOpenProfile} className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-lg border border-blue-500/30 text-left">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-xs">{profile?.name ? profile.name.charAt(0).toUpperCase() : 'G'}</div>
-            <div className="hidden sm:block"><div className="text-xs font-semibold text-slate-200 truncate max-w-[110px]">{profile?.name || 'Member'}</div><div className="text-[10px] text-cyan-400 font-mono">{referralCode}</div></div>
+            <div className="hidden sm:block"><div className="text-xs font-semibold text-slate-200 truncate max-w-[110px]">{profile?.name || 'Member'}</div><div className="text-[10px] text-cyan-400 font-mono">{referralCode || 'Referral ID pending'}</div></div>
           </button>
         </div>
       </div>
