@@ -3,12 +3,6 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "crons": [
-    {
-      "path": "/api/usdt-auto-credit-cron",
-      "schedule": "0 19 * * *"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/withdrawal-request",
