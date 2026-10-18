@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, ArrowDownLeft, CheckCircle2, Clock, Copy, RefreshCw, Wallet, XCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { createTransactionRequest, getUserTransactionRequests } from '../../services/transactionRequestService.ts';
+import { getUserTransactionRequests } from '../../services/transactionRequestService.ts';
+import { requestTransactionOtp, verifyTransactionOtp, submitWithdrawalWithOtp } from '../../services/p2pTransferService.ts';
 import { getSystemSettings } from '../../services/settingsService.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionRequest, SystemSettings } from '../../types/index.ts';
 
 export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
-  const { profile, wallet, refreshWallet } = useAuth();
+  const { user, profile, wallet, refreshWallet } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [amount, setAmount] = useState<number>(10);
   const [walletAddress, setWalletAddress] = useState('');
   const [userNote, setUserNote] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
+  const [otpId, setOtpId] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [copied, setCopied] = useState(false);
@@ -77,6 +83,21 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
     return () => window.clearInterval(timer);
   }, [settings?.withdrawalWindowStart, settings?.withdrawalWindowEnd, settings?.withdrawalTimezone]);
 
+  const otpPayload = () => ({ purpose: 'withdrawal' as const, amount: Number(amount), walletAddress: walletAddress.trim(), note: userNote.trim() });
+  const handleSendOtp = async () => {
+    if (!user) { setErrorMsg('Please sign in again.'); return; }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress.trim()) || !Number.isFinite(amount) || amount < 2) { setErrorMsg('Enter a valid amount and BEP20 address first.'); return; }
+    setSendingOtp(true); setErrorMsg(''); setSuccessMsg('');
+    try { const result = await requestTransactionOtp(user, otpPayload()); setOtpId(result.otpId); setOtpCode(''); setOtpVerified(false); setSuccessMsg('Email OTP sent to ' + result.maskedEmail + '. It expires in 10 minutes.'); }
+    catch (err: any) { setErrorMsg(err?.message || 'Unable to send email OTP.'); } finally { setSendingOtp(false); }
+  };
+  const handleVerifyOtp = async () => {
+    if (!user || !otpId) { setErrorMsg('Request an email OTP first.'); return; }
+    setVerifyingOtp(true); setErrorMsg('');
+    try { await verifyTransactionOtp(user, { ...otpPayload(), otpId, code: otpCode }); setOtpVerified(true); setSuccessMsg('Email OTP verified. You can submit this withdrawal request.'); }
+    catch (err: any) { setOtpVerified(false); setErrorMsg(err?.message || 'OTP verification failed.'); } finally { setVerifyingOtp(false); }
+  };
+
   const handleWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile || !wallet) return;
@@ -111,31 +132,13 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
     setSuccessMsg('');
 
     try {
-      const destination = `USDT BEP20: ${walletAddress.trim()}`;
-      const res = await createTransactionRequest({
-        userId: profile.uid,
-        userEmail: profile.email,
-        userName: profile.name,
-        userReferralCode: profile.referralCode,
-        requestType: 'withdrawal',
-        sourceWalletType: 'income_wallet',
-        destinationWalletType: 'external_bank',
-        amountRupees: amount,
-        userNote: `${destination}${userNote.trim() ? `. ${userNote.trim()}` : ''}`,
-        metadata: {
-          asset: 'USDT',
-          network: 'BEP20 / BNB Smart Chain',
-          withdrawalType: 'usdt_bep20',
-          destinationWalletAddress: walletAddress.trim(),
-          destination,
-          feeAmountUsdt: feeAmount,
-          netPayoutUsdt: netPayout
-        }
-      });
+      if (!user || !otpId || !otpVerified) throw new Error('Verify the email OTP before submitting withdrawal.');
+      const res = await submitWithdrawalWithOtp(user, { amount, walletAddress: walletAddress.trim(), note: userNote.trim(), otpId });
 
       if (res.success) {
         setSuccessMsg(`USDT withdrawal request submitted. Reference: ${res.request.reference}`);
         setUserNote('');
+        setOtpId(''); setOtpCode(''); setOtpVerified(false);
         await refreshWallet();
         await loadData();
       }
@@ -249,7 +252,16 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
               <textarea value={userNote} onChange={(e) => setUserNote(e.target.value)} rows={3} placeholder="Optional note for admin" className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm focus:outline-none focus:border-cyan-500" />
             </div>
 
-            <button type="submit" disabled={withdrawing || !isWithdrawalEnabled || !withdrawalWindowOpen} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+            <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 space-y-3">
+              <div className="text-xs font-bold text-cyan-800">Email OTP Security Verification</div>
+              <p className="text-[11px] text-slate-600">OTP goes to your registered email. If amount or wallet address changes, request a new OTP.</p>
+              <button type="button" onClick={handleSendOtp} disabled={sendingOtp || !walletAddress.trim() || otpVerified} className="w-full rounded-lg border border-cyan-300 px-3 py-2 text-xs font-bold text-cyan-800 disabled:opacity-50">{sendingOtp ? 'Sending OTP…' : 'Send OTP to Registered Email'}</button>
+              <div className="flex gap-2">
+                <input aria-label="Email OTP" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otpCode} onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0,6)); setOtpVerified(false); }} placeholder="Enter 6-digit OTP" className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tracking-[0.25em]" />
+                <button type="button" onClick={handleVerifyOtp} disabled={verifyingOtp || otpCode.length!==6 || !otpId || otpVerified} className="rounded-lg bg-cyan-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{otpVerified ? 'Verified ✓' : verifyingOtp ? 'Checking…' : 'Verify OTP'}</button>
+              </div>
+            </div>
+            <button type="submit" disabled={withdrawing || !isWithdrawalEnabled || !withdrawalWindowOpen || !otpVerified} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2">
               {withdrawing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowDownLeft className="w-4 h-4" />}
               {withdrawing ? 'Submitting…' : 'Submit USDT Withdrawal'}
             </button>
