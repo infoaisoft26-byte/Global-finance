@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+
+const displayUsdtText = (value: unknown) => String(value ?? '').replace(/₹/g, 'USDT ').replace(/\bINR\b/gi, 'USDT');
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -134,7 +136,7 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({
       const q = searchQuery.toLowerCase();
       result = result.filter(t => 
         t.id.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
+        displayUsdtText(t.description).toLowerCase().includes(q) ||
         (t.referenceId && t.referenceId.toLowerCase().includes(q)) ||
         t.type.toLowerCase().includes(q) ||
         (t.status && t.status.toLowerCase().includes(q))
@@ -388,7 +390,7 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs sm:text-sm font-bold text-white group-hover:text-cyan-300 transition-colors truncate">
-                              {txn.description}
+                              {displayUsdtText(txn.description)}
                             </span>
                             {/* Color-coded status badge from database */}
                             {renderStatusBadge(txn.status)}
@@ -528,7 +530,7 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({
               <div className="py-1.5">
                 <span className="text-slate-400 block mb-1">Description:</span>
                 <p className="p-2.5 rounded-lg bg-[#0e173a] text-slate-200 font-medium">
-                  {selectedTxn.description}
+                  {displayUsdtText(selectedTxn.description)}
                 </p>
               </div>
             </div>
