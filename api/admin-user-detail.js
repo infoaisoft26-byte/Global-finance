@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getPool } from './_lib/db.js';
+import { getPool, withTransaction } from './_lib/db.js';
 import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 
 function json(res, status, body) {
@@ -161,7 +161,52 @@ export default async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const action = String(req.body?.action || '');
-      if (action === 'kyc') {
+      if (action === 'manualDeposit') {
+        const amountText = String(req.body?.amount ?? '').trim();
+        const reason = String(req.body?.reason ?? '').trim();
+        const requestId = String(req.body?.requestId ?? '').trim();
+        if (!/^(?:0|[1-9]\d{0,8})(?:\.\d{1,8})?$/.test(amountText) || !Number.isFinite(Number(amountText)) || Number(amountText) <= 0) {
+          return json(res, 400, { error: 'Enter a valid USDT amount greater than zero (up to 8 decimal places).' });
+        }
+        if (!reason || reason.length > 500) return json(res, 400, { error: 'A reason of 1–500 characters is required.' });
+        if (!/^[0-9a-f-]{36}$/i.test(requestId)) return json(res, 400, { error: 'A valid request ID is required.' });
+        const amount = Number(amountText).toFixed(8);
+        const ledgerId = 'MD_' + requestId.replaceAll('-', '');
+        const result = await withTransaction(async (client) => {
+          const target = await client.query('SELECT id,status,role FROM users WHERE id=$1 FOR UPDATE', [userId]);
+          if (!target.rowCount) throw new Error('USER_NOT_FOUND');
+          if (target.rows[0].status !== 'active' || target.rows[0].role !== 'user') throw new Error('ACTIVE_MEMBER_REQUIRED');
+          await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING', [userId]);
+          const wallet = await client.query('SELECT fund_wallet FROM wallets WHERE user_id=$1 FOR UPDATE', [userId]);
+          const existing = await client.query('SELECT id,user_id,amount FROM ledger_transactions WHERE id=$1 LIMIT 1', [ledgerId]);
+          if (existing.rowCount) {
+            const entry = existing.rows[0];
+            if (entry.user_id !== userId || Number(entry.amount) !== Number(amount)) throw new Error('IDEMPOTENCY_CONFLICT');
+            return { duplicate: true, fundWallet: Number(wallet.rows[0]?.fund_wallet || 0), ledgerId };
+          }
+          await client.query(
+            `INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
+             VALUES($1,$2,'manual_deposit','fund_wallet','credit',$3,0,$3,$4,$1,'completed',$5::jsonb)`,
+            [ledgerId, userId, amount, 'Admin manual USDT deposit: ' + reason, JSON.stringify({
+              asset: 'USDT', source: 'admin_manual', reason, requestId, adminUserId: admin.id, adminEmail: admin.email,
+            })]
+          );
+          const updated = await client.query(
+            'UPDATE wallets SET fund_wallet=COALESCE(fund_wallet,0)+$1::numeric, updated_at=NOW() WHERE user_id=$2 RETURNING fund_wallet',
+            [amount, userId]
+          );
+          await client.query(
+            `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata,timestamp)
+             VALUES($1,$2,$3,'ADMIN_MANUAL_FUND_WALLET_DEPOSIT','wallet',$4,$5::jsonb,NOW())`,
+            [randomUUID(), admin.id, admin.email, userId, JSON.stringify({
+              ledgerId, amount: Number(amount), asset: 'USDT', reason, fundWalletAfter: Number(updated.rows[0]?.fund_wallet || 0),
+            })]
+          );
+          return { duplicate: false, fundWallet: Number(updated.rows[0]?.fund_wallet || 0), ledgerId };
+        });
+        const data = await loadUser(pool, userId);
+        return json(res, 200, { ...data, manualDeposit: result });
+      } else if (action === 'kyc') {
         const status = String(req.body?.status || '');
         if (!['verified','pending','unverified','rejected'].includes(status)) {
           return json(res, 400, { error: 'Invalid KYC status' });
@@ -192,6 +237,9 @@ export default async function handler(req, res) {
     return json(res, 405, { error: 'Method not allowed' });
   } catch (error) {
     if (String(error?.message) === 'ADMIN_REQUIRED') return json(res, 403, { error: 'Admin access required' });
+    if (String(error?.message) === 'USER_NOT_FOUND') return json(res, 404, { error: 'User not found' });
+    if (String(error?.message) === 'ACTIVE_MEMBER_REQUIRED') return json(res, 403, { error: 'Manual deposit is only available for active members.' });
+    if (String(error?.message) === 'IDEMPOTENCY_CONFLICT') return json(res, 409, { error: 'This request ID was already used for a different deposit. Refresh the member details and submit a new verified deposit.' });
     console.error('admin-user-detail failed:', error instanceof Error ? error.message : error);
     return json(res, 500, { error: 'Unable to load or update member details' });
   }
