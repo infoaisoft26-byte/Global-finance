@@ -34,7 +34,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile }) => {
   const { user, profile, wallet } = useAuth();
-  const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name: string; package_type: string; amount: string | number; cap_multiple: number; cap_amount: string | number | null; credited_total: string | number; cap_reconciled: boolean; status: string; completed_at: string | null }>>([]);
+  const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name: string; package_type: string; amount: string | number; cap_multiple: number; cap_amount: string | number | null; credited_total: string | number; cap_reconciled: boolean; status: string; completed_at: string | null; principal_returned?: boolean; principal_return_amount?: string | number }>>([]);
   const [capLoading, setCapLoading] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -331,6 +331,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
                   <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Progress</div><div className="mt-1 text-sm font-bold text-white">{progress.toFixed(1)}%</div></div>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all" style={{ width: `${progress}%` }} /></div>
+                {cycle.principal_returned && <p className="mt-3 text-xs text-slate-300">Principal returned to Fund Wallet: <span className="font-semibold text-white">{formatUsdt(Number(cycle.principal_return_amount || 0))}</span></p>}
                 {completed && <p className="mt-3 text-xs font-semibold text-emerald-300">This investment cycle is completed. A new cycle requires a new package activation.</p>}
               </>}
             </div>;
