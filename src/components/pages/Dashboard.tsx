@@ -34,7 +34,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile }) => {
   const { user, profile, wallet } = useAuth();
-  const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name: string; package_type: string; amount: string | number; cap_multiple: number; cap_amount: string | number | null; credited_total: string | number; cap_reconciled: boolean; status: string; completed_at: string | null; principal_returned?: boolean; principal_return_amount?: string | number }>>([]);
+  const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name: string; package_type: string; amount: string | number; roi_daily_rate?: string | number; duration_days?: number; total_earned?: string | number; activated_at?: string | null; expires_at?: string | null; cap_multiple: number; cap_amount: string | number | null; credited_total: string | number; cap_reconciled: boolean; status: string; completed_at: string | null; principal_returned?: boolean; principal_return_amount?: string | number }>>([]);
   const [capLoading, setCapLoading] = useState(true);
   const [capError, setCapError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -339,6 +339,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
                 {cycle.principal_returned && <p className="mt-3 text-xs text-slate-300">Principal returned to Fund Wallet: <span className="font-semibold text-white">{formatUsdt(Number(cycle.principal_return_amount || 0))}</span></p>}
                 {completed && <p className="mt-3 text-xs font-semibold text-emerald-300">This investment cycle is completed. A new cycle requires a new package activation.</p>}
               </>}
+            </div>;
+          })}
+        </div>}
+      </section>
+
+      {/* USER PLAN HISTORY: keep completed and matured plans visible */}
+      <section className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-emerald-500/25 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-300">My Plan History</h3>
+            <p className="text-xs text-slate-400 mt-1">Your active, completed and matured Basic/FD investments stay visible here.</p>
+          </div>
+          <span className="self-start rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">{capCycles.length} PLAN{capCycles.length === 1 ? '' : 'S'}</span>
+        </div>
+        {capLoading ? <p className="text-sm text-slate-400">Loading plan history…</p> : capError ? (
+          <p className="rounded-xl border border-rose-500/30 bg-rose-950/20 p-3 text-sm text-rose-200">Plan history could not be loaded: {capError}</p>
+        ) : capCycles.length === 0 ? (
+          <p className="rounded-xl border border-blue-500/20 bg-[#0e173a]/55 p-3 text-sm text-slate-400">No package activations were found for this account yet.</p>
+        ) : <div className="space-y-3">
+          {capCycles.map((cycle) => {
+            const invested = Number(cycle.amount || 0);
+            const roiEarned = Number(cycle.total_earned || 0);
+            const expiresAt = cycle.expires_at ? new Date(cycle.expires_at) : null;
+            const isPastMaturity = Boolean(expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= Date.now());
+            const isCompleted = cycle.status === 'completed' || cycle.status === 'matured';
+            const isMaturedAwaitingSettlement = !isCompleted && isPastMaturity;
+            const statusText = isCompleted ? 'Completed' : isMaturedAwaitingSettlement ? 'Matured · Settlement pending' : cycle.status === 'active' ? 'Active' : cycle.status;
+            const statusColor = isCompleted ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25' : isMaturedAwaitingSettlement ? 'text-amber-200 bg-amber-500/10 border-amber-500/25' : 'text-cyan-300 bg-cyan-500/10 border-cyan-500/25';
+            return <div key={cycle.id} className="rounded-xl border border-blue-500/20 bg-[#0e173a]/55 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-white">{cycle.package_name || (cycle.package_type === 'fd' ? 'FD Package' : 'Basic Package')}</div>
+                  <div className="mt-1 text-xs text-slate-400">Investment: {formatUsdt(invested)} · ROI rate: {Number(cycle.roi_daily_rate || 0).toLocaleString('en-US')}% · Duration: {Number(cycle.duration_days || 0)} days</div>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusColor}`}>{statusText}</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div><div className="text-[10px] uppercase tracking-wider text-slate-500">ROI credited</div><div className="mt-1 text-sm font-bold text-emerald-300">{formatUsdt(roiEarned)}</div></div>
+                <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Cap progress</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(Number(cycle.credited_total || 0))} / {formatUsdt(Number(cycle.cap_amount ?? invested * 5))}</div></div>
+                <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Activated</div><div className="mt-1 text-xs font-semibold text-slate-200">{cycle.activated_at ? new Date(cycle.activated_at).toLocaleDateString() : '—'}</div></div>
+                <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Maturity date</div><div className="mt-1 text-xs font-semibold text-slate-200">{cycle.expires_at ? new Date(cycle.expires_at).toLocaleDateString() : '—'}</div></div>
+              </div>
+              {cycle.principal_returned && <p className="mt-3 text-xs text-slate-300">Principal returned: <span className="font-semibold text-white">{formatUsdt(Number(cycle.principal_return_amount || 0))}</span></p>}
+              {isMaturedAwaitingSettlement && <p className="mt-2 text-xs text-amber-200">The scheduled maturity date has passed, but the backend has not marked this plan completed yet. Please do not treat the principal as paid until it appears in your wallet ledger.</p>}
             </div>;
           })}
         </div>}
