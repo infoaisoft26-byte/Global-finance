@@ -81,6 +81,38 @@ async function handlePackageHistory(member, res) {
   return json(res, 200, { items: rows });
 }
 
+async function handleAdminReconcileCap(member, body, res) {
+  requireAdmin(member);
+  const activationId = String(body.activationId || '').trim();
+  const historicalCounted = Number(body.historicalCounted);
+  if (!activationId || !Number.isFinite(historicalCounted) || historicalCounted < 0) {
+    return json(res, 400, { error: 'Provide activationId and a verified non-negative historicalCounted USDT amount.' });
+  }
+  const result = await withTransaction(async (client) => {
+    await ensureIncomeSchema(client);
+    const locked = await client.query(`SELECT id,user_id,amount,cap_amount,credited_total,cap_reconciled,status
+      FROM package_activations WHERE id=$1 FOR UPDATE`, [activationId]);
+    const cycle = locked.rows[0];
+    if (!cycle) throw new Error('ACTIVATION_NOT_FOUND');
+    if (cycle.cap_reconciled === true) throw new Error('CAP_ALREADY_RECONCILED');
+    const cap = Number(cycle.cap_amount ?? Number(cycle.amount) * 5);
+    const counted = Number(historicalCounted.toFixed(2));
+    if (counted > cap) throw new Error('HISTORICAL_TOTAL_EXCEEDS_CAP');
+    const nextStatus = counted >= cap ? 'completed' : cycle.status;
+    await client.query(`UPDATE package_activations
+      SET cap_amount=$2,cap_multiple=5,credited_total=$3,cap_reconciled=TRUE,
+          status=$4,completed_at=CASE WHEN $4='completed' THEN COALESCE(completed_at,NOW()) ELSE completed_at END
+      WHERE id=$1`, [activationId, cap, counted, nextStatus]);
+    await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+      VALUES($1,$2,$3,'INVESTMENT_CAP_RECONCILED','package_activation',$4,$5::jsonb)`, [
+        crypto.randomUUID(), member.uid, member.email, activationId,
+        JSON.stringify({ userId: cycle.user_id, historicalCounted: counted, capAmount: cap, capMultiple: 5, source: 'admin_verified_historical_ledger' })
+      ]);
+    return { activationId, capAmount: cap, creditedTotal: counted, capRemaining: Math.max(0, Number((cap-counted).toFixed(2))), status: nextStatus };
+  });
+  return json(res, 200, { success: true, ...result });
+}
+
 async function handleAdminPackageHistory(member, res) {
   requireAdmin(member);
   const rows = await withTransaction(async (client) => {
@@ -206,6 +238,7 @@ export default async function handler(req,res) {
     const action = String(body.action||'verify_deposit');
     if (action==='package_history') return await handlePackageHistory(member,res);
     if (action==='admin_package_history') return await handleAdminPackageHistory(member,res);
+    if (action==='admin_reconcile_cap') return await handleAdminReconcileCap(member,body,res);
     if (action==='admin_reconcile_referral_income') return await handleAdminReconcileReferralIncome(member,res);
     if (action==='package_purchase') return await handlePackagePurchase(member,body,res);
     if (action==='verify_deposit') return json(res,410,{error:'Direct deposit credit is retired. Submit a recharge request for admin review.'});
