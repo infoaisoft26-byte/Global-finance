@@ -75,7 +75,7 @@ async function handlePackageHistory(member, res) {
     await ensureIncomeSchema(client);
     const user = await client.query('SELECT id,status FROM users WHERE id=$1 AND email=$2 LIMIT 1', [member.uid, member.email]);
     if (!user.rowCount || user.rows[0].status !== 'active') throw new Error('ACTIVE_MEMBER_REQUIRED');
-    const q = await client.query(`SELECT id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at,cap_multiple,cap_amount,credited_total,cap_reconciled,completed_at FROM package_activations WHERE user_id=$1 ORDER BY activated_at DESC LIMIT 100`, [member.uid]);
+    const q = await client.query(`SELECT id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at,cap_multiple,cap_amount,credited_total,cap_reconciled,completed_at,principal_returned,principal_return_amount FROM package_activations WHERE user_id=$1 ORDER BY activated_at DESC LIMIT 100`, [member.uid]);
     return q.rows;
   });
   return json(res, 200, { items: rows });
@@ -163,7 +163,7 @@ async function handleAdminPackageHistory(member, res) {
     const q = await client.query(`
       SELECT pa.id, pa.user_id, pa.package_id, pa.package_type, pa.package_name, pa.amount,
              pa.roi_daily_rate, pa.duration_days, pa.total_earned, pa.status, pa.activated_at, pa.expires_at,
-             pa.cap_multiple, pa.cap_amount, pa.credited_total, pa.cap_reconciled, pa.completed_at,
+             pa.cap_multiple, pa.cap_amount, pa.credited_total, pa.cap_reconciled, pa.completed_at, pa.principal_returned, pa.principal_return_amount,
              u.name AS user_name, u.email AS user_email
       FROM package_activations pa
       LEFT JOIN users u ON u.id = pa.user_id
