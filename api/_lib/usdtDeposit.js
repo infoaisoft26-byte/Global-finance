@@ -95,9 +95,18 @@ async function getTokenDecimals() {
 }
 
 function safeStartBlock(head) {
+  // The scanner only consumes blocks with the configured confirmation depth.
+  // Initialize at (or behind) that safe head; setting this to head - 2 would
+  // leave the cursor permanently ahead of the confirmed scan head.
+  const safeHead = head >= BigInt(CONFIRMATIONS)
+    ? head - BigInt(CONFIRMATIONS) + 1n
+    : 0n;
   const configured = String(process.env.BSC_DEPOSIT_START_BLOCK || '').trim();
-  if (/^\d+$/.test(configured)) return BigInt(configured);
-  return head > 2n ? head - 2n : 0n;
+  if (/^\d+$/.test(configured)) {
+    const desired = BigInt(configured);
+    return desired <= safeHead ? desired : safeHead;
+  }
+  return safeHead;
 }
 
 export async function getOrCreateDepositAddress(userId) {
