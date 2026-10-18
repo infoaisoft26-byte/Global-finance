@@ -26,7 +26,7 @@ export const AdminTransactions: React.FC=()=>{
  {key:'userName',header:'Member',render:t=><div><div className="text-xs font-bold text-white">{t.userName||'Member'}</div><div className="text-[10px] text-cyan-300">{t.userReferralCode||t.userEmail||'—'}</div></div>},
  {key:'referenceId',header:'Transaction ID',render:t=><div><div className="font-mono text-xs text-cyan-300">{t.referenceId||t.id}</div><div className="text-[10px] text-slate-500">{t.type}</div></div>},
  {key:'description',header:'Transaction / Referral Detail',render:t=><div className="max-w-lg text-xs text-slate-300"><div>{displayUsdtText(t.description)}</div>{isReferral(String(t.type))&&<div className="mt-1 flex flex-wrap gap-2"><span className="px-2 py-0.5 rounded bg-violet-500/10 text-violet-300">Level {t.referralLevel??'—'}</span><span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300">Level Amount {money(t.referralAmount||t.amount,String(t.type))}</span>{t.referredUserName&&<span className="text-slate-400">Referred: {t.referredUserName}</span>}{t.referrerReferralCode&&<span className="text-slate-400">Referrer: {t.referrerReferralCode}</span>}</div>}</div>},
- {key:'amount',header:'Amount',render:t=><span className={`font-mono text-xs font-bold ${t.flow==='credit'?'text-emerald-400':'text-rose-400'}`}>{t.flow==='credit'?'+':'-'}{money(t.amount,String(t.type))}</span>},
+ {key:'amount',header:'Amount (USDT)',render:t=><span className={`font-mono text-xs font-bold ${t.flow==='credit'?'text-emerald-400':'text-rose-400'}`}>{t.flow==='credit'?'+':'-'}{money(t.amount,String(t.type))}</span>},
  {key:'status',header:'Status',render:t=><span className="text-[10px] font-bold uppercase text-emerald-400">{t.status}</span>}
  ];
  const requestColumns:Column<TransactionRequest>[]=[
@@ -34,7 +34,7 @@ export const AdminTransactions: React.FC=()=>{
  {key:'reference',header:'Reference',render:r=><span className="font-mono text-xs text-cyan-300">{r.reference}</span>},
  {key:'userName',header:'Member',render:r=><div><div className="text-xs font-bold text-white">{r.userName||r.userEmail}</div><div className="text-[10px] text-cyan-300">{r.userReferralCode||'—'}</div></div>},
  {key:'requestType',header:'Type',render:r=><span className="text-xs capitalize">{r.requestType.replace(/_/g,' ')}</span>},
- {key:'amountRupees',header:'Amount',render:r=><span className="font-mono text-xs font-bold">{money(r.amountRupees,r.requestType)}</span>},
+ {key:'amountRupees',header:'Amount (USDT)',render:r=><span className="font-mono text-xs font-bold">{money(r.amountRupees,r.requestType)}</span>},
  {key:'status',header:'Status / Action',render:r=><button onClick={()=>{setSelected(r);setNote(r.adminNote||'');setError('')}} className="px-2.5 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-cyan-300 text-[10px] font-bold"><Eye className="w-3 h-3 inline mr-1"/>Inspect</button>}
  ];
  const transition=async(status:TransactionRequestStatus)=>{if(!selected||!user)return;setBusy(true);setError('');try{await adminUpdateTransactionRequestStatus(user.uid,user.email||undefined,selected.id,status,note.trim()||undefined);setSelected(null);await load()}catch(e:any){setError(e?.message||'Action failed')}finally{setBusy(false)}};
