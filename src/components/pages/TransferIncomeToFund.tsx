@@ -58,16 +58,16 @@ export const TransferIncomeToFund: React.FC = () => {
     const maxAmount = settings?.maxIncomeTransfer || 200000;
 
     if (amount < minAmount) {
-      setErrorMsg(`Minimum internal transfer amount is ₹${minAmount.toFixed(2)}.`);
+      setErrorMsg(`Minimum internal transfer amount is USDT ${minAmount.toFixed(8)}.`);
       return;
     }
     if (amount > maxAmount) {
-      setErrorMsg(`Maximum internal transfer amount is ₹${maxAmount.toFixed(2)}.`);
+      setErrorMsg(`Maximum internal transfer amount is USDT ${maxAmount.toFixed(8)}.`);
       return;
     }
 
     if ((wallet.incomeWallet || 0) < amount) {
-      setErrorMsg(`Insufficient Available Balance! Available: ₹${(wallet.incomeWallet || 0).toFixed(2)}, Required: ₹${amount.toFixed(2)}`);
+      setErrorMsg(`Insufficient Available Balance! Available: USDT ${(wallet.incomeWallet || 0).toFixed(8)}, Required: USDT ${amount.toFixed(8)}`);
       return;
     }
 
@@ -85,7 +85,7 @@ export const TransferIncomeToFund: React.FC = () => {
         sourceWalletType: 'income_wallet',
         destinationWalletType: 'fund_wallet',
         amountRupees: amount,
-        userNote: 'Internal balance conversion to Available Fund'
+        userNote: 'Internal USDT transfer to Available Fund'
       });
 
       if (res.success) {
@@ -94,7 +94,7 @@ export const TransferIncomeToFund: React.FC = () => {
         await loadData();
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Conversion failed. Please verify and retry.');
+      setErrorMsg(err.message || 'Transfer failed. Please verify and retry.');
     } finally {
       setTransferring(false);
     }
@@ -127,7 +127,7 @@ export const TransferIncomeToFund: React.FC = () => {
       header: 'Amount Converted',
       render: (item) => (
         <span className="font-mono text-xs font-bold text-cyan-300">
-          ₹{item.amountRupees.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.amountRupees.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
@@ -148,7 +148,7 @@ export const TransferIncomeToFund: React.FC = () => {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-blue-500/20">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">Convert Available Balance to Available Fund</h2>
+          <h2 className="text-xl font-bold text-white tracking-tight">Transfer Available USDT Balance to Fund Wallet</h2>
           <p className="text-xs text-slate-400 mt-0.5">
             Shift earnings from Available Balance into Available Fund to reinvest or activate packages.
           </p>
@@ -158,13 +158,13 @@ export const TransferIncomeToFund: React.FC = () => {
           <div className="p-3 rounded-xl bg-[#091129] border border-blue-500/25">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">Available Balance</span>
             <div className="text-sm font-bold font-mono text-emerald-400">
-              ₹{(wallet?.incomeWallet || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              USDT {(wallet?.incomeWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
             </div>
           </div>
           <div className="p-3 rounded-xl bg-[#091129] border border-blue-500/25">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">Available Fund</span>
             <div className="text-sm font-bold font-mono text-cyan-300">
-              ₹{(wallet?.fundWallet || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              USDT {(wallet?.fundWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
             </div>
           </div>
         </div>
@@ -179,7 +179,7 @@ export const TransferIncomeToFund: React.FC = () => {
               <span>Internal Wallet Shift</span>
             </h3>
             <span className="text-[11px] text-cyan-400 font-mono font-semibold">
-              Min: ₹{settings?.minIncomeTransfer || 100} • 0% Fee
+              Min: USDT {settings?.minIncomeTransfer || 100} • 0% Fee
             </span>
           </div>
 
@@ -200,11 +200,11 @@ export const TransferIncomeToFund: React.FC = () => {
           <form onSubmit={handleTransfer} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Conversion Amount (INR)
+                Transfer Amount (USDT)
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 font-bold text-sm">
-                  ₹
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 font-bold text-xs">
+                  USDT
                 </span>
                 <input
                   type="number"
@@ -214,18 +214,18 @@ export const TransferIncomeToFund: React.FC = () => {
                   value={amount}
                   onChange={(e) => setAmount(Number(e.target.value))}
                   required
-                  className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
+                  className="w-full pl-14 pr-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
                 />
               </div>
             </div>
 
             <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 text-xs text-slate-300 flex items-center justify-between">
               <span>Debit from Available Balance:</span>
-              <span className="font-mono text-rose-400 font-bold">-₹{amount.toFixed(2)}</span>
+              <span className="font-mono text-rose-400 font-bold">-USDT {amount.toFixed(8)}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 text-xs text-slate-300 flex items-center justify-between">
               <span>Credit to Available Fund:</span>
-              <span className="font-mono text-emerald-400 font-bold">+₹{amount.toFixed(2)}</span>
+              <span className="font-mono text-emerald-400 font-bold">+USDT {amount.toFixed(8)}</span>
             </div>
 
             <button
@@ -236,7 +236,7 @@ export const TransferIncomeToFund: React.FC = () => {
               {transferring ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Converting in Atomic Ledger...</span>
+                  <span>Processing USDT ledger transfer...</span>
                 </>
               ) : (
                 <>
