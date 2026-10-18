@@ -81,14 +81,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'
         } no-print`}
       >
-        {/* Single GLOBAL FINANCE logo */}
-        <div className="shrink-0 border-b border-blue-500/20 px-4 py-3">
-          <div className="flex h-[96px] w-full items-center justify-center">
-            <img
-              src="/global-finance-logo.webp"
-              alt="GLOBAL FINANCE"
-              className="block h-[92px] w-[230px] max-w-full object-contain"
-            />
+        {/* Clean text-only brand header */}
+        <div className="shrink-0 border-b border-amber-400/20 px-4 py-5">
+          <div className="flex min-h-[56px] w-full items-center justify-center text-center">
+            <span className="text-[21px] font-extrabold tracking-[0.12em] text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 drop-shadow-[0_0_12px_rgba(234,179,8,0.18)]">
+              GLOBAL FINANCE
+            </span>
           </div>
         </div>
 
