@@ -19,8 +19,8 @@ import type {
 } from '../types/index.ts';
 
 /**
- * Currency conversion utilities:
- * All legacy amount request validation uses two-decimal minor units (1 USDT = 100 minor units); keep this layer to two-decimal-compatible amounts only.
+ * USDT compatibility utilities:
+ * One USDT has 100 minor units for older two-decimal operations. Exact deposit ledger balances are tracked separately at 8 decimal places.
  */
 export function rupeesToPaise(rupees: number): number {
   return Math.round(Number(rupees) * 100);
@@ -60,11 +60,45 @@ export interface BalancedLedgerResult {
  * Derives accurate user wallet balances directly from the append-only ledger entries.
  * Never trusts client-side numbers.
  */
+function usdtToUnits8(value: unknown): bigint {
+  const raw = String(value ?? '0').trim();
+  if (!raw) return 0n;
+
+  let normalized = raw;
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) {
+    const numeric = Number(normalized);
+    if (!Number.isFinite(numeric) || numeric < 0) return 0n;
+    normalized = numeric.toFixed(8);
+  }
+
+  const [wholePart = '0', fractionPart = ''] = normalized.split('.');
+  const whole = wholePart.replace(/^0+(?=\d)/, '') || '0';
+  const fraction = fractionPart.slice(0, 8).padEnd(8, '0') || '0';
+  return BigInt(whole) * 100000000n + BigInt(fraction);
+}
+
+function units8ToUsdt(units: bigint): number {
+  return Number(units) / 100000000;
+}
+
+function units8ToLegacyMinorUnits(units: bigint): number {
+  // Legacy package/withdrawal APIs accept two-decimal USDT amounts only.
+  // Floor available balance so sub-cent amounts can never overspend a wallet.
+  return Number(units / 1000000n);
+}
+
+/**
+ * Derives wallet balances directly from append-only ledger transactions.
+ * Ledger amounts are USDT. The compatibility properties ending in Paise/Rupees
+ * are retained for existing callers, but their values are USDT minor units/USDT.
+ */
 export async function getWalletBalanceFromLedger(userId: string): Promise<{
   fundWalletPaise: number;
   fundWalletRupees: number;
+  fundWalletUsdt: number;
   incomeWalletPaise: number;
   incomeWalletRupees: number;
+  incomeWalletUsdt: number;
   totalCreditsPaise: number;
   totalDebitsPaise: number;
   entryCount: number;
@@ -73,47 +107,48 @@ export async function getWalletBalanceFromLedger(userId: string): Promise<{
   const q = query(txnRef, where('userId', '==', userId));
   const snap = await getDocs(q);
 
-  let fundWalletPaise = 0;
-  let incomeWalletPaise = 0;
-  let totalCreditsPaise = 0;
-  let totalDebitsPaise = 0;
+  let fundUnits8 = 0n;
+  let incomeUnits8 = 0n;
+  let totalCreditsUnits8 = 0n;
+  let totalDebitsUnits8 = 0n;
   let count = 0;
 
   snap.forEach((docSnap) => {
     const item = docSnap.data() as TransactionLedger;
     count++;
-    const amtPaise = (item.metadata?.amountPaise && typeof item.metadata.amountPaise === 'number')
-      ? item.metadata.amountPaise
-      : rupeesToPaise(item.amount || 0);
+
+    // amount and metadata.amountUsdt are expressed as USDT. The amountPaise
+    // property is only a legacy fallback for older rows without an amount.
+    const fallback = typeof item.metadata?.amountPaise === 'number'
+      ? item.metadata.amountPaise / 100
+      : 0;
+    const amount = item.metadata?.amountUsdt ?? item.amount ?? fallback;
+    const amountUnits8 = usdtToUnits8(amount);
 
     if (item.flow === 'credit') {
-      totalCreditsPaise += amtPaise;
-      if (item.category === 'fund_wallet') {
-        fundWalletPaise += amtPaise;
-      } else if (item.category === 'income_wallet') {
-        incomeWalletPaise += amtPaise;
-      }
+      totalCreditsUnits8 += amountUnits8;
+      if (item.category === 'fund_wallet') fundUnits8 += amountUnits8;
+      else if (item.category === 'income_wallet') incomeUnits8 += amountUnits8;
     } else if (item.flow === 'debit') {
-      totalDebitsPaise += amtPaise;
-      if (item.category === 'fund_wallet') {
-        fundWalletPaise -= amtPaise;
-      } else if (item.category === 'income_wallet') {
-        incomeWalletPaise -= amtPaise;
-      }
+      totalDebitsUnits8 += amountUnits8;
+      if (item.category === 'fund_wallet') fundUnits8 -= amountUnits8;
+      else if (item.category === 'income_wallet') incomeUnits8 -= amountUnits8;
     }
   });
 
-  // Clamp non-negative for safety
-  fundWalletPaise = Math.max(0, fundWalletPaise);
-  incomeWalletPaise = Math.max(0, incomeWalletPaise);
+  // Clamp negative results defensively; never derive a negative spendable wallet.
+  if (fundUnits8 < 0n) fundUnits8 = 0n;
+  if (incomeUnits8 < 0n) incomeUnits8 = 0n;
 
   return {
-    fundWalletPaise,
-    fundWalletRupees: paiseToRupees(fundWalletPaise),
-    incomeWalletPaise,
-    incomeWalletRupees: paiseToRupees(incomeWalletPaise),
-    totalCreditsPaise,
-    totalDebitsPaise,
+    fundWalletPaise: units8ToLegacyMinorUnits(fundUnits8),
+    fundWalletRupees: units8ToUsdt(fundUnits8),
+    fundWalletUsdt: units8ToUsdt(fundUnits8),
+    incomeWalletPaise: units8ToLegacyMinorUnits(incomeUnits8),
+    incomeWalletRupees: units8ToUsdt(incomeUnits8),
+    incomeWalletUsdt: units8ToUsdt(incomeUnits8),
+    totalCreditsPaise: units8ToLegacyMinorUnits(totalCreditsUnits8),
+    totalDebitsPaise: units8ToLegacyMinorUnits(totalDebitsUnits8),
     entryCount: count
   };
 }
