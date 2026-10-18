@@ -39,3 +39,11 @@ export async function sendP2pTransfer(user: FirebaseUser, recipientCode: string,
     note: String(note || '').trim(),
   });
 }
+
+
+export async function requestTransactionOtp(user: FirebaseUser, payload: { purpose: 'p2p_transfer' | 'withdrawal'; amount: number; recipientCode?: string; walletAddress?: string; note?: string }): Promise<{otpId:string;maskedEmail:string;message:string}> {
+  return call(user, '/api/transaction-otp', 'POST', { ...payload, action: 'send' });
+}
+export async function verifyTransactionOtp(user: FirebaseUser, payload: { purpose: 'p2p_transfer' | 'withdrawal'; amount: number; recipientCode?: string; walletAddress?: string; note?: string; otpId:string; code:string }): Promise<{success:boolean;otpId:string;message:string}> {
+  return call(user, '/api/transaction-otp', 'POST', { ...payload, action: 'verify' });
+}
