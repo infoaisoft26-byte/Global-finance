@@ -79,7 +79,7 @@ export const PackageActivationsPage: React.FC<{ onNavigateToPackages: () => void
       header: 'Capital Amount',
       render: (item) => (
         <span className="font-mono text-xs font-bold text-cyan-300">
-          ₹{item.amountRupees.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          USDT {item.amountRupees.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
