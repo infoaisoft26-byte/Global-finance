@@ -1,4 +1,4 @@
-import { HDNodeVoidWallet } from 'ethers';
+import { HDNodeWallet } from 'ethers';
 import crypto from 'node:crypto';
 import { getPool, withTransaction } from './db.js';
 
@@ -17,7 +17,7 @@ export function addressGenerationConfigured() {
   const xpub = String(process.env.BSC_DEPOSIT_XPUB || '').trim();
   if (!/^xpub[1-9A-HJ-NP-Za-km-z]{40,120}$/.test(xpub)) return false;
   try {
-    HDNodeVoidWallet.fromExtendedKey(xpub);
+    HDNodeWallet.fromExtendedKey(xpub);
     return true;
   } catch {
     return false;
@@ -103,7 +103,7 @@ export async function ensureDepositSchema(client) {
 function deriveDepositAddress(index) {
   if (!addressGenerationConfigured()) throw new Error('DEPOSIT_XPUB_NOT_CONFIGURED');
   const xpub = String(process.env.BSC_DEPOSIT_XPUB).trim();
-  const accountNode = HDNodeVoidWallet.fromExtendedKey(xpub);
+  const accountNode = HDNodeWallet.fromExtendedKey(xpub);
   const child = accountNode.deriveChild(0).deriveChild(Number(index));
   return child.address;
 }
