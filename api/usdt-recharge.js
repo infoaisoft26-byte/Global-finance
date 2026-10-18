@@ -1,7 +1,11 @@
 import crypto from 'node:crypto';
 import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { BEP20_WALLET, DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
+import { DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
 import { addressGenerationConfigured, getMemberDepositDetails } from './_lib/usdtDeposit.js';
+
+// Keep the configured receiving wallet local to this route. This avoids a
+// cold-start failure if the deployed helper export differs during rollout.
+const BEP20_WALLET = String(process.env.USDT_DEPOSIT_WALLET_ADDRESS || '').trim();
 
 function json(res,status,body){
   res.statusCode=status;
