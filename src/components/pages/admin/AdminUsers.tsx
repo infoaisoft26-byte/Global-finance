@@ -29,6 +29,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ onSelectUser }) => {
   const [manualDepositAmount, setManualDepositAmount] = useState<Record<string,string>>({});
   const [manualDepositReason, setManualDepositReason] = useState<Record<string,string>>({});
   const [manualDepositBusy, setManualDepositBusy] = useState('');
+  const [manualDepositRequestIds, setManualDepositRequestIds] = useState<Record<string,string>>({});
 
 
   const money = (n:number) => `USDT ${Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:8})}`;
@@ -78,23 +79,26 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({ onSelectUser }) => {
     const amountText = String(manualDepositAmount[member.id] || '').trim();
     const amount = Number(amountText);
     const reason = String(manualDepositReason[member.id] || '').trim();
-    if (!Number.isFinite(amount) || amount <= 0 || !/^(?:0|[1-9]\\d{0,8})(?:\\.\\d{1,8})?$/.test(amountText)) {
+    if (!Number.isFinite(amount) || amount <= 0 || !/^(?:0|[1-9]\d{0,8})(?:\.\d{1,8})?$/.test(amountText)) {
       setError('Enter a valid USDT amount (up to 8 decimal places).'); return;
     }
     if (!reason || reason.length > 500) { setError('Manual deposit reason is required (max 500 characters).'); return; }
     if (!window.confirm(`Credit ${amountText} USDT to ${member.name}'s Fund Wallet? Only do this after verifying the payment offline.`)) return;
+    const requestId = manualDepositRequestIds[member.id] || crypto.randomUUID();
+    setManualDepositRequestIds(prev => ({ ...prev, [member.id]: requestId }));
     setManualDepositBusy(member.id); setError(''); setMessage('');
     try {
       const token = await user.getIdToken();
       const res = await fetch(`/api/admin-user-detail?userId=${encodeURIComponent(member.id)}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: member.id, action: 'manualDeposit', amount: amountText, reason, requestId: crypto.randomUUID() }),
+        body: JSON.stringify({ userId: member.id, action: 'manualDeposit', amount: amountText, reason, requestId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Manual deposit failed');
       setManualDepositAmount(prev => ({ ...prev, [member.id]: '' }));
       setManualDepositReason(prev => ({ ...prev, [member.id]: '' }));
+      setManualDepositRequestIds(prev => { const next = { ...prev }; delete next[member.id]; return next; });
       setMessage(data.manualDeposit?.duplicate
         ? `This request was already processed. ${member.name}'s Fund Wallet: ${money(data.wallet?.fundWallet)}`
         : `Manual deposit recorded: ${amountText} USDT credited to ${member.name}'s Fund Wallet. New balance: ${money(data.wallet?.fundWallet)}`);
