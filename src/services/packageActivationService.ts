@@ -48,7 +48,7 @@ export async function createPackageActivationRequest(params: {
 
   const balances = await getWalletBalanceFromLedger(userId);
   if (balances.fundWalletPaise < amountPaise) {
-    throw new Error(`Insufficient Available Fund balance. Required: ${amountRupees.toFixed(2)}, Available: ${balances.fundWalletRupees.toFixed(2)}. Add funds using TRX / USDT.`);
+    throw new Error(`Insufficient Available Fund balance. Required: ${amountRupees.toFixed(2)}, Available: ${balances.fundWalletRupees.toFixed(2)}. Add funds using BEP20 USDT.`);
   }
 
   const reference = generateReferenceId('ACT');
