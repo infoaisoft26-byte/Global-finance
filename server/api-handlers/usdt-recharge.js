@@ -51,6 +51,7 @@ function mapRecharge(d,id){
     amountUsdt:String(d.amountUsdt),
     status:d.status,
     creditUsdt:d.creditUsdt==null?null:String(d.creditUsdt),
+    ledgerId:d.ledgerId||d.neonLedgerId||null,
     reviewNote:d.reviewNote||null,
     proofUrl:d.proofUrl||null,
     createdAt:iso(d.createdAt),
