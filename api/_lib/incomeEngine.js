@@ -224,7 +224,21 @@ export async function applyDepositReferralIncome(client,{depositId,userId,amount
         AND lower(COALESCE(metadata->>'txHash',''))<>lower($2)`,
     [userId,normalizedHash]
   );
-  const firstDeposit=Number(priorDeposits.rows[0]?.n||0)===0;
+  const priorActivations=await client.query(
+    'SELECT COUNT(*)::int AS n FROM package_activations WHERE user_id=$1',
+    [userId]
+  );
+  const walletState=await client.query(
+    'SELECT fund_wallet FROM wallets WHERE user_id=$1 FOR UPDATE',
+    [userId]
+  );
+  // Legacy balances may predate Neon deposit ledger rows. Treat any pre-existing
+  // fund balance or prior package activation as a retopup to avoid overpaying L1.
+  const currentFund=Number(walletState.rows[0]?.fund_wallet||0);
+  const hasPreexistingFunds=currentFund > base + 0.00000001;
+  const firstDeposit=Number(priorDeposits.rows[0]?.n||0)===0
+    && Number(priorActivations.rows[0]?.n||0)===0
+    && !hasPreexistingFunds;
   const eventKey='DEPOSIT:'+normalizedHash;
   const businessDate=currentIndiaBusinessDate();
   await eventOnce(client,eventKey,'deposit_commission',userId,null,base,businessDate,{
