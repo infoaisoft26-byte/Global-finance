@@ -36,7 +36,7 @@ function mapRecharge(d,id,member={}){
   return {
     id,
     userId:d.userId,
-    memberId:String(d.memberId||member.memberId||member.memberID||member.member_id||member.userMemberId||''),
+    memberId:String(d.memberId||member.memberId||member.memberID||member.member_id||member.userMemberId||member.referralCode||d.referralCode||''),
     userName:d.userName||'',
     userEmail:d.userEmail||'',
     referralCode:d.referralCode||'',
@@ -70,7 +70,7 @@ async function actorFromToken(req){
   const u=snap.data()||{};
   const email=String(decoded.email||u.email||'').trim().toLowerCase();
   if(u.status!=='active') throw new Error('ACTIVE_MEMBER_REQUIRED');
-  return {id:decoded.uid,email,name:u.name||decoded.name||'',role:u.role||'user',memberId:String(u.memberId||u.memberID||u.member_id||u.userMemberId||''),referralCode:u.referralCode||''};
+  return {id:decoded.uid,email,name:u.name||decoded.name||'',role:u.role||'user',memberId:String(u.memberId||u.memberID||u.member_id||u.userMemberId||u.referralCode||''),referralCode:u.referralCode||''};
 }
 function requireAdmin(actor){
   if(!['admin','super_admin','administrator'].includes(actor.role) && !adminEmailAllowed(actor.email)) throw new Error('ADMIN_REQUIRED');
@@ -179,7 +179,7 @@ async function listRequests(actor,admin){
   const userSnaps=userRefs.length?await db.getAll(...userRefs):[];
   const memberByUid=new Map(userSnaps.map(s=>{
     const u=s.exists?s.data()||{}:{};
-    return [s.id,{memberId:u.memberId||u.memberID||u.member_id||u.userMemberId||''}];
+    return [s.id,{memberId:u.memberId||u.memberID||u.member_id||u.userMemberId||u.referralCode||'',referralCode:u.referralCode||''}];
   }));
   return rows
     .sort((a,b)=>new Date(iso(b.data.createdAt)).getTime()-new Date(iso(a.data.createdAt)).getTime())
