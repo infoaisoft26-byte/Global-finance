@@ -309,7 +309,7 @@ export default async function handler(req,res){
 
     if(body.action==='approve'||body.action==='reject'){
       if(!admin) return json(res,403,{error:'Admin access required'});
-      if(!rechargeConfigured()) return json(res,503,{error:'Recharge approval is disabled'});
+      if(body.action==='approve'&&!rechargeConfigured()) return json(res,503,{error:'Approval/credit is disabled until Firebase Admin and BSC recharge configuration are verified.'});
       const id=String(body.id||'');
       if(!/^RCH_[0-9a-f]{24}$/.test(id)) return json(res,400,{error:'A valid recharge request is required'});
       const note=String(body.note||'').trim()|| (body.action==='approve'?'Approved by admin after manual payment verification.':'Rejected by admin after manual payment review.');
