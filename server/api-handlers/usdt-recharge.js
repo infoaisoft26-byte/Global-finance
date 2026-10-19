@@ -3,6 +3,7 @@ import { getFirestoreAdmin, verifyFirebaseIdToken } from '../../api/_lib/firebas
 import { DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from '../../api/_lib/bep20.js';
 import { addressGenerationConfigured, getMemberDepositDetails } from '../../api/_lib/usdtDeposit.js';
 import { getPool } from '../../api/_lib/db.js';
+import { applyDepositReferralIncome } from '../../api/_lib/incomeEngine.js';
 
 // Keep the configured receiving wallet local to this route. This avoids a
 // cold-start failure if the deployed helper export differs during rollout.
@@ -168,6 +169,31 @@ async function listRequests(actor,admin){
     .sort((a,b)=>new Date(iso(b.data.createdAt)).getTime()-new Date(iso(a.data.createdAt)).getTime())
     .map(({id,data})=>mapRecharge(data,id));
 }
+async function mirrorDepositReferralCommissionsToFirestore(txHash) {
+  const result=await getPool().query(`
+    SELECT d.ledger_id,d.recipient_user_id,d.source_user_id,d.income_type,d.level,d.percentage,d.base_amount,d.amount,d.event_key,d.created_at,l.description,l.metadata
+      FROM income_distributions d JOIN ledger_transactions l ON l.id=d.ledger_id
+     WHERE d.event_key=$1 ORDER BY d.level ASC,d.recipient_user_id ASC`,
+    ['DEPOSIT:'+String(txHash||'').toLowerCase()]
+  );
+  const db=getFirestoreAdmin();
+  for(const row of result.rows){
+    const userId=String(row.recipient_user_id||''), ledgerId=String(row.ledger_id||''), amount=Number(row.amount||0);
+    if(!userId||!ledgerId||!Number.isFinite(amount)||amount<=0) continue;
+    const walletRef=db.collection('wallets').doc(userId), ledgerRef=db.collection('transactions').doc(ledgerId), now=new Date().toISOString();
+    await db.runTransaction(async t=>{
+      const [walletSnap,ledgerSnap]=await Promise.all([t.get(walletRef),t.get(ledgerRef)]);
+      if(ledgerSnap.exists) return;
+      const wallet=walletSnap.exists?walletSnap.data()||{}:emptyWallet(userId,new Date());
+      const type=String(row.income_type||''), direct=type==='basic_referral', level=type==='basic_level';
+      const businessDate=String(row.metadata?.businessDate||''), statDate=String(wallet.incomeStatDate||'');
+      const todayLevel=level?(businessDate&&businessDate===statDate?Number(wallet.todayLevelIncome||0)+amount:amount):Number(wallet.todayLevelIncome||0);
+      const metadata={...(row.metadata&&typeof row.metadata==='object'?row.metadata:{}),asset:'USDT',txHash:String(txHash||'').toLowerCase(),eventKey:String(row.event_key),sourceUserId:String(row.source_user_id),referredUserId:String(row.source_user_id),referralLevel:Number(row.level||0),percentage:Number(row.percentage||0),commissionPercentage:Number(row.percentage||0),baseAmount:Number(row.base_amount||0)};
+      t.set(walletRef,{...wallet,userId,incomeWallet:Number((Number(wallet.incomeWallet||0)+amount).toFixed(8)),totalIncome:Number((Number(wallet.totalIncome||0)+amount).toFixed(8)),referralIncome:Number((Number(wallet.referralIncome||0)+(direct?amount:0)).toFixed(8)),totalLevelIncome:Number((Number(wallet.totalLevelIncome||0)+(level?amount:0)).toFixed(8)),todayLevelIncome:todayLevel,incomeStatDate:businessDate||statDate||null,updatedAt:now},{merge:true});
+      t.set(ledgerRef,{id:ledgerId,userId,type,category:'income_wallet',flow:'credit',amount,fee:0,netAmount:amount,description:String(row.description||'Automatic USDT referral commission'),referenceId:String(row.event_key),status:'completed',metadata,createdAt:row.created_at?new Date(row.created_at).toISOString():now});
+    });
+  }
+}
 async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,note,proof,createdAt}){
   const pool=getPool();
   const client=await pool.connect();
@@ -182,8 +208,8 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
     const prior=await client.query(
       `SELECT id,user_id,amount,flow,status
          FROM ledger_transactions
-        WHERE lower(reference_id)=lower($1)
-          AND type IN ('crypto_deposit','usdt_bep20_recharge')
+        WHERE (lower(reference_id)=lower($1) OR lower(COALESCE(metadata->>'txHash',''))=lower($1))
+          AND type IN ('crypto_deposit','usdt_bep20_recharge','usdt_bep20_auto_deposit')
         LIMIT 1
         FOR UPDATE`,
       [normalizedHash]
@@ -220,6 +246,8 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
       );
     }
 
+    await applyDepositReferralIncome(client,{depositId:id,userId,amount:credit,txHash:normalizedHash});
+
     const rechargeCreatedAt = createdAt?.toDate?.() || (createdAt ? new Date(createdAt) : null);
     const existingRecharge=await client.query(
       'SELECT id,user_id FROM usdt_bep20_recharges WHERE tx_hash=$1 FOR UPDATE',
@@ -241,6 +269,7 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
     );
     if(!rechargeWrite.rowCount) throw new Error('TXID_ALREADY_CREDITED');
     await client.query('COMMIT');
+    await mirrorDepositReferralCommissionsToFirestore(normalizedHash);
     return {ledgerId,creditUsdt:credit};
   }catch(error){
     await client.query('ROLLBACK');
