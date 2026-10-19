@@ -42,7 +42,7 @@ export const AdminUsdtRecharge: React.FC = () => {
     const q = search.trim().toLowerCase();
     if (!q) return requests;
     return requests.filter((r) =>
-      [r.id, r.userName, r.userEmail, r.referralCode, r.txHash, r.status]
+      [r.id, r.memberId, r.userId, r.userName, r.userEmail, r.referralCode, r.txHash, r.status]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q))
     );
@@ -137,7 +137,7 @@ export const AdminUsdtRecharge: React.FC = () => {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ID, name, email, referral code or TXID..." className="w-full pl-9 pr-3 py-3 rounded-xl bg-[#091129] border border-blue-500/25 text-sm text-white" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search recharge ID, member ID, name, email, referral code or TXID..." className="w-full pl-9 pr-3 py-3 rounded-xl bg-[#091129] border border-blue-500/25 text-sm text-white" />
       </div>
 
       {loading ? (
@@ -155,7 +155,9 @@ export const AdminUsdtRecharge: React.FC = () => {
                     <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${r.status === 'pending' ? 'bg-amber-500/10 text-amber-300' : r.status === 'approved' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}>{r.status}</span>
                   </div>
                   <div className="text-sm font-semibold text-white">{r.userName || 'Unknown member'}</div>
-                  <div className="text-xs text-slate-400">{r.userEmail || '—'} {r.referralCode ? `• ${r.referralCode}` : ''}</div>
+                  <div className="text-xs text-cyan-300">Member ID: <span className="font-mono">{r.memberId || 'Not found in member profile'}</span></div>
+                  <div className="text-xs text-slate-400">{r.userEmail || '—'} {r.referralCode ? `• Referral ID: ${r.referralCode}` : ''}</div>
+                  <div className="text-[10px] text-slate-500 break-all">Account UID: {r.userId}</div>
                   <div className="text-xs text-slate-300">Amount: <strong className="text-cyan-300">{r.amountUsdt} USDT</strong> • {new Date(r.createdAt).toLocaleString('en-IN')}</div>
                   <div className="text-[11px] text-slate-500 break-all">TXID: {r.txHash}</div>
                   {r.proofUrl && <a href={r.proofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-cyan-300 hover:text-white">Open payment proof <ExternalLink className="w-3 h-3" /></a>}
