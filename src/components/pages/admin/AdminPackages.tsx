@@ -69,7 +69,7 @@ export const AdminPackages: React.FC = () => {
     }
   };
 
-  useEffect(() => { void loadPackages(false); }, []);
+  useEffect(() => { if (currentAdmin) void loadPackages(false); }, [currentAdmin?.uid]);
 
   const seedPlans = async (type: 'basic' | 'fd') => {
     if (!currentAdmin) return;
@@ -186,10 +186,10 @@ export const AdminPackages: React.FC = () => {
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Total Profit</span><b className="text-emerald-300">{profit.toLocaleString('en-IN')}</b></div>
             </div>
-            <div className="mt-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
+            {pkg.type === 'basic' && <div className="mt-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
               <span className="text-[11px] text-slate-400">Maturity Amount</span>
               <b className="text-lg text-white">{maturity.toLocaleString('en-IN')}</b>
-            </div>
+            </div>}
             <div className="mt-3 text-[11px] text-slate-400">{pkg.active ? 'Active & visible to members' : 'Inactive / hidden from members'}</div>
           </div>;
         })}
@@ -210,9 +210,11 @@ export const AdminPackages: React.FC = () => {
             <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-[#060b1c] border border-cyan-500/20">
               <div><span className="text-[10px] text-slate-500 block">Daily Income</span><b className="text-cyan-300">{previewDaily.toLocaleString('en-IN')}</b></div>
               <div><span className="text-[10px] text-slate-500 block">Total Profit</span><b className="text-emerald-300">{previewProfit.toLocaleString('en-IN')}</b></div>
-              <div><span className="text-[10px] text-slate-500 block mt-2">Principal</span><b className="text-white">{Number(editingPkg.minAmount || 0).toLocaleString('en-IN')}</b></div>
-              <div><span className="text-[10px] text-slate-500 block mt-2">Maturity Amount</span><b className="text-lg text-white">{previewMaturity.toLocaleString('en-IN')}</b></div>
-              <div className="col-span-2 mt-2 text-[10px] text-slate-500">Formula: Amount + (Amount × Daily % ÷ 100 × Days)</div>
+              {editingPkg.type === 'basic' && <>
+                <div><span className="text-[10px] text-slate-500 block mt-2">Principal</span><b className="text-white">{Number(editingPkg.minAmount || 0).toLocaleString('en-IN')}</b></div>
+                <div><span className="text-[10px] text-slate-500 block mt-2">Maturity Amount</span><b className="text-lg text-white">{previewMaturity.toLocaleString('en-IN')}</b></div>
+                <div className="col-span-2 mt-2 text-[10px] text-slate-500">Formula: Amount + (Amount × Daily % ÷ 100 × Days)</div>
+              </>}
             </div>
 
             <textarea rows={2} value={editingPkg.description} onChange={e=>setEditingPkg({...editingPkg,description:e.target.value})} className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Description"/>
