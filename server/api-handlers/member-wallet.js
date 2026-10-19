@@ -1,4 +1,4 @@
-import { verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
+import { getFirestoreAdmin, verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
 import { getPool } from '../../api/_lib/db.js';
 
 function json(res, status, body) {
@@ -35,9 +35,36 @@ export default async function handler(req, res) {
     if (!row || String(row.user_status || '').toLowerCase() !== 'active') {
       return json(res, 403, { error: 'Active member account required' });
     }
+    // Pending recharge requests are shown separately from spendable funds.
+    // They must not increase fund_wallet until the on-chain transfer is verified
+    // and the credit is written to the authoritative Neon ledger.
+    let pendingUsdt = 0;
+    let pendingRechargeCount = 0;
+    let pendingRechargeStatusAvailable = true;
+    try {
+      const firestore = getFirestoreAdmin();
+      const pendingSnap = await firestore.collection('usdtRecharges').where('userId', '==', uid).get();
+      for (const doc of pendingSnap.docs) {
+        const recharge = doc.data() || {};
+        const status = String(recharge.status ?? '').trim().toLowerCase();
+        if (!['pending', 'under_review', 'processing', 'submitted'].includes(status)) continue;
+        const amount = Number(recharge.amountUsdt ?? recharge.amount ?? 0);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+        pendingUsdt += amount;
+        pendingRechargeCount += 1;
+      }
+      pendingUsdt = Number(pendingUsdt.toFixed(8));
+    } catch (pendingError) {
+      pendingRechargeStatusAvailable = false;
+      console.warn('Pending USDT summary unavailable:', pendingError instanceof Error ? pendingError.message : pendingError);
+    }
+
     const n = value => Number(value || 0);
     return json(res, 200, {
       wallet: {
+        pendingUsdt,
+        pendingRechargeCount,
+        pendingRechargeStatusAvailable,
         userId: uid,
         fundWallet: n(row.fund_wallet),
         incomeWallet: n(row.income_wallet),
