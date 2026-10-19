@@ -6,6 +6,7 @@ import { listUsdtRecharges, reviewUsdtRecharge, type UsdtRechargeRequest } from 
 export const AdminUsdtRecharge: React.FC = () => {
   const { user } = useAuth();
   const [requests, setRequests] = useState<UsdtRechargeRequest[]>([]);
+  const [rechargeEnabled, setRechargeEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [search, setSearch] = useState('');
@@ -19,6 +20,7 @@ export const AdminUsdtRecharge: React.FC = () => {
     try {
       const data = await listUsdtRecharges(user, 'admin');
       setRequests(data.requests || []);
+      setRechargeEnabled(Boolean(data.enabled));
     } catch (err: any) {
       setError(err?.message || 'Unable to load recharge requests.');
     } finally {
@@ -113,9 +115,10 @@ export const AdminUsdtRecharge: React.FC = () => {
                   <div className="w-full xl:w-80 space-y-2">
                     <textarea value={note[r.id] || ''} onChange={e => setNote(v => ({...v, [r.id]: e.target.value}))} placeholder="Admin review note..." rows={2} className="w-full px-3 py-2.5 rounded-xl border border-blue-500/25 bg-[#060b1c] text-xs text-white resize-none" />
                     <div className="grid grid-cols-2 gap-2">
-                      <button disabled={busyId === r.id} onClick={() => review(r, 'approve')} className="py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold disabled:opacity-50"><CheckCircle2 className="w-4 h-4 inline mr-1" />Approve</button>
+                      <button disabled={busyId === r.id || !rechargeEnabled} title={!rechargeEnabled ? 'Recharge configuration is incomplete; verify Vercel settings before crediting' : 'Verify BSC transfer and credit exact USDT'} onClick={() => review(r, 'approve')} className="py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold disabled:opacity-50"><CheckCircle2 className="w-4 h-4 inline mr-1" />Verify + Credit</button>
                       <button disabled={busyId === r.id} onClick={() => review(r, 'reject')} className="py-2.5 rounded-xl bg-rose-600/20 border border-rose-500/30 text-rose-300 text-xs font-bold disabled:opacity-50"><XCircle className="w-4 h-4 inline mr-1" />Reject</button>
                     </div>
+                    {!rechargeEnabled && <p className="text-[11px] text-amber-300">Credit is disabled until Firebase Admin and BSC recharge configuration are verified. No manual balance change is performed.</p>}
                   </div>
                 )}
 
