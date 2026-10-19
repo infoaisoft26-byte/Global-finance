@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { getPool, withTransaction } from './_lib/db.js';
-import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
+import { getPool, withTransaction } from '../../api/_lib/db.js';
+import { getFirestoreAdmin, verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');return res.end(JSON.stringify(body));}
 export default async function handler(req,res){
  if(req.method!=='POST')return json(res,405,{error:'Method not allowed'});

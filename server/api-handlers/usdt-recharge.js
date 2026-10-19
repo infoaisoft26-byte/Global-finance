@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
-import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
-import { addressGenerationConfigured, getMemberDepositDetails } from './_lib/usdtDeposit.js';
-import { getPool } from './_lib/db.js';
+import { getFirestoreAdmin, verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
+import { DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from '../../api/_lib/bep20.js';
+import { addressGenerationConfigured, getMemberDepositDetails } from '../../api/_lib/usdtDeposit.js';
+import { getPool } from '../../api/_lib/db.js';
 
 // Keep the configured receiving wallet local to this route. This avoids a
 // cold-start failure if the deployed helper export differs during rollout.

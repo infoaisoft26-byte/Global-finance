@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
-import { getPool, withTransaction } from './_lib/db.js';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
+import { getPool, withTransaction } from '../../api/_lib/db.js';
+import { verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
 
 const SETTINGS_ID = 'global_finance_system_settings';
 const codePattern = /^GF\d{6}$/;

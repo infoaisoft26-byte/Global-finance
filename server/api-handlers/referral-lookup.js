@@ -1,5 +1,5 @@
-import { getFirestoreAdmin } from './_lib/firebaseAdmin.js';
-import { getPool } from './_lib/db.js';
+import { getFirestoreAdmin } from '../../api/_lib/firebaseAdmin.js';
+import { getPool } from '../../api/_lib/db.js';
 
 function json(res, status, body) {
   res.statusCode = status;
