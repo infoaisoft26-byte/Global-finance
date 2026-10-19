@@ -127,7 +127,7 @@ export const AdminUsdtRecharge: React.FC = () => {
                 {r.status !== 'pending' && (
                   <div className="flex flex-col items-start xl:items-end gap-2 text-xs text-slate-500">
                     <div className="flex items-center gap-2"><Clock3 className="w-4 h-4" /> Reviewed {r.reviewedAt ? new Date(r.reviewedAt).toLocaleString('en-IN') : '—'}</div>
-                    {r.status === 'approved' && !r.ledgerId && (
+                    {(String(r.status).toLowerCase() === 'approved' || String(r.status).toLowerCase() === 'true') && !/^(?:USDTDEP_|DEP_)/.test(String(r.ledgerId || '')) && (
                       <button
                         disabled={busyId === r.id}
                         onClick={() => review(r, 'reconcile')}
