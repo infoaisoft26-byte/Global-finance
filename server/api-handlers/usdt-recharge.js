@@ -168,6 +168,87 @@ async function listRequests(actor,admin){
     .sort((a,b)=>new Date(iso(b.data.createdAt)).getTime()-new Date(iso(a.data.createdAt)).getTime())
     .map(({id,data})=>mapRecharge(data,id));
 }
+async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,note,proof,createdAt}){
+  const pool=getPool();
+  const client=await pool.connect();
+  const normalizedHash=String(txHash||'').toLowerCase();
+  const credit=Number(Number(amount).toFixed(8));
+  if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
+  try{
+    await client.query('BEGIN');
+    // Serialize concurrent reviews of the same on-chain transaction.
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[normalizedHash]);
+
+    const prior=await client.query(
+      `SELECT id,user_id,amount,flow,status
+         FROM ledger_transactions
+        WHERE lower(reference_id)=lower($1)
+          AND type IN ('crypto_deposit','usdt_bep20_recharge')
+        LIMIT 1
+        FOR UPDATE`,
+      [normalizedHash]
+    );
+    let ledgerId='';
+    if(prior.rows.length){
+      const existing=prior.rows[0];
+      if(String(existing.user_id)!==String(userId) ||
+         Number(existing.amount)!==credit ||
+         existing.flow!=='credit' || existing.status!=='completed'){
+        throw new Error('TXID_ALREADY_CREDITED');
+      }
+      ledgerId=String(existing.id);
+    }else{
+      const member=await client.query('SELECT id,status FROM users WHERE id=$1 FOR UPDATE',[userId]);
+      if(!member.rows.length || String(member.rows[0].status||'').toLowerCase()!=='active'){
+        throw new Error('NEON_MEMBER_UNAVAILABLE');
+      }
+      await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[userId]);
+      await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE',[userId]);
+
+      ledgerId=`USDTDEP_${crypto.createHash('sha256').update(normalizedHash).digest('hex').slice(0,24)}`;
+      await client.query(
+        `INSERT INTO ledger_transactions
+          (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at)
+         VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb,$7)`,
+        [ledgerId,userId,credit,`Verified USDT BEP20 recharge ${id}`,normalizedHash,
+          JSON.stringify({asset:'USDT',rechargeId:id,txHash:normalizedHash,depositAddress,adminId:actor.id,reviewNote:note,chainProof:proof}),
+          createdAt || new Date()]
+      );
+      await client.query(
+        'UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',
+        [credit,userId]
+      );
+    }
+
+    const existingRecharge=await client.query(
+      'SELECT id,user_id FROM usdt_bep20_recharges WHERE tx_hash=$1 FOR UPDATE',
+      [normalizedHash]
+    );
+    if(existingRecharge.rows.length && String(existingRecharge.rows[0].user_id)!==String(userId)){
+      throw new Error('TXID_ALREADY_CREDITED');
+    }
+    const rechargeWrite=await client.query(
+      `INSERT INTO usdt_bep20_recharges
+        (id,user_id,tx_hash,deposit_address,amount_usdt,status,ledger_id,review_note,reviewed_by,reviewed_at,created_at,proof_url)
+       VALUES($1,$2,$3,$4,$5,'approved',$6,$7,$8,NOW(),COALESCE($9,NOW()),$10)
+       ON CONFLICT(tx_hash) DO UPDATE SET
+         status='approved',ledger_id=EXCLUDED.ledger_id,review_note=EXCLUDED.review_note,
+         reviewed_by=EXCLUDED.reviewed_by,reviewed_at=EXCLUDED.reviewed_at
+       WHERE usdt_bep20_recharges.user_id=EXCLUDED.user_id
+       RETURNING id`,
+      [id,userId,normalizedHash,String(depositAddress||BEP20_WALLET).toLowerCase(),credit,ledgerId,note||'Approved after on-chain verification',actor.id,createdAt||null,null]
+    );
+    if(!rechargeWrite.rowCount) throw new Error('TXID_ALREADY_CREDITED');
+    await client.query('COMMIT');
+    return {ledgerId,creditUsdt:credit};
+  }catch(error){
+    await client.query('ROLLBACK');
+    throw error;
+  }finally{
+    client.release();
+  }
+}
+
 async function review(actor,id,action,note){
   requireAdmin(actor);
   const db=getFirestoreAdmin();
@@ -187,6 +268,13 @@ async function review(actor,id,action,note){
     proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''),String(initial.depositAddress||BEP20_WALLET));
     credit=Number(Number(initial.amountUsdt).toFixed(8));
     if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
+    // Neon powers the live member wallet and package transactions. Credit it
+    // idempotently by TXID before finalizing the Firestore review state; retrying
+    // a partially completed review will never credit the same TXID twice.
+    await creditNeonRecharge({
+      id,userId:initial.userId,txHash:initial.txHash,amount:initial.amountUsdt,
+      depositAddress:initial.depositAddress||BEP20_WALLET,actor,note,proof,createdAt:initial.createdAt,
+    });
   }
 
   return db.runTransaction(async t=>{
