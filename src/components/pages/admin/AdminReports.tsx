@@ -47,7 +47,7 @@ export const AdminReports: React.FC=()=>{
   return <div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div><h2 className="text-xl font-bold text-white">End-to-End Finance Report</h2><p className="text-xs text-slate-400 mt-1">Verified USDT deposit → wallet credit → package purchase debit → daily income ledger. Auto-refreshes every 15 seconds.</p>{data?.generatedAt&&<p className="text-[10px] text-cyan-400 mt-1">Last sync: {new Date(data.generatedAt).toLocaleString('en-IN')}</p>}</div>
-      <div className="flex gap-2"><button onClick={exportCsv} className="px-3 py-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-xs text-white flex items-center gap-2"><Download className="w-4 h-4"/>Export CSV</button><button onClick={load} disabled={loading} className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`}/>Refresh</button></div>
+      <div className="flex gap-2"><button onClick={exportCsv} className="px-3 py-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-xs text-white flex items-center gap-2"><Download className="w-4 h-4"/>Export CSV</button><button onClick={() => void load()} disabled={loading} className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`}/>Refresh</button></div>
     </div>
     {error&&<div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">{error}</div>}
     <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
