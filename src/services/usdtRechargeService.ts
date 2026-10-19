@@ -10,6 +10,7 @@ export interface UsdtRechargeRequest {
   amountUsdt: string;
   status: 'pending' | 'approved' | 'rejected';
   creditUsdt: string | null;
+  ledgerId?: string | null;
   reviewNote: string | null;
   createdAt: string;
   reviewedAt: string | null;
@@ -100,7 +101,7 @@ export async function submitUsdtRecharge(
 export async function reviewUsdtRecharge(
   user: FirebaseUser,
   id: string,
-  action: 'approve' | 'reject',
+  action: 'approve' | 'reject' | 'reconcile',
   note: string
 ) {
   return call(user, 'admin', 'POST', { action, id, note });
