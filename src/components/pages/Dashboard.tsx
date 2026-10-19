@@ -20,7 +20,8 @@ import {
   QrCode,
   Smartphone,
   ListOrdered,
-  Table as TableIcon
+  Table as TableIcon,
+  Clock3
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getTransactions } from '../../services/financeService.ts';
@@ -406,6 +407,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               >
                 Add Fund
               </button>
+            </div>
+          </div>
+
+          {/* Pending deposits are visible but cannot be spent before verification. */}
+          <div className="p-5 rounded-xl bg-[#091129]/90 border border-amber-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">Pending USDT</span>
+              <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-300">
+                <Clock3 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-amber-200 font-mono tracking-tight tabular-nums">
+              {formatUsdt(wallet?.pendingUsdt)}
+            </div>
+            <div className="mt-3 text-[11px] text-slate-400">
+              {wallet?.pendingRechargeStatusAvailable === false
+                ? 'Pending status temporarily unavailable'
+                : `${Number(wallet?.pendingRechargeCount || 0)} request(s) awaiting verification · not spendable yet`}
             </div>
           </div>
 
