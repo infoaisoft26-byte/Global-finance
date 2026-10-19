@@ -196,6 +196,57 @@ async function listRequests(actor,admin){
     .sort((a,b)=>new Date(iso(b.data.createdAt)).getTime()-new Date(iso(a.data.createdAt)).getTime())
     .map(({id,data})=>mapRecharge(data,id));
 }
+async function mirrorDepositReferralCommissionsToFirestore(txHash) {
+  const pool=getPool();
+  const result=await pool.query(`
+    SELECT d.ledger_id,d.recipient_user_id,d.source_user_id,d.income_type,d.level,d.percentage,d.base_amount,d.amount,d.event_key,d.created_at,
+           l.description,l.metadata
+      FROM income_distributions d
+      JOIN ledger_transactions l ON l.id=d.ledger_id
+     WHERE d.event_key=$1
+     ORDER BY d.level ASC,d.recipient_user_id ASC`,
+    ['DEPOSIT:'+String(txHash||'').toLowerCase()]
+  );
+  const db=getFirestoreAdmin();
+  for(const row of result.rows){
+    const userId=String(row.recipient_user_id);
+    const ledgerId=String(row.ledger_id);
+    const amount=Number(row.amount||0);
+    if(!userId || !ledgerId || !Number.isFinite(amount) || amount<=0) continue;
+    const walletRef=db.collection('wallets').doc(userId);
+    const ledgerRef=db.collection('transactions').doc(ledgerId);
+    const now=new Date().toISOString();
+    await db.runTransaction(async t=>{
+      const [walletSnap,ledgerSnap]=await Promise.all([t.get(walletRef),t.get(ledgerRef)]);
+      if(ledgerSnap.exists) return;
+      const wallet=walletSnap.exists?walletSnap.data()||{}:emptyWallet(userId,new Date());
+      const incomeType=String(row.income_type||'');
+      const isDirect=incomeType==='basic_referral';
+      const isLevel=incomeType==='basic_level';
+      const businessDate=String(row.metadata?.businessDate||'');
+      const currentStatDate=String(wallet.incomeStatDate||'');
+      const levelToday=businessDate && currentStatDate===businessDate ? Number(wallet.todayLevelIncome||0)+ (isLevel?amount:0) : (isLevel?amount:Number(wallet.todayLevelIncome||0));
+      const metadata={...(row.metadata&&typeof row.metadata==='object'?row.metadata:{}),asset:'USDT',txHash:String(txHash||'').toLowerCase(),eventKey:String(row.event_key),sourceUserId:String(row.source_user_id),referredUserId:String(row.source_user_id),referralLevel:Number(row.level||0),percentage:Number(row.percentage||0),commissionPercentage:Number(row.percentage||0),baseAmount:Number(row.base_amount||0)};
+      t.set(walletRef,{
+        ...wallet,userId,
+        incomeWallet:Number((Number(wallet.incomeWallet||0)+amount).toFixed(8)),
+        totalIncome:Number((Number(wallet.totalIncome||0)+amount).toFixed(8)),
+        referralIncome:Number((Number(wallet.referralIncome||0)+(isDirect?amount:0)).toFixed(8)),
+        totalLevelIncome:Number((Number(wallet.totalLevelIncome||0)+(isLevel?amount:0)).toFixed(8)),
+        todayLevelIncome:levelToday,
+        incomeStatDate:businessDate||currentStatDate||null,
+        updatedAt:now
+      },{merge:true});
+      t.set(ledgerRef,{
+        id:ledgerId,userId,type:incomeType,category:'income_wallet',flow:'credit',
+        amount,fee:0,netAmount:amount,
+        description:String(row.description||'Automatic USDT referral commission'),
+        referenceId:String(row.event_key),status:'completed',metadata,
+        createdAt:row.created_at?new Date(row.created_at).toISOString():now
+      });
+    });
+  }
+}
 async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,note,proof,createdAt}){
   const pool=getPool();
   const client=await pool.connect();
@@ -276,6 +327,9 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
     );
     if(!rechargeWrite.rowCount) throw new Error('TXID_ALREADY_CREDITED');
     await client.query('COMMIT');
+    // Mirror the immutable commission ledger to Firestore for legacy income-history screens.
+    // If this fails, the retry path is TXID-idempotent and can safely complete the mirror.
+    await mirrorDepositReferralCommissionsToFirestore(normalizedHash);
     return {ledgerId,creditUsdt:credit};
   }catch(error){
     await client.query('ROLLBACK');
