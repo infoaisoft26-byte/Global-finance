@@ -495,6 +495,57 @@ export default async function handler(req,res){
       return json(res,200,{members,total:members.length});
     }
 
+    if(body.action==='manual-credit'){
+      if(!admin) return json(res,403,{error:'Admin access required'});
+      const memberKey=String(body.memberKey||'').trim();
+      const amount=String(body.amountUsdt||'').trim();
+      const reference=String(body.reference||'').trim();
+      const note=String(body.note||'').trim();
+      if(!memberKey || memberKey.length>200) return json(res,400,{error:'Enter a member ID, referral ID, or email.'});
+      if(!amountPattern.test(amount)||!Number.isFinite(Number(amount))||Number(amount)<=0)
+        return json(res,400,{error:'Enter a valid USDT amount greater than zero.'});
+      if(!/^[A-Za-z0-9._:-]{4,120}$/.test(reference))
+        return json(res,400,{error:'Enter a unique reference (4–120 letters/numbers or . _ : -).'});
+      if(note.length>1000) return json(res,400,{error:'Note is too long.'});
+      const pool=getPool();
+      const client=await pool.connect();
+      const normalizedRef='MANUAL_USDT:'+reference.toLowerCase();
+      const credit=Number(Number(amount).toFixed(8));
+      try{
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[normalizedRef]);
+        const prior=await client.query(
+          "SELECT id FROM ledger_transactions WHERE lower(reference_id)=lower($1) AND type='admin_manual_credit' LIMIT 1 FOR UPDATE",
+          [normalizedRef]
+        );
+        if(prior.rows.length) throw new Error('MANUAL_REFERENCE_USED');
+        const member=await client.query(
+          "SELECT id,status,name,email,referral_code FROM users WHERE id::text=$1 OR lower(email)=lower($1) OR upper(COALESCE(referral_code,''))=upper($1) LIMIT 2 FOR UPDATE",
+          [memberKey]
+        );
+        if(member.rows.length!==1) throw new Error(member.rows.length?'MEMBER_LOOKUP_AMBIGUOUS':'NEON_MEMBER_UNAVAILABLE');
+        const target=member.rows[0];
+        if(String(target.status||'').toLowerCase()!=='active') throw new Error('NEON_MEMBER_UNAVAILABLE');
+        await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[target.id]);
+        const wallet=await client.query('SELECT user_id FROM wallets WHERE user_id=$1 FOR UPDATE',[target.id]);
+        if(!wallet.rows.length) throw new Error('WALLET_NOT_FOUND');
+        const ledgerId='MANUAL_'+crypto.createHash('sha256').update(normalizedRef).digest('hex').slice(0,24);
+        await client.query(
+          `INSERT INTO ledger_transactions
+            (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at)
+           VALUES($1,$2,'admin_manual_credit','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb,NOW())`,
+          [ledgerId,target.id,credit,`Admin manual USDT credit: ${note||'verified offline payment'}`,normalizedRef,
+            JSON.stringify({asset:'USDT',manual:true,adminId:actor.id,adminEmail:actor.email,reference,note,memberEmail:target.email,memberReferralCode:target.referral_code})]
+        );
+        await client.query('UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',[credit,target.id]);
+        await client.query('COMMIT');
+        return json(res,200,{success:true,memberId:String(target.id),memberEmail:String(target.email||''),referralCode:String(target.referral_code||''),creditUsdt:credit,ledgerId});
+      }catch(error){
+        await client.query('ROLLBACK');
+        throw error;
+      }finally{client.release();}
+    }
+
     if(body.action==='submit'){
       if(admin) return json(res,403,{error:'Member account required'});
       if(!rechargeConfigured()) return json(res,503,{error:'USDT recharge is not configured yet. Please contact support before sending funds.'});
@@ -538,6 +589,8 @@ export default async function handler(req,res){
     if(message==='ADMIN_REQUIRED') return json(res,403,{error:'Admin access required'});
     if(message==='ACTIVE_MEMBER_REQUIRED'||message==='MEMBER_UNAVAILABLE') return json(res,403,{error:'Active member account required'});
     if(message==='RECHARGE_NOT_FOUND') return json(res,404,{error:'Recharge not found'});
+    if(message==='MANUAL_REFERENCE_USED') return json(res,409,{error:'This manual payment reference has already been credited.'});
+    if(message==='MEMBER_LOOKUP_AMBIGUOUS') return json(res,409,{error:'More than one member matched. Use the exact member UID or email.'});
     if(message==='TXID_ALREADY_SUBMITTED') return json(res,409,{error:'This TXID has already been submitted'});
     if(message==='ALREADY_CREDITED') return json(res,409,{error:'This TXID was already credited'});
     if(message==='ALREADY_REVIEWED') return json(res,409,{error:'Recharge has already been reviewed'});
