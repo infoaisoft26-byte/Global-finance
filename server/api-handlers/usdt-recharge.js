@@ -128,6 +128,13 @@ async function autoCreditRecharge({id,actor,txHash,amount}){
     }
     throw error;
   }
+  // Credit the live Neon wallet/ledger first. This is idempotent by BSC TXID,
+  // so retries after a partial Firestore failure cannot double-credit the funds.
+  await creditNeonRecharge({
+    id,userId:actor.id,txHash,amount,
+    depositAddress:BEP20_WALLET,actor,
+    note:'Auto-credit after on-chain verification',proof,createdAt:new Date(),
+  });
   const db=getFirestoreAdmin();
   const now=new Date();
   const rechargeRef=db.collection('usdtRecharges').doc(id);
