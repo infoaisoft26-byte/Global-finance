@@ -1,26 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeftRight, 
-  CheckCircle2, 
-  AlertCircle, 
-  Wallet, 
-  CreditCard, 
+import {
+  ArrowLeftRight,
+  CheckCircle2,
+  AlertCircle,
   Sparkles,
   RefreshCw,
-  Clock,
   ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { 
-  createTransactionRequest, 
-  getUserTransactionRequests 
-} from '../../services/transactionRequestService.ts';
 import { getSystemSettings } from '../../services/settingsService.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionRequest, SystemSettings } from '../../types/index.ts';
 
 export const TransferIncomeToFund: React.FC = () => {
-  const { profile, wallet, refreshWallet } = useAuth();
+  const { user, profile, wallet, refreshWallet } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [amount, setAmount] = useState<number>(500);
   const [transferring, setTransferring] = useState(false);
@@ -29,34 +22,57 @@ export const TransferIncomeToFund: React.FC = () => {
   const [requests, setRequests] = useState<TransactionRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
 
+  const apiCall = async (method: 'GET' | 'POST', body?: object) => {
+    if (!user) throw new Error('Please sign in again to transfer USDT.');
+    const response = await fetch('/api/internal-wallet-transfer', {
+      method,
+      credentials: 'include',
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${await user.getIdToken()}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(String(data?.error || 'Internal transfer failed.'));
+    return data;
+  };
+
   const loadData = async () => {
-    if (!profile) return;
+    if (!profile || !user) return;
     setLoadingRequests(true);
     try {
-      const [sysSettings, reqs] = await Promise.all([
+      const [sysSettings, history] = await Promise.all([
         getSystemSettings(),
-        getUserTransactionRequests(profile.uid, 'income_to_fund')
+        apiCall('GET')
       ]);
       setSettings(sysSettings);
-      setRequests(reqs);
+      setRequests(Array.isArray(history.history) ? history.history : []);
     } catch (err) {
-      console.error(err);
+      console.error('Internal transfer history could not load:', err);
     } finally {
       setLoadingRequests(false);
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, [profile?.uid]);
+    void loadData();
+  }, [profile?.uid, user?.uid]);
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || !wallet) return;
+    if (!profile || !user) {
+      setErrorMsg('Please sign in again before transferring USDT.');
+      return;
+    }
 
     const minAmount = settings?.minIncomeTransfer || 100;
     const maxAmount = settings?.maxIncomeTransfer || 200000;
-
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setErrorMsg('Enter a valid USDT amount greater than zero.');
+      return;
+    }
     if (amount < minAmount) {
       setErrorMsg(`Minimum internal transfer amount is USDT ${minAmount.toFixed(8)}.`);
       return;
@@ -66,35 +82,21 @@ export const TransferIncomeToFund: React.FC = () => {
       return;
     }
 
-    if ((wallet.incomeWallet || 0) < amount) {
-      setErrorMsg(`Insufficient Available Balance! Available: USDT ${(wallet.incomeWallet || 0).toFixed(8)}, Required: USDT ${amount.toFixed(8)}`);
-      return;
-    }
-
+    // Do not reject based on a stale client/Firebase wallet snapshot.
+    // The authenticated Neon API locks and checks the canonical wallet balance.
     setTransferring(true);
     setErrorMsg('');
     setSuccessMsg('');
 
+    // Reuse this ID if the same request is retried after a network interruption.
+    const requestId = `WALLET_TRANSFER_${crypto.randomUUID()}`;
     try {
-      const res = await createTransactionRequest({
-        userId: profile.uid,
-        userEmail: profile.email,
-        userName: profile.name,
-        userReferralCode: profile.referralCode,
-        requestType: 'income_to_fund',
-        sourceWalletType: 'income_wallet',
-        destinationWalletType: 'fund_wallet',
-        amountRupees: amount,
-        userNote: 'Internal USDT transfer to Available Fund'
-      });
-
-      if (res.success) {
-        setSuccessMsg(res.message);
-        await refreshWallet();
-        await loadData();
-      }
+      const result = await apiCall('POST', { amount: String(amount), requestId });
+      setSuccessMsg(String(result.message || 'Internal transfer completed successfully.'));
+      await refreshWallet();
+      await loadData();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Transfer failed. Please verify and retry.');
+      setErrorMsg(err.message || 'Transfer failed. Refresh balances before retrying.');
     } finally {
       setTransferring(false);
     }
@@ -127,14 +129,14 @@ export const TransferIncomeToFund: React.FC = () => {
       header: 'Amount Converted',
       render: (item) => (
         <span className="font-mono text-xs font-bold text-cyan-300">
-          USDT {item.amountRupees.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
+          USDT {Number(item.amountRupees || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
         </span>
       )
     },
     {
       key: 'status',
       header: 'Status',
-      render: (item) => (
+      render: () => (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
           <CheckCircle2 className="w-3 h-3" />
           <span>Completed</span>
@@ -145,38 +147,35 @@ export const TransferIncomeToFund: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-blue-500/20">
         <div>
           <h2 className="text-xl font-bold text-white tracking-tight">Transfer Available USDT Balance to Fund Wallet</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Shift earnings from Available Balance into Available Fund to reinvest or activate packages.
+            Transfer your available earnings to Fund Wallet for package activation or reinvestment.
           </p>
         </div>
-
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-xl bg-[#091129] border border-blue-500/25">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">Available Balance</span>
             <div className="text-sm font-bold font-mono text-emerald-400">
-              USDT {(wallet?.incomeWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
+              USDT {Number(wallet?.incomeWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
             </div>
           </div>
           <div className="p-3 rounded-xl bg-[#091129] border border-blue-500/25">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">Available Fund</span>
             <div className="text-sm font-bold font-mono text-cyan-300">
-              USDT {(wallet?.fundWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
+              USDT {Number(wallet?.fundWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Form Card */}
         <div className="lg:col-span-7 rounded-2xl bg-[#091129] border border-blue-500/25 p-5 sm:p-6 shadow-xl space-y-5">
           <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
-              <span>Internal Wallet Shift</span>
+              <span>Internal Wallet Transfer</span>
             </h3>
             <span className="text-[11px] text-cyan-400 font-mono font-semibold">
               Min: USDT {settings?.minIncomeTransfer || 100} • 0% Fee
@@ -189,7 +188,6 @@ export const TransferIncomeToFund: React.FC = () => {
               <span>{errorMsg}</span>
             </div>
           )}
-
           {successMsg && (
             <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -199,18 +197,14 @@ export const TransferIncomeToFund: React.FC = () => {
 
           <form onSubmit={handleTransfer} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Transfer Amount (USDT)
-              </label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Transfer Amount (USDT)</label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 font-bold text-xs">
-                  USDT
-                </span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 font-bold text-xs">USDT</span>
                 <input
                   type="number"
                   min={settings?.minIncomeTransfer || 100}
                   max={settings?.maxIncomeTransfer || 200000}
-                  step="1"
+                  step="0.00000001"
                   value={amount}
                   onChange={(e) => setAmount(Number(e.target.value))}
                   required
@@ -218,7 +212,6 @@ export const TransferIncomeToFund: React.FC = () => {
                 />
               </div>
             </div>
-
             <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 text-xs text-slate-300 flex items-center justify-between">
               <span>Debit from Available Balance:</span>
               <span className="font-mono text-rose-400 font-bold">-USDT {amount.toFixed(8)}</span>
@@ -227,7 +220,6 @@ export const TransferIncomeToFund: React.FC = () => {
               <span>Credit to Available Fund:</span>
               <span className="font-mono text-emerald-400 font-bold">+USDT {amount.toFixed(8)}</span>
             </div>
-
             <button
               type="submit"
               disabled={transferring}
@@ -236,45 +228,43 @@ export const TransferIncomeToFund: React.FC = () => {
               {transferring ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Processing USDT ledger transfer...</span>
+                  <span>Processing secure wallet transfer...</span>
                 </>
               ) : (
                 <>
                   <ArrowLeftRight className="w-4 h-4" />
-                  <span>Confirm Internal Balance Shift</span>
+                  <span>Transfer to Fund Wallet</span>
                 </>
               )}
             </button>
           </form>
         </div>
 
-        {/* Right Info Box */}
         <div className="lg:col-span-5 space-y-4">
           <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5 shadow-xl space-y-3">
             <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
               <ShieldCheck className="w-4 h-4" />
-              <span>Accounting Invariant Rules</span>
+              <span>Accounting Protection</span>
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Internal transfers between your Available Balance and Available Fund are executed instantly inside a single database transaction.
+              The transfer checks the live Neon wallet balance and moves both wallet balances in one atomic database transaction.
             </p>
             <ul className="text-[11px] text-slate-400 space-y-2 list-disc list-inside">
-              <li>0% administrative charges or TDS deducted.</li>
-              <li>Fund balance is immediately unlocked for package activation.</li>
-              <li>Creates immutable double-entry journal records.</li>
+              <li>0% administrative charges.</li>
+              <li>Fund balance updates immediately for package activation.</li>
+              <li>Immutable debit and credit journal entries are recorded together.</li>
+              <li>Retry-safe reference prevents duplicate transfer credit.</li>
             </ul>
           </div>
         </div>
       </div>
 
-      {/* History Table */}
       <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5 shadow-xl space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-blue-500/20">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            Internal Shift History
-          </h3>
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Internal Transfer History</h3>
           <button
-            onClick={loadData}
+            type="button"
+            onClick={() => void loadData()}
             disabled={loadingRequests}
             className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
           >
@@ -282,12 +272,7 @@ export const TransferIncomeToFund: React.FC = () => {
             <span>Refresh</span>
           </button>
         </div>
-
-        <DataTable
-          columns={columns}
-          data={requests}
-          emptyMessage="No internal transfers performed yet."
-        />
+        <DataTable columns={columns} data={requests} emptyMessage="No internal transfers performed yet." />
       </div>
     </div>
   );
