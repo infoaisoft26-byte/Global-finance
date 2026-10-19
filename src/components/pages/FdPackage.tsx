@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lu
 import { useAuth } from '../../context/AuthContext.tsx';
 import { adminGetPackages } from '../../services/financeService.ts';
 import { getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
-import { FD_PACKAGE_TEMPLATES, getFdPlanDailyReturn, getFdPlanScheduledReturn, getFdPlanMaturityValue } from '../../data/fdPackageTemplates.ts';
+import { FD_PACKAGE_TEMPLATES, getFdPlanDailyReturn, getFdPlanScheduledReturn } from '../../data/fdPackageTemplates.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { PackageActivationRequest, PackageDefinition } from '../../types/index.ts';
 
@@ -63,15 +63,17 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
   };
 
   const columns: Column<PackageActivationRequest>[] = useMemo(() => [
-    { key:'createdAt', header:'Date', render:item => <span className="text-xs">{new Date(item.createdAt).toLocaleString('en-IN')}</span> },
+    { key:'createdAt', header:'Purchase Date', render:item => <span className="text-xs">{new Date(item.createdAt).toLocaleString('en-IN')}</span> },
     { key:'packageName', header:'FD Plan', render:item => <span className="text-xs font-semibold">{item.packageName}</span> },
-    { key:'amountRupees', header:'Amount (USDT)', render:item => <span className="text-xs font-mono">USDT {item.amountRupees.toFixed(8)}</span> },
+    { key:'amountRupees', header:'Purchased (USDT)', render:item => <span className="text-xs font-mono">USDT {item.amountRupees.toFixed(2)}</span> },
+    { key:'roiDailyRate', header:'Daily ROI', render:item => <span className="text-xs font-mono text-emerald-300">{Number(item.roiDailyRate || 0)}% / USDT {(item.amountRupees * Number(item.roiDailyRate || 0) / 100).toFixed(2)}</span> },
+    { key:'totalEarned', header:'Income Credited', render:item => <span className="text-xs font-mono text-cyan-300">USDT {Number(item.totalEarned || 0).toFixed(2)}</span> },
     { key:'status', header:'Status', render:item => <span className="inline-flex px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-500">{item.status.toUpperCase()}</span> }
   ], []);
 
   return <div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div><h2 className="text-xl font-bold">FD Package</h2><p className="text-xs mt-1">Choose an active FD plan and review its daily income, total profit and maturity amount before purchase.</p></div>
+      <div><h2 className="text-xl font-bold">FD Package</h2><p className="text-xs mt-1">Purchase with Available USDT and track daily ROI, total planned profit, and income credited. Maturity amount is not displayed.</p></div>
       <div className="flex items-center gap-2"><div className="px-4 py-2.5 rounded-xl bg-[#091129] border border-blue-500/25 flex items-center gap-2"><Wallet className="w-4 h-4 text-cyan-400"/><div><div className="text-[9px] uppercase">Available USDT</div><div className="font-mono text-sm font-bold">{Number(wallet?.fundWallet || 0).toFixed(2)}</div></div></div><button onClick={onNavigateToRecharge} className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold">Add USDT</button></div>
     </div>
     {message && <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/>{message}</div>}
@@ -82,7 +84,6 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
         const waiting = submittingId === pkg.id;
         const daily = getFdPlanDailyReturn(pkg);
         const profit = getFdPlanScheduledReturn(pkg);
-        const maturity = getFdPlanMaturityValue(pkg);
         return <div key={pkg.id} className={`rounded-2xl bg-[#091129] border overflow-hidden shadow-lg ${prime ? 'border-violet-500/30' : 'border-blue-500/25'}`}>
           <div className="p-4 border-b border-blue-500/15 flex items-center gap-3"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${prime ? 'bg-gradient-to-br from-violet-600 to-fuchsia-500' : 'bg-gradient-to-br from-blue-600 to-cyan-500'}`}><Package className="w-5 h-5 text-white"/></div><div><h3 className="font-bold">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-500">{pkg.code}</span></div></div>
           <div className="p-4 space-y-2 text-xs">
@@ -90,12 +91,40 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
             <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-emerald-400">{pkg.roiRate}% = {daily.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
             <div className="flex justify-between"><span>Total Profit</span><b className="font-mono text-emerald-300">{profit.toFixed(2)}</b></div>
-            <div className={`flex justify-between pt-3 mt-1 border-t ${prime ? 'border-violet-500/20' : 'border-blue-500/20'}`}><span className="font-semibold">Maturity Amount</span><b className="font-mono text-base">${maturity.toFixed(2)}</b></div>
+            <div className={`pt-3 mt-1 border-t ${prime ? 'border-violet-500/20' : 'border-blue-500/20'}`}>
+              <div className="flex justify-between"><span className="font-semibold">Daily Income Estimate</span><b className="font-mono text-emerald-300">USDT {daily.toFixed(2)}</b></div>
+              <div className="flex justify-between mt-2"><span>Total Profit Estimate</span><b className="font-mono text-emerald-300">USDT {profit.toFixed(2)}</b></div>
+            </div>
           </div>
           <button onClick={() => purchase(pkg)} disabled={waiting} className={`w-full py-3 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2 ${prime ? 'bg-violet-600 hover:bg-violet-500' : 'bg-blue-600 hover:bg-blue-500'}`}>{waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing…</> : 'Purchase with USDT'}</button>
         </div>;
       })}
     </div>
-    <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5"><div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-cyan-400"/>FD Purchase History</h3><button onClick={() => loadData(true)} disabled={refreshing} className="text-xs text-cyan-500 flex items-center gap-1"><RefreshCw className={`w-3.5 h-3.5 ${refreshing?'animate-spin':''}`}/>Refresh</button></div><DataTable columns={columns} data={requests} emptyMessage="No FD package purchases yet." /></div>
+    <div className="rounded-2xl bg-[#091129] border border-blue-500/25 p-5">
+      <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-cyan-400"/>My FD Purchases & Income Calculation</h3><button onClick={() => loadData(true)} disabled={refreshing} className="text-xs text-cyan-500 flex items-center gap-1"><RefreshCw className={`w-3.5 h-3.5 ${refreshing?'animate-spin':''}`}/>Refresh</button></div>
+      <DataTable columns={columns} data={requests} emptyMessage="No FD package purchases yet. Purchase a plan to see its calculation here." />
+      {requests.length > 0 && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mt-4">
+        {requests.map(item => {
+          const rate = Number(item.roiDailyRate || 0);
+          const days = Number(item.durationDays || 0);
+          const dailyIncome = Number((item.amountRupees * rate / 100).toFixed(2));
+          const totalProfit = Number((dailyIncome * days).toFixed(2));
+          const earned = Number(item.totalEarned || 0);
+          return <div key={item.id} className="rounded-xl border border-cyan-500/20 bg-[#070d20] p-4">
+            <div className="font-bold text-sm">{item.packageName}</div>
+            <div className="text-[10px] text-slate-400 mt-1">Purchase: {new Date(item.activatedAt || item.createdAt).toLocaleString('en-IN')}</div>
+            <div className="grid grid-cols-2 gap-3 mt-4 text-xs">
+              <div><div className="text-slate-400">Plan Amount</div><b className="font-mono">USDT {item.amountRupees.toFixed(2)}</b></div>
+              <div><div className="text-slate-400">Daily ROI</div><b className="font-mono text-emerald-300">{rate}%</b></div>
+              <div><div className="text-slate-400">Daily Income Estimate</div><b className="font-mono text-emerald-300">USDT {dailyIncome.toFixed(2)}</b></div>
+              <div><div className="text-slate-400">Duration</div><b>{days} days</b></div>
+              <div><div className="text-slate-400">Total Profit Estimate</div><b className="font-mono text-emerald-300">USDT {totalProfit.toFixed(2)}</b></div>
+              <div><div className="text-slate-400">Income Credited So Far</div><b className="font-mono text-cyan-300">USDT {earned.toFixed(2)}</b></div>
+            </div>
+            <div className="mt-3 text-[10px] text-slate-400">Estimates use the configured daily ROI. Actual credited income is shown separately and depends on the platform's daily income run.</div>
+          </div>;
+        })}
+      </div>}
+    </div>
   </div>;
 };
