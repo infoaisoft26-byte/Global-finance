@@ -12,9 +12,9 @@ export const DailyIncomeReport: React.FC = () => {
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [lastUpdated,setLastUpdated]=useState<Date|null>(null);
-  const load=useCallback(async()=>{
+  const load=useCallback(async(silent=false)=>{
     if(!user)return;
-    setLoading(true);setError('');
+    if(!silent)setLoading(true);setError('');
     try{
       const token=await user.getIdToken();
       const res=await fetch('/api/member-finance-report?report=daily',{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
@@ -24,9 +24,9 @@ export const DailyIncomeReport: React.FC = () => {
       setTotal(Number(body.summary?.totalIncome||0));
       setLastUpdated(new Date());
     }catch(e:any){setError(e?.message||'Unable to load daily report');}
-    finally{setLoading(false);}
+    finally{if(!silent)setLoading(false);}
   },[user]);
-  useEffect(()=>{ void load(); const timer=window.setInterval(()=>{ void load(); },15000); return ()=>window.clearInterval(timer); },[load]);
+  useEffect(()=>{ void load(); const timer=window.setInterval(()=>{ void load(true); },15000); return ()=>window.clearInterval(timer); },[load]);
   return <div className="space-y-6">
     <div className="p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div><p className="text-xs uppercase tracking-wider text-cyan-400">Financial Statements · IST</p><h2 className="text-2xl font-extrabold text-white mt-1">Daily Income Report</h2><p className="text-sm text-slate-400 mt-1">Daily ROI, referral, level and salary credits from the verified Neon ledger.</p></div>
