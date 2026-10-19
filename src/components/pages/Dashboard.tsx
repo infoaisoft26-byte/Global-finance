@@ -369,8 +369,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">Live 5X Capping</span>
             <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> AUTO</span>
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">{formatUsdt(capSummary.totalCap)}</div>
-          <div className="mt-1 text-xs text-cyan-100/80">Total 5X cap limit across all recorded plans</div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">{capCycles.length ? formatUsdt(capSummary.totalCap) : 'Awaiting plan sync'}</div>
+          <div className="mt-1 text-xs text-cyan-100/80">{capCycles.length ? 'Total 5X cap limit across all recorded plans' : 'No package activation records have synced to cap tracking yet'}</div>
           <div className="mt-4 grid grid-cols-2 gap-3 border-t border-cyan-300/15 pt-3">
             <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Verified counted</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(capSummary.verifiedCounted)}</div></div>
             <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Verified remaining</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(capSummary.verifiedRemaining)}</div></div>
