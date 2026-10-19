@@ -24,6 +24,9 @@ export interface UserProfile {
 export interface WalletData {
   userId: string;
   fundWallet: number; // Available Fund balance in USDT
+  pendingUsdt?: number; // Submitted but not yet verified; never spendable
+  pendingRechargeCount?: number;
+  pendingRechargeStatusAvailable?: boolean;
   incomeWallet: number; // Available Balance in USDT
   basicPackageActive: number; // Active Basic Package value in USDT
   fdPackageActive: number; // Active FD Package value in USDT
