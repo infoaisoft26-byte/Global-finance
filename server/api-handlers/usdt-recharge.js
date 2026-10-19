@@ -327,6 +327,8 @@ export { autoCreditRecharge };
 // Return the authenticated member's real Firestore downline. Never trust a
 // referral code supplied by the browser; scope the query to the signed-in user.
 async function loadDownline(pool, actor) {
+  // Keep the account login status separate from the earning/referral ID status.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_status VARCHAR(16) NOT NULL DEFAULT 'active'`);
   // The live network, referral links, packages, and ledger are stored in Neon
   // Postgres. Read the production relational records instead of a possibly
   // stale Firestore copy; this is strictly read-only.
@@ -353,6 +355,7 @@ async function loadDownline(pool, actor) {
         u.email,
         u.phone,
         u.status,
+        COALESCE(u.referral_status,'active') AS referral_status,
         u.created_at,
         1::int AS level,
         ARRAY[r.id, u.id::text] AS path
@@ -379,6 +382,7 @@ async function loadDownline(pool, actor) {
         child.email,
         child.phone,
         child.status,
+        COALESCE(child.referral_status,'active') AS referral_status,
         child.created_at,
         parent.level + 1,
         parent.path || child.id::text
@@ -394,7 +398,8 @@ async function loadDownline(pool, actor) {
     )
     SELECT
       n.id, n.sponsor_id, n.referral_code, n.name, n.email, n.phone,
-      n.status, n.created_at, n.level,
+      CASE WHEN n.status='active' AND n.referral_status='inactive' THEN 'inactive' ELSE n.status END AS status,
+      n.status AS account_status,n.referral_status,n.created_at,n.level,
       COALESCE(pkg.active_package, 0)::numeric AS active_package,
       COALESCE(comm.total_commission, 0)::numeric AS total_commission
     FROM network n
