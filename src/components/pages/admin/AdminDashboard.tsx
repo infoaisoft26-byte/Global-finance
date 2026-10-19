@@ -98,7 +98,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         </div>
 
         <button
-          onClick={fetchMetrics}
+          onClick={() => void fetchMetrics()}
           disabled={loading}
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0f1b3e] hover:bg-[#152554] border border-blue-500/30 text-xs font-semibold text-white transition-colors disabled:opacity-50"
         >
