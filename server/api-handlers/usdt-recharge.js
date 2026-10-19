@@ -20,6 +20,14 @@ const amountPattern=/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/;
 function bodyOf(req){return typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});}
 function iso(v){return v?.toDate?.()?.toISOString?.() || (v ? String(v) : new Date().toISOString());}
 function num(v){return Number(v||0);}
+function timestampDate(v){
+  if(v?.toDate && typeof v.toDate==='function') return v.toDate();
+  if(v && typeof v==='object' && Number.isFinite(Number(v._seconds))){
+    return new Date(Number(v._seconds)*1000 + Number(v._nanoseconds||0)/1e6);
+  }
+  if(v){const d=new Date(v);if(!Number.isNaN(d.getTime())) return d;}
+  return null;
+}
 function adminEmailAllowed(email){
   const configured=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
   return new Set([configured,'admin@gf.online','admin@gf.app'].filter(Boolean)).has(String(email||'').toLowerCase());
@@ -173,6 +181,8 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
   const client=await pool.connect();
   const normalizedHash=String(txHash||'').toLowerCase();
   const credit=Number(Number(amount).toFixed(8));
+  // Firestore timestamps may arrive as Timestamp instances or serialized {_seconds,_nanoseconds} objects.
+  const rechargeCreatedAt=timestampDate(createdAt)||new Date();
   if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
   try{
     await client.query('BEGIN');
@@ -212,7 +222,7 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
          VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb,$7)`,
         [ledgerId,userId,credit,`Verified USDT BEP20 recharge ${id}`,normalizedHash,
           JSON.stringify({asset:'USDT',rechargeId:id,txHash:normalizedHash,depositAddress,adminId:actor.id,reviewNote:note,chainProof:proof}),
-          createdAt || new Date()]
+          rechargeCreatedAt]
       );
       await client.query(
         'UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',
@@ -220,7 +230,6 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
       );
     }
 
-    const rechargeCreatedAt = createdAt?.toDate?.() || (createdAt ? new Date(createdAt) : null);
     const existingRecharge=await client.query(
       'SELECT id,user_id FROM usdt_bep20_recharges WHERE tx_hash=$1 FOR UPDATE',
       [normalizedHash]
