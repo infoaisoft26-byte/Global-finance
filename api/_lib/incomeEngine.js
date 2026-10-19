@@ -340,8 +340,10 @@ export async function runDailyIncome(client,businessDate) {
     const roiType=a.package_type==='fd'?'fd_roi':'basic_roi';
     const levelType=a.package_type==='fd'?'fd_level':'basic_level';
 
-    let creditedRoi=0;
-    if(roiEventCreated){
+    const priorRoiCredit=await client.query(`SELECT amount FROM income_distributions
+      WHERE event_key=$1 AND recipient_user_id=$2 AND income_type=$3 AND level=0 LIMIT 1`,[key,a.user_id,roiType]);
+    let creditedRoi=Number(priorRoiCredit.rows[0]?.amount||0);
+    if(!priorRoiCredit.rowCount){
       creditedRoi=Number(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate})||0);
       if(creditedRoi>0){
         roiCredits++;
