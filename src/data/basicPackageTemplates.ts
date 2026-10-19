@@ -2,11 +2,13 @@ import type { PackageDefinition } from '../types/index.ts';
 
 const createdAt = '2026-09-27T00:00:00.000Z';
 
-const amounts = [200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+const amounts = [2, 5, 10, 20, 25, 10000, 20000, 50000, 100000, 200000, 500000];
+const dailyRates = [5, 5, 1, 5, 5, 1, 1, 1, 1, 1, 1];
+const durations = [25, 25, 25, 24, 25, 25, 25, 25, 25, 25, 25];
 
 /**
- * GLOBAL FINANCE basic-package templates adapted from the approved reference structure.
- * Values are configurable plan terms, not a guarantee of return.
+ * Global Finance Base Plan terms. Displayed rates and durations match the
+ * configured plan records. Returns are estimates, not guarantees.
  */
 export const BASIC_PACKAGE_TEMPLATES: PackageDefinition[] = amounts.map((amount, index) => ({
   id: `gf-basic-${index + 1}`,
@@ -15,10 +17,10 @@ export const BASIC_PACKAGE_TEMPLATES: PackageDefinition[] = amounts.map((amount,
   type: 'basic',
   minAmount: amount,
   maxAmount: amount,
-  roiRate: 1,
-  durationDays: 25,
-  description: `Fixed ${amount.toLocaleString('en-IN')} plan with admin-configured daily return terms for 25 days.`,
-  terms: 'Configured daily return: 1% of plan amount for 25 days. Subject to platform terms and admin controls.',
+  roiRate: dailyRates[index],
+  durationDays: durations[index],
+  description: `Fixed ${amount.toLocaleString('en-IN')} USDT plan with configured daily return terms for ${durations[index]} days.`,
+  terms: `Configured daily return: ${dailyRates[index]}% of plan amount for ${durations[index]} days. Subject to platform terms and admin controls.`,
   active: true,
   createdAt,
   updatedAt: createdAt
