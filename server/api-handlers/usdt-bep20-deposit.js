@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
 import { withTransaction } from '../../api/_lib/db.js';
-import { applyActivationIncome, ensureIncomeSchema, runDailyIncome } from '../../api/_lib/incomeEngine.js';
+import { applyDepositReferralIncome, ensureIncomeSchema, runDailyIncome } from '../../api/_lib/incomeEngine.js';
 
 const BASIC_AMOUNTS = [200, 500, 1000, 2000, 5000, 10000, 20000, 500000, 100000, 200000, 500000];
 const FD_AMOUNTS = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
@@ -100,24 +100,28 @@ async function handleAdminReconcileReferralIncome(member, res) {
   const result = await withTransaction(async (client) => {
     await ensureIncomeSchema(client);
     const { rows } = await client.query(`
-      SELECT id,user_id,package_name,package_type,amount
-      FROM package_activations
-      ORDER BY activated_at ASC
+      SELECT id,user_id,amount,reference_id,metadata
+      FROM ledger_transactions
+      WHERE flow='credit' AND status='completed'
+        AND type IN ('usdt_bep20_recharge','crypto_deposit')
+      ORDER BY created_at ASC,id ASC
     `);
 
-    let activationsProcessed = 0;
+    let depositsProcessed = 0;
     let distributionsCreated = 0;
     let amountCredited = 0;
 
-    for (const activation of rows) {
-      const result = await applyActivationIncome(client, {
-        activationId: activation.id,
-        userId: activation.user_id,
-        amount: Number(activation.amount || 0),
-        packageName: activation.package_name,
-        packageType: activation.package_type === 'fd' ? 'fd' : 'basic',
+    for (const deposit of rows) {
+      const metadata = deposit.metadata && typeof deposit.metadata === 'object' ? deposit.metadata : {};
+      const txHash = String(deposit.reference_id || metadata.txHash || '').trim().toLowerCase();
+      if (!/^0x[0-9a-f]{64}$/.test(txHash)) continue;
+      const result = await applyDepositReferralIncome(client, {
+        depositId: String(metadata.rechargeId || deposit.id),
+        userId: deposit.user_id,
+        amount: Number(deposit.amount || 0),
+        txHash,
       });
-      activationsProcessed += 1;
+      depositsProcessed += 1;
       distributionsCreated += Number(result.credited || 0);
       amountCredited += Number(result.creditedAmount || 0);
     }
@@ -130,17 +134,17 @@ async function handleAdminReconcileReferralIncome(member, res) {
         member.uid,
         member.email,
         JSON.stringify({
-          activationsProcessed,
+          depositsProcessed,
           distributionsCreated,
           amountCredited: Number(amountCredited.toFixed(2)),
-          commissionSchedule: 'L1=7%, L2-L12=1%, L13-L15=0.5%',
+          commissionSchedule: 'First deposit L1=10%, retopup L1=5%, L2-L15=0.25%',
           asset: 'USDT',
         }),
       ]
     );
 
     return {
-      activationsProcessed,
+      depositsProcessed,
       distributionsCreated,
       amountCredited: Number(amountCredited.toFixed(2)),
     };
@@ -174,10 +178,10 @@ async function handlePackagePurchase(member, body, res) {
     await client.query(`UPDATE wallets SET fund_wallet=fund_wallet-$2,basic_package_active=basic_package_active+CASE WHEN $3='basic' THEN $2 ELSE 0 END,fd_package_active=fd_package_active+CASE WHEN $3='fd' THEN $2 ELSE 0 END,updated_at=NOW() WHERE user_id=$1`, [member.uid, amount, pkg.type]);
     await client.query(`INSERT INTO package_activations (id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'active',$9,$10)`, [purchaseId, member.uid, pkg.id, pkg.type, pkg.name, amount, Number(pkg.roi_rate), Number(pkg.duration_days), now, expires]);
     await client.query(`INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata) VALUES ($1,$2,'package_purchase','fund_wallet','debit',$3,0,$3,$4,$5,'completed',$6::jsonb)`, [`LED-${purchaseId}`, member.uid, amount, `USDT package purchase: ${pkg.name}`, purchaseId, JSON.stringify({ packageId: pkg.id, packageName: pkg.name, packageType: pkg.type, asset: 'USDT' })]);
-    const commissions = await applyActivationIncome(client, { activationId: purchaseId, userId: member.uid, amount, packageName: pkg.name, packageType: pkg.type });
-    await client.query(`INSERT INTO audit_logs (id,actor_user_id,actor_email,action,entity_type,entity_id,metadata) VALUES ($1,$2,$3,'PACKAGE_PURCHASE_COMPLETED','package_activation',$4,$5::jsonb)`, [crypto.randomUUID(), member.uid, member.email, purchaseId, JSON.stringify({ packageId: pkg.id, packageName: pkg.name, packageType: pkg.type, amount, asset: 'USDT', automaticIncomeCredits: commissions.credited })]);
+    // Referral commissions are paid on the verified USDT deposit/recharge event, not again on package purchase.
+    await client.query(`INSERT INTO audit_logs (id,actor_user_id,actor_email,action,entity_type,entity_id,metadata) VALUES ($1,$2,$3,'PACKAGE_PURCHASE_COMPLETED','package_activation',$4,$5::jsonb)`, [crypto.randomUUID(), member.uid, member.email, purchaseId, JSON.stringify({ packageId: pkg.id, packageName: pkg.name, packageType: pkg.type, amount, asset: 'USDT', automaticIncomeCredits: 0 })]);
     const updated = await client.query('SELECT * FROM wallets WHERE user_id=$1 LIMIT 1', [member.uid]);
-    return { purchaseId, pkg, amount, wallet: updated.rows[0], commissions };
+    return { purchaseId, pkg, amount, wallet: updated.rows[0] };
   });
   return json(res, 200, {
     success: true,
@@ -188,8 +192,8 @@ async function handlePackagePurchase(member, body, res) {
     asset: 'USDT',
     fundWallet: Number(result.wallet?.fund_wallet || 0),
     automaticIncomeCredits: result.commissions.credited,
-    referralIncomeCredited: Number(result.commissions.creditedAmount || 0),
-    referralRecipients: result.commissions.recipients || [],
+    referralIncomeCredited: 0,
+    referralRecipients: [],
     message: `${result.pkg.name} purchased successfully. USDT ${result.amount.toFixed(2)} deducted automatically from Available USDT.`,
   });
 }
