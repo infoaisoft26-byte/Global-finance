@@ -22,11 +22,11 @@ export default async function handler(req, res) {
   const rawPath = req.query?.path;
   const fromQuery = Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath || "");
   const fromUrl = String(req.url || "").split("?")[0];
-  const candidate = (fromQuery || fromUrl).replace(/^\\/+|\\/+$/g, "");
+  const candidate = fromQuery || fromUrl;
   const route = candidate
-    .replace(/^api\\//, "")
     .split("/")
     .filter(Boolean)
+    .filter((part) => part !== "api")
     .join("/");
   const loadHandler = handlers[route];
 
