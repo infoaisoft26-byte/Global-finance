@@ -42,12 +42,14 @@ export const AdminUsdtRecharge: React.FC = () => {
     );
   }, [requests, search]);
 
-  const review = async (r: UsdtRechargeRequest, action: 'approve' | 'reject') => {
+  const review = async (r: UsdtRechargeRequest, action: 'approve' | 'reject' | 'reconcile') => {
     if (!user) return;
     const reviewNote = (note[r.id] || '').trim();
     if (!window.confirm(action === 'approve'
       ? `Verify the BNB Smart Chain transaction and credit exactly ${r.amountUsdt} USDT to the member Fund Wallet?`
-      : `Reject ${r.id}?`)) return;
+      : action === 'reconcile'
+        ? `Verify the on-chain payment for ${r.id} and safely reconcile it to the live wallet ledger? Existing TXID ledger entries will not be credited twice.`
+        : `Reject ${r.id}?`)) return;
 
     setBusyId(r.id);
     setError('');
@@ -122,7 +124,21 @@ export const AdminUsdtRecharge: React.FC = () => {
                   </div>
                 )}
 
-                {r.status !== 'pending' && <div className="flex items-center gap-2 text-xs text-slate-500"><Clock3 className="w-4 h-4" /> Reviewed {r.reviewedAt ? new Date(r.reviewedAt).toLocaleString('en-IN') : '—'}</div>}
+                {r.status !== 'pending' && (
+                  <div className="flex flex-col items-start xl:items-end gap-2 text-xs text-slate-500">
+                    <div className="flex items-center gap-2"><Clock3 className="w-4 h-4" /> Reviewed {r.reviewedAt ? new Date(r.reviewedAt).toLocaleString('en-IN') : '—'}</div>
+                    {r.status === 'approved' && !r.ledgerId && (
+                      <button
+                        disabled={busyId === r.id}
+                        onClick={() => review(r, 'reconcile')}
+                        className="px-3 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/30 text-cyan-200 text-xs font-bold disabled:opacity-50"
+                      >
+                        {busyId === r.id ? 'Reconciling…' : 'Repair wallet ledger'}
+                      </button>
+                    )}
+                    {r.ledgerId && <span className="font-mono text-[10px] text-emerald-400">Ledger: {r.ledgerId}</span>}
+                  </div>
+                )}
               </div>
             </div>
           ))}
