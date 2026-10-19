@@ -212,8 +212,8 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
     const prior=await client.query(
       `SELECT id,user_id,amount,flow,status
          FROM ledger_transactions
-        WHERE lower(reference_id)=lower($1)
-          AND type IN ('crypto_deposit','usdt_bep20_recharge')
+        WHERE (lower(reference_id)=lower($1) OR lower(COALESCE(metadata->>'txHash',''))=lower($1))
+          AND type IN ('crypto_deposit','usdt_bep20_recharge','usdt_bep20_auto_deposit')
         LIMIT 1
         FOR UPDATE`,
       [normalizedHash]
