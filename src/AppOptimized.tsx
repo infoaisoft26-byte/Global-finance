@@ -41,6 +41,7 @@ const AdminReports = lazy(() => import('./components/pages/admin/AdminReports.ts
 const AdminPackages = lazy(() => import('./components/pages/admin/AdminPackages.tsx').then(m => ({ default: m.AdminPackages })));
 const AdminPackageActivations = lazy(() => import('./components/pages/admin/AdminPackageActivations.tsx').then(m => ({ default: m.AdminPackageActivations })));
 const AdminTransactions = lazy(() => import('./components/pages/admin/AdminTransactionsAccounting.tsx').then(m => ({ default: m.AdminTransactionsAccounting })));
+const AdminUsdtRecharge = lazy(() => import('./components/pages/admin/AdminUsdtRecharge.tsx').then(m => ({ default: m.AdminUsdtRecharge })));
 const AdminAudit = lazy(() => import('./components/pages/admin/AdminAudit.tsx').then(m => ({ default: m.AdminAudit })));
 const AdminSettingsPage = lazy(() => import('./components/pages/admin/AdminSettingsPage.tsx').then(m => ({ default: m.AdminSettingsPage })));
 
@@ -203,6 +204,7 @@ const MainLayout: React.FC = () => {
       case 'support-tickets': return <SupportTickets />;
       case 'admin-dashboard': return <AdminDashboardFast onNavigate={setActivePage} />;
       case 'admin-transactions': return <AdminTransactions />;
+      case 'admin-usdt-recharge': return <AdminUsdtRecharge />;
       case 'admin-package-activations': return <AdminPackageActivations />;
       case 'admin-users': return <AdminUsers onSelectUser={(userId) => { setSelectedAdminUserId(userId); setActivePage('admin-user-detail'); }} />;
       case 'admin-user-detail': return <AdminUserDetail userId={selectedAdminUserId} onBack={() => setActivePage('admin-users')} />;
