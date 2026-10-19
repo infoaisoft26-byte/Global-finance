@@ -104,6 +104,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     summary.totalCap += invested * 5;
     return summary;
   }, { invested: 0, totalCap: 0 });
+  // If the current account has legacy wallet package balances but no linked
+  // package-activation rows yet, show a clearly labelled estimate instead of 0.
+  const walletPackageAmount = Number(wallet?.basicPackageActive || 0) + Number(wallet?.fdPackageActive || 0);
+  const capHasActivationRows = capCycles.length > 0;
+  const displayedInvestment = capHasActivationRows ? capSummary.invested : walletPackageAmount;
+  const displayedCapLimit = capHasActivationRows ? capSummary.totalCap : walletPackageAmount * 5;
 
   const refreshCapStatus = async () => {
     if (!user || capRefreshing) return;
@@ -359,17 +365,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE</span>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
-            {capLoading ? 'Loading…' : capCycles.length ? formatUsdt(capSummary.totalCap) : 'Awaiting plan sync'}
+            {capLoading ? 'Loading…' : displayedInvestment > 0 ? formatUsdt(displayedCapLimit) : 'Awaiting plan sync'}
           </div>
           <div className="mt-1 text-xs text-cyan-100/80">
-            {capCycles.length ? `Total 5X cap limit for ${capCycles.length} recorded plan(s)` : 'No package activation records returned for this account'}
+            {capHasActivationRows ? `Total 5X cap limit for ${capCycles.length} recorded plan(s)` : displayedInvestment > 0 ? 'Estimated from current wallet package balances; plan-cycle records still need syncing' : 'No package activation records or active package balance returned for this account'}
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 border-t border-cyan-300/15 pt-3">
-            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Recorded investment</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(capSummary.invested)}</div></div>
-            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Calculated 5X limit</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(capSummary.totalCap)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Recorded investment</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(displayedInvestment)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Calculated 5X limit</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(displayedCapLimit)}</div></div>
           </div>
           <div className="mt-3 flex items-center justify-between gap-2">
-            <span className="text-[10px] text-slate-400">{capError ? 'Could not refresh package data' : 'Package history syncs automatically'}</span>
+            <span className="text-[10px] text-slate-400">{capError ? 'Could not refresh package data' : capHasActivationRows ? 'Verified from recorded package activations' : displayedInvestment > 0 ? 'Wallet fallback estimate — activation sync pending' : 'Package history syncs automatically'}</span>
             <button onClick={refreshCapStatus} disabled={capRefreshing} className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold text-cyan-200 disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${capRefreshing ? 'animate-spin' : ''}`} /> Refresh</button>
           </div>
           {capError && <div className="mt-2 text-[10px] text-rose-300">{capError}</div>}
