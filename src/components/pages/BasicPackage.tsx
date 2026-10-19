@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { adminGetPackages } from '../../services/financeService.ts';
-import { getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
+import { getLivePackageDefinitions, getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
 import {
   BASIC_PACKAGE_TEMPLATES,
   getBasicPlanDailyReturn,
@@ -13,7 +12,7 @@ import type { PackageActivationRequest, PackageDefinition } from '../../types/in
 
 export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNavigateToRecharge }) => {
   const { wallet, refreshWallet, user } = useAuth();
-  const [packages, setPackages] = useState<PackageDefinition[]>(BASIC_PACKAGE_TEMPLATES);
+  const [packages, setPackages] = useState<PackageDefinition[]>([]);
   const [requests, setRequests] = useState<PackageActivationRequest[]>([]);
   const [submittingId, setSubmittingId] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -24,18 +23,15 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
     if (!user) return;
     if (showRefresh) setRefreshing(true);
     try {
-      const [saved, history] = await Promise.all([
-        adminGetPackages().catch(() => [] as PackageDefinition[]),
+      const [livePackages, history] = await Promise.all([
+        getLivePackageDefinitions(user),
         getPackagePurchaseHistory(user).catch(() => [] as PackageActivationRequest[]),
       ]);
-      if (saved.length) {
-        const savedBasic = saved.filter(p => p.type === 'basic');
-        const byCode = new Map(savedBasic.map(p => [p.code, p]));
-        const merged = BASIC_PACKAGE_TEMPLATES.map(t => { const saved = byCode.get(t.code); return saved ? { ...t, ...saved, id: saved.id || t.id, active: saved.active ?? t.active } : t; }).filter(p => p.active);
-        const custom = savedBasic.filter(p => p.active && !BASIC_PACKAGE_TEMPLATES.some(t => t.code === p.code));
-        setPackages([...merged, ...custom]);
-      }
+      setPackages(livePackages.filter(p => p.type === 'basic' && p.active));
       setRequests(history.filter(r => r.packageType === 'basic'));
+      setError('');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load live Basic plans. Please refresh and try again.');
     } finally {
       if (showRefresh) setRefreshing(false);
     }
@@ -96,8 +92,8 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
             <div className="flex justify-between"><span>Daily Income</span><b className="font-mono text-emerald-400">{dailyIncome.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5 mt-2">
-              <div className="text-[10px] font-semibold text-emerald-300">Daily 5% ROI</div>
-              <div className="mt-1 text-[10px] leading-relaxed text-slate-300">1% Profit + 4% Principal amount for 25 Day's</div>
+              <div className="text-[10px] font-semibold text-emerald-300">Daily {pkg.roiRate}% ROI</div>
+              <div className="mt-1 text-[10px] leading-relaxed text-slate-300">Configured daily return for {pkg.durationDays} days. Total Profit excludes principal.</div>
             </div>
             <div className="flex justify-between pt-2 border-t border-blue-500/15"><span>Total Profit</span><b className="font-mono text-emerald-400">{totalProfit.toFixed(2)}</b></div>
           </div>
