@@ -71,22 +71,25 @@ async function handleCron(req, res) {
 }
 
 async function handlePackageHistory(member, res) {
-  const rows = await withTransaction(async (client) => {
-    const user = await client.query('SELECT id,status FROM users WHERE id=$1 AND email=$2 LIMIT 1', [member.uid, member.email]);
+  const result = await withTransaction(async (client) => {
+    await ensureIncomeSchema(client);
+    const user = await client.query('SELECT id,status,referral_status FROM users WHERE id=$1 AND email=$2 LIMIT 1', [member.uid, member.email]);
     if (!user.rowCount || user.rows[0].status !== 'active') throw new Error('ACTIVE_MEMBER_REQUIRED');
     const q = await client.query(`SELECT id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at,cap_multiple,cap_amount,credited_total,cap_reconciled,completed_at,principal_returned,principal_return_amount FROM package_activations WHERE user_id=$1 ORDER BY activated_at DESC LIMIT 100`, [member.uid]);
-    return q.rows;
+    return { items:q.rows, referralStatus:user.rows[0].referral_status || 'active' };
   });
-  return json(res, 200, { items: rows });
+  return json(res, 200, result);
 }
 
 async function handleAdminPackageHistory(member, res) {
   requireAdmin(member);
   const rows = await withTransaction(async (client) => {
+    await ensureIncomeSchema(client);
     const q = await client.query(`
       SELECT pa.id, pa.user_id, pa.package_id, pa.package_type, pa.package_name, pa.amount,
              pa.roi_daily_rate, pa.duration_days, pa.total_earned, pa.status, pa.activated_at, pa.expires_at,
-             u.name AS user_name, u.email AS user_email
+             pa.cap_multiple,pa.cap_amount,pa.credited_total,pa.cap_reconciled,pa.completed_at,
+             u.name AS user_name,u.email AS user_email,u.referral_status
       FROM package_activations pa
       LEFT JOIN users u ON u.id = pa.user_id
       ORDER BY pa.activated_at DESC
@@ -174,7 +177,12 @@ async function handlePackagePurchase(member, body, res) {
     const now = new Date();
     const expires = new Date(now.getTime() + Number(pkg.duration_days) * 86400000);
     await client.query(`UPDATE wallets SET fund_wallet=fund_wallet-$2,basic_package_active=basic_package_active+CASE WHEN $3='basic' THEN $2 ELSE 0 END,fd_package_active=fd_package_active+CASE WHEN $3='fd' THEN $2 ELSE 0 END,updated_at=NOW() WHERE user_id=$1`, [member.uid, amount, pkg.type]);
-    await client.query(`INSERT INTO package_activations (id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'active',$9,$10)`, [purchaseId, member.uid, pkg.id, pkg.type, pkg.name, amount, Number(pkg.roi_rate), Number(pkg.duration_days), now, expires]);
+    await client.query(`INSERT INTO package_activations
+      (id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at,cap_multiple,cap_amount,credited_total,cap_reconciled,principal_returned,principal_return_amount)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'active',$9,$10,5,$11,0,TRUE,FALSE,0)`,
+      [purchaseId, member.uid, pkg.id, pkg.type, pkg.name, amount, Number(pkg.roi_rate), Number(pkg.duration_days), now, expires, Number((amount*5).toFixed(2))]);
+    // A new verified package investment reactivates this member's earning/referral ID.
+    await client.query(`UPDATE users SET referral_status='active' WHERE id=$1 AND status='active'`,[member.uid]);
     await client.query(`INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata) VALUES ($1,$2,'package_purchase','fund_wallet','debit',$3,0,$3,$4,$5,'completed',$6::jsonb)`, [`LED-${purchaseId}`, member.uid, amount, `USDT package purchase: ${pkg.name}`, purchaseId, JSON.stringify({ packageId: pkg.id, packageName: pkg.name, packageType: pkg.type, asset: 'USDT' })]);
     const commissions = await applyActivationIncome(client, { activationId: purchaseId, userId: member.uid, amount, packageName: pkg.name, packageType: pkg.type });
     await client.query(`INSERT INTO audit_logs (id,actor_user_id,actor_email,action,entity_type,entity_id,metadata) VALUES ($1,$2,$3,'PACKAGE_PURCHASE_COMPLETED','package_activation',$4,$5::jsonb)`, [crypto.randomUUID(), member.uid, member.email, purchaseId, JSON.stringify({ packageId: pkg.id, packageName: pkg.name, packageType: pkg.type, amount, asset: 'USDT', automaticIncomeCredits: commissions.credited })]);
