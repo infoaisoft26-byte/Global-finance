@@ -12,8 +12,6 @@ import {
   type FirebaseUser
 } from '../lib/firebase.ts';
 import type { UserProfile, WalletData } from '../types/index.ts';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase.ts';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -60,7 +58,25 @@ async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, f
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Unable to complete secure login.');
-      return data as { profile: UserProfile; wallet: WalletData };
+      const synced = data as { profile: UserProfile; wallet: WalletData };
+      // Financial APIs use Neon as the canonical wallet. Do not let a stale
+      // Firestore wallet snapshot replace the production USDT balance.
+      try {
+        const walletResponse = await fetch('/api/member-wallet', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const walletData = await walletResponse.json().catch(() => ({}));
+        if (walletResponse.ok && walletData?.wallet) {
+          return { ...synced, wallet: walletData.wallet as WalletData };
+        }
+        console.warn('Canonical wallet fetch unavailable; using synced fallback:', walletData?.error || walletResponse.status);
+      } catch (walletError) {
+        console.warn('Canonical wallet fetch failed; using synced fallback:', walletError);
+      }
+      return synced;
     } catch (err: any) {
       if (err?.name === 'AbortError') throw new Error('Login sync timed out. Please retry.');
       throw err;
@@ -129,35 +145,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshWallet = async () => {
     if (!user) return;
     try {
-      await loadUserData(user);
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/member-wallet', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.wallet) throw new Error(data?.error || 'Wallet refresh failed.');
+      setWallet(data.wallet as WalletData);
     } catch (err) {
       console.error('Wallet refresh failed:', err);
     }
   };
 
-  // Firestore is the wallet source of truth. Listen directly so an automatic
-  // deposit credit appears for the member without waiting for a refresh.
+  // Neon is the wallet source of truth for financial actions. Poll the
+  // authenticated read-only endpoint so approved USDT credits appear without
+  // relying on a stale Firestore wallet snapshot.
   useEffect(() => {
     if (!user) return;
-    const walletRef = doc(db, 'wallets', user.uid);
-    const unsubscribe = onSnapshot(walletRef, (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.data() as WalletData & { updatedAt?: any };
-      setWallet({
-        ...data,
-        userId: user.uid,
-        fundWallet: Number(data.fundWallet || 0),
-        incomeWallet: Number(data.incomeWallet || 0),
-        totalIncome: Number(data.totalIncome || 0),
-        totalWithdrawal: Number(data.totalWithdrawal || 0),
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() || String(data.updatedAt || new Date().toISOString()),
-      });
-    }, (error) => {
-      console.warn('Realtime wallet listener unavailable:', error);
-    });
-    return () => unsubscribe();
+    let cancelled = false;
+    const loadWallet = async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const response = await fetch('/api/member-wallet', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!cancelled && response.ok && data?.wallet) setWallet(data.wallet as WalletData);
+      } catch (error) {
+        if (!cancelled) console.warn('Wallet refresh poll failed:', error);
+      }
+    };
+    void loadWallet();
+    const interval = window.setInterval(() => { void loadWallet(); }, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [user?.uid]);
-
   const loginWithGoogle = async () => {
     setLoading(true);
     try {
