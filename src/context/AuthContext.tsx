@@ -70,7 +70,7 @@ async function syncWithServer(currentUser: FirebaseUser, sponsorCode?: string, f
         });
         const walletData = await walletResponse.json().catch(() => ({}));
         if (walletResponse.ok && walletData?.wallet) {
-          return { ...synced, wallet: walletData.wallet as WalletData };
+          return { ...synced, wallet: { ...synced.wallet, ...(walletData.wallet as WalletData) } };
         }
         console.warn('Canonical wallet fetch unavailable; using synced fallback:', walletData?.error || walletResponse.status);
       } catch (walletError) {
@@ -154,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.wallet) throw new Error(data?.error || 'Wallet refresh failed.');
-      setWallet(data.wallet as WalletData);
+      setWallet(previous => ({ ...(previous || {}), ...(data.wallet as WalletData), userId: user.uid }));
     } catch (err) {
       console.error('Wallet refresh failed:', err);
     }
