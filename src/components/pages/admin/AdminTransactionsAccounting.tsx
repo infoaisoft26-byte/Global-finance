@@ -87,10 +87,13 @@ export const AdminTransactionsAccounting: React.FC = () => {
           </div>
           <a href={`https://bscscan.com/tx/${row.txHash}`} target="_blank" rel="noreferrer" className="mt-2 break-all font-mono text-cyan-300 underline inline-flex items-center gap-1">{row.txHash}<ExternalLink className="w-3 h-3" /></a>
           {row.proofUrl && <a href={row.proofUrl} target="_blank" rel="noreferrer" className="ml-3 text-cyan-300 underline">View screenshot</a>}
-          {row.status === 'pending' && enabled && <div className="mt-4 grid gap-2 md:grid-cols-[1fr_auto_auto]">
-            <input aria-label="On-chain verification note" value={note[row.id] || ''} onChange={(e) => setNote((previous) => ({ ...previous, [row.id]: e.target.value }))} placeholder="Optional verification note" className="p-2 rounded-lg bg-[#060b1c] border border-blue-500/30 text-white" />
-            <button disabled={busy} onClick={() => review(row, 'approve')} className="px-3 py-2 rounded-lg bg-emerald-700 text-white disabled:opacity-50">Verify + Credit exact USDT</button>
-            <button disabled={busy} onClick={() => review(row, 'reject')} className="px-3 py-2 rounded-lg bg-rose-700 text-white disabled:opacity-50">Reject</button>
+          {row.status === 'pending' && <div className="mt-4 space-y-2">
+            <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
+              <input aria-label="On-chain verification note" value={note[row.id] || ''} onChange={(e) => setNote((previous) => ({ ...previous, [row.id]: e.target.value }))} placeholder="Optional admin review note" className="p-2 rounded-lg bg-[#060b1c] border border-blue-500/30 text-white" />
+              <button disabled={busy || !enabled} title={!enabled ? 'Recharge configuration is incomplete; verify Vercel settings before crediting' : 'Verify the actual BSC transfer and credit the exact amount'} onClick={() => review(row, 'approve')} className="px-3 py-2 rounded-lg bg-emerald-700 text-white disabled:opacity-50">Verify + Credit exact USDT</button>
+              <button disabled={busy} onClick={() => review(row, 'reject')} className="px-3 py-2 rounded-lg bg-rose-700 text-white disabled:opacity-50">Reject</button>
+            </div>
+            {!enabled && <p className="text-[11px] text-amber-300">Approval/credit is visible but temporarily disabled because the recharge configuration is incomplete. Do not manually credit until Firebase Admin, BSC RPC, USDT contract and payment settings are verified. Rejection remains available.</p>}
           </div>}
           {row.reviewNote && <div className="mt-2 text-slate-400">Review: {row.reviewNote}</div>}
         </div>)}
