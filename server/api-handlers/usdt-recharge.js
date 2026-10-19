@@ -278,6 +278,33 @@ async function review(actor,id,action,note){
   const initialSnap=await ref.get();
   if(!initialSnap.exists) throw new Error('RECHARGE_NOT_FOUND');
   const initial=initialSnap.data()||{};
+
+  // Safe recovery path for historical records marked approved in Firestore
+  // before the live Neon ledger was credited. creditNeonRecharge locks and
+  // deduplicates by the on-chain TXID, so retrying cannot double-credit Neon.
+  if(action==='reconcile'){
+    if(initial.status!=='approved') throw new Error('RECHARGE_NOT_APPROVED');
+    if(initial.ledgerId || initial.neonLedgerId){
+      return {status:'approved',alreadyReconciled:true,ledgerId:initial.ledgerId||initial.neonLedgerId};
+    }
+    const proof=await verifyBep20(
+      String(initial.txHash||''),
+      String(initial.amountUsdt||''),
+      String(initial.depositAddress||BEP20_WALLET)
+    );
+    const neon=await creditNeonRecharge({
+      id,userId:initial.userId,txHash:initial.txHash,amount:initial.amountUsdt,
+      depositAddress:initial.depositAddress||BEP20_WALLET,actor,note,proof,createdAt:initial.createdAt,
+    });
+    await ref.set({
+      neonLedgerId:neon.ledgerId,
+      reviewNote:note||'Approved recharge reconciled to live wallet ledger',
+      reconciledAt:new Date().toISOString(),
+      reconciledBy:actor.id,
+      updatedAt:new Date().toISOString(),
+    },{merge:true});
+    return {status:'approved',reconciled:true,ledgerId:neon.ledgerId,creditUsdt:neon.creditUsdt};
+  }
   if(initial.status!=='pending') throw new Error('ALREADY_REVIEWED');
 
   let proof=null;
@@ -539,12 +566,12 @@ export default async function handler(req,res){
       return json(res,200,{success:true,...result});
     }
 
-    if(body.action==='approve'||body.action==='reject'){
+    if(body.action==='approve'||body.action==='reject'||body.action==='reconcile'){
       if(!admin) return json(res,403,{error:'Admin access required'});
       if(!rechargeConfigured()) return json(res,503,{error:'Recharge approval is disabled'});
       const id=String(body.id||'');
       if(!/^RCH_[0-9a-f]{24}$/.test(id)) return json(res,400,{error:'A valid recharge request is required'});
-      const note=String(body.note||'').trim()|| (body.action==='approve'?'Approved by admin after manual payment verification.':'Rejected by admin after manual payment review.');
+      const note=String(body.note||'').trim()|| (body.action==='approve'?'Approved by admin after manual payment verification.':body.action==='reconcile'?'Reconcile verified approved recharge to the live wallet ledger.':'Rejected by admin after manual payment review.');
       if(note.length>1000) return json(res,400,{error:'Review note is too long'});
       return json(res,200,{success:true,...await review(actor,id,body.action,note)});
     }
@@ -558,6 +585,7 @@ export default async function handler(req,res){
     if(message==='TXID_ALREADY_SUBMITTED') return json(res,409,{error:'This TXID has already been submitted'});
     if(message==='ALREADY_CREDITED') return json(res,409,{error:'This TXID was already credited'});
     if(message==='ALREADY_REVIEWED') return json(res,409,{error:'Recharge has already been reviewed'});
+    if(message==='RECHARGE_NOT_APPROVED') return json(res,409,{error:'Only an already-approved recharge can be reconciled'});
     if(message==='REVIEW_CHANGED') return json(res,409,{error:'Recharge changed during verification'});
     if(message==='INVALID_AUTO_CREDIT_AMOUNT') return json(res,422,{error:'Automatic credit amount is invalid; request remains pending'});
     
