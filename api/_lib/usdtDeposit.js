@@ -1,7 +1,7 @@
 import { HDNodeWallet } from 'ethers';
 import { getFirestoreAdmin } from './firebaseAdmin.js';
 import { withTransaction } from './db.js';
-import { ensureIncomeSchema } from './incomeEngine.js';
+import { applyDepositReferralIncome, ensureIncomeSchema } from './incomeEngine.js';
 
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const CONFIRMATIONS = 12;
@@ -386,6 +386,11 @@ async function creditDepositEvent(db, log, addressToUser, decimals, safeHead) {
       'UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',
       [exact.text,userId]
     );
+    // Credit referral commissions in the same transaction as the verified deposit.
+    // The TXID is the idempotency key; a scanner retry cannot pay twice.
+    await applyDepositReferralIncome(client, {
+      depositId:eventId,userId,amount:exact.number,txHash,
+    });
     await client.query(
       `UPDATE usdt_deposit_events
        SET status='credited',ledger_id=$3,confirmations=$4,credited_at=NOW(),firestore_synced=FALSE
