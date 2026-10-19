@@ -28,7 +28,7 @@ export const IncomeWalletSummary: React.FC = () => {
   return <div className="space-y-6">
     <div className="p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div><p className="text-xs uppercase tracking-wider text-emerald-400">Wallet Auditing</p><h2 className="text-2xl font-extrabold text-white mt-1">Income Wallet Summary</h2><p className="text-sm text-slate-400 mt-1">Income credits, withdrawals and conversions from the same verified ledger.</p></div>
-      <button onClick={()=>void refresh()} disabled={loading} className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`}/> Refresh</button>
+      <button onClick={()=>void refresh()} disabled={loading} className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`}/> Refresh</button>{lastUpdated&&<p className="mt-1 text-[10px] text-slate-500">Last sync: {lastUpdated.toLocaleTimeString('en-IN')} · Auto-sync 15s</p>}
     </div>
     {error&&<div className="p-3 rounded-xl border border-rose-500/30 text-rose-300 text-sm">{error}</div>}
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
