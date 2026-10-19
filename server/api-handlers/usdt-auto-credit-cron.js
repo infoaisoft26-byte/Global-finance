@@ -46,7 +46,7 @@ export default async function handler(req,res){
   }
 
   if(!autoCreditConfigured()){
-    return json(res,200,{
+    return json(res,dailyIncome.failed?500:200,{
       ok:!dailyIncome.failed,
       autoCreditEnabled:false,
       processed:0,
