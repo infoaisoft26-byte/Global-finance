@@ -192,6 +192,50 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
   return true;
 }
 
+// Credit referral commissions from each verified USDT deposit/recharge.
+// The on-chain TXID is the idempotency key, so retries cannot pay twice.
+export async function applyDepositReferralIncome(client,{depositId,userId,amount,txHash}) {
+  await ensureIncomeSchema(client);
+  const normalizedHash=String(txHash||'').trim().toLowerCase();
+  const base=money(amount);
+  if(!userId || !normalizedHash || base<=0) throw new Error('INVALID_REFERRAL_DEPOSIT');
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['referral-deposit-user:'+userId]);
+  const priorDeposits=await client.query(
+    `SELECT COUNT(*)::int AS n FROM ledger_transactions
+      WHERE user_id=$1 AND flow='credit' AND status='completed'
+        AND type IN ('crypto_deposit','usdt_bep20_recharge')
+        AND lower(COALESCE(reference_id,''))<>lower($2)`,
+    [userId,normalizedHash]
+  );
+  const firstDeposit=Number(priorDeposits.rows[0]?.n||0)===0;
+  const eventKey='DEPOSIT:'+normalizedHash;
+  const businessDate=currentIndiaBusinessDate();
+  await eventOnce(client,eventKey,'deposit_commission',userId,null,base,businessDate,{
+    depositId:depositId||null,txHash:normalizedHash,firstDeposit,asset:'USDT'
+  });
+  const ups=await uplines(client,userId);
+  let credited=0,creditedAmount=0;
+  const recipients=[];
+  for(const u of ups){
+    if(String(u.status||'').toLowerCase()!=='active') continue;
+    const level=Number(u.level);
+    const rate=activationLevelRate(level,firstDeposit);
+    if(rate<=0 || !(await hasActiveReferralAtLevel(client,u.id,level))) continue;
+    const incomeType=level===1?'basic_referral':'basic_level';
+    const commission=pct(base,rate);
+    const label=firstDeposit?'First verified USDT deposit':'Verified USDT retopup';
+    if(await credit(client,{
+      eventKey,recipient:u.id,source:userId,incomeType,level,rate,base,amount:commission,
+      description:label+' referral commission L'+level+' ('+rate+'%) from '+userId,
+      businessDate
+    })){
+      credited++;
+      creditedAmount=money(creditedAmount+commission);
+      recipients.push({userId:u.id,level,rate,amount:commission});
+    }
+  }
+  return {firstDeposit,credited,creditedAmount,recipients};
+}
 export async function applyActivationIncome(client,{activationId,userId,amount,packageName,packageType='basic'}) {
   await ensureIncomeSchema(client);
   const activationOrder = await client.query(
