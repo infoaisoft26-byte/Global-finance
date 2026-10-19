@@ -353,7 +353,7 @@ export async function runDailyIncome(client,businessDate) {
     if(creditedRoi<=0) continue;
     const creditedRoiBase=creditedRoi;
     for(const u of await uplines(client,a.user_id)){
-      if(u.status!=='active') continue;
+      if(u.status!=='active' || u.referral_status==='inactive') continue;
       const level=Number(u.level), rate=levelRate(level);
       if(rate<=0) continue;
 
