@@ -135,10 +135,12 @@ async function configuredActivationRate(client, level, firstEvent) {
   const n=Number(level);
   if(n<1 || n>MAX_LEVEL) return 0;
   const key=firstEvent?'referral_deposit_commission':'referral_retopup_commission';
-  const result=await client.query('SELECT rule_value FROM finance_rule_config WHERE rule_key=$1 AND enabled=TRUE',[key]);
+  const result=await client.query('SELECT rule_value,enabled FROM finance_rule_config WHERE rule_key=$1',[key]);
+  if(result.rows[0] && result.rows[0].enabled===false) return 0;
   const value=result.rows[0]?.rule_value || {};
-  if(n===1) return Number(value.level_1_percent ?? (firstEvent?10:5));
-  return Number(value.levels_2_to_15_percent ?? 0.25);
+  const fallback=n===1?(firstEvent?10:5):0.25;
+  const configured=Number(n===1?(value.level_1_percent ?? fallback):(value.levels_2_to_15_percent ?? fallback));
+  return Number.isFinite(configured) && configured>=0 && configured<=100 ? configured : fallback;
 }
 async function eventOnce(client, key, type, sourceUserId, activationId, baseAmount, businessDate, metadata={}) {
   const r = await client.query(`INSERT INTO income_events(event_key,event_type,source_user_id,source_activation_id,base_amount,business_date,metadata)
