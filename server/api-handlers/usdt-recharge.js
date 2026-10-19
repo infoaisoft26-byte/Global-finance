@@ -20,21 +20,24 @@ const amountPattern=/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/;
 function bodyOf(req){return typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});}
 function toPostgresTimestamp(value){
   if(value==null || value==='') return null;
-  if(typeof value==='object' && typeof value._seconds==='number'){
-    const milliseconds=value._seconds*1000+(typeof value._nanoseconds==='number'?value._nanoseconds:0)/1e6;
-    const date=new Date(milliseconds);
-    if(Number.isNaN(date.getTime())) throw new Error('INVALID_RECHARGE_TIMESTAMP');
-    return date.toISOString();
-  }
-  if(value && typeof value.toDate==='function'){
-    const date=value.toDate();
-    if(date instanceof Date && !Number.isNaN(date.getTime())) return date.toISOString();
+  if(typeof value==='object'){
+    const seconds=typeof value._seconds==='number'?value._seconds:typeof value.seconds==='number'?value.seconds:null;
+    if(seconds!==null){
+      const nanos=typeof value._nanoseconds==='number'?value._nanoseconds:typeof value.nanoseconds==='number'?value.nanoseconds:0;
+      const date=new Date(seconds*1000+nanos/1e6);
+      if(Number.isNaN(date.getTime())) throw new Error('INVALID_RECHARGE_TIMESTAMP');
+      return date.toISOString();
+    }
+    if(typeof value.toDate==='function'){
+      const date=value.toDate();
+      if(date instanceof Date && !Number.isNaN(date.getTime())) return date.toISOString();
+    }
   }
   const date=value instanceof Date?value:new Date(value);
   if(Number.isNaN(date.getTime())) throw new Error('INVALID_RECHARGE_TIMESTAMP');
   return date.toISOString();
 }
-function iso(v){return v?.toDate?.()?.toISOString?.() || (v && typeof v==="object" && typeof v._seconds==="number" ? toPostgresTimestamp(v) : (v ? String(v) : new Date().toISOString()));}
+function iso(v){return v==null || v==='' ? new Date().toISOString() : toPostgresTimestamp(v);}
 function num(v){return Number(v||0);}
 function adminEmailAllowed(email){
   const configured=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
