@@ -183,6 +183,12 @@ export interface PackageActivationRequest {
   activatedAt?: string;
   rejectedAt?: string;
   metadata?: Record<string, any>;
+  // Purchase calculation fields returned by the USDT package history API.
+  roiDailyRate?: number;
+  durationDays?: number;
+  totalEarned?: number;
+  activatedAt?: string;
+  expiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }
