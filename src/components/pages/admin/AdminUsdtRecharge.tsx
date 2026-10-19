@@ -72,7 +72,7 @@ export const AdminUsdtRecharge: React.FC = () => {
           <h2 className="text-xl font-bold text-white">USDT Recharge Requests</h2>
           <p className="text-xs text-slate-400 mt-1">Real database requests only. Approve or reject member BEP20 payment confirmations.</p>
         </div>
-        <button onClick={load} disabled={loading} className="px-3 py-2 rounded-xl border border-blue-500/25 bg-[#0d1530] text-cyan-300 text-xs font-semibold flex items-center gap-2">
+        <button onClick={() => void load()} disabled={loading} className="px-3 py-2 rounded-xl border border-blue-500/25 bg-[#0d1530] text-cyan-300 text-xs font-semibold flex items-center gap-2">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
