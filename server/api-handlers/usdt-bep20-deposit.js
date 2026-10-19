@@ -3,7 +3,9 @@ import { verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
 import { withTransaction } from '../../api/_lib/db.js';
 import { applyActivationIncome, ensureIncomeSchema, runDailyIncome } from '../../api/_lib/incomeEngine.js';
 
-const BASIC_AMOUNTS = [200, 500, 1000, 2000, 5000, 10000, 20000, 500000, 100000, 200000, 500000];
+const BASIC_AMOUNTS = [2, 5, 10, 20, 25, 10000, 20000, 50000, 100000, 200000, 500000];
+const BASIC_ROI_RATES = [5, 5, 1, 5, 5, 1, 1, 1, 1, 1, 1];
+const BASIC_DURATIONS = [25, 25, 25, 24, 25, 25, 25, 25, 25, 25, 25];
 const FD_AMOUNTS = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
 
 function json(res, status, body) {
@@ -18,7 +20,7 @@ function fallbackPackage(id) {
     const i = Number(b[1]) - 1;
     const amount = BASIC_AMOUNTS[i];
     if (!amount) return null;
-    return { id, name: `Base Plan ${i + 1}`, code: `GF_BASE_${String(i + 1).padStart(2,'0')}`, type: 'basic', min_amount: amount, max_amount: amount, roi_rate: 1, duration_days: 25, active: true };
+    return { id, name: `Base Plan ${i + 1}`, code: `GF_BASE_${String(i + 1).padStart(2,'0')}`, type: 'basic', min_amount: amount, max_amount: amount, roi_rate: BASIC_ROI_RATES[i], duration_days: BASIC_DURATIONS[i], active: true };
   }
   const f = /^gf-fd-(base|prime)-(\d+)$/.exec(id);
   if (f) {
