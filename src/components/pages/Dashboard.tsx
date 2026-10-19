@@ -23,7 +23,7 @@ import {
   Table as TableIcon
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { getTransactions } from '../../services/financeService.ts';
+import { getTransactions, getDownlineMembers } from '../../services/financeService.ts';
 import { getActiveOfferPoster, type OfferPoster } from '../../services/offerPosterService.ts';
 import type { ActivePage } from '../../types/index.ts';
 
@@ -36,11 +36,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const { user, profile, wallet } = useAuth();
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<Awaited<ReturnType<typeof getDownlineMembers>> | null>(null);
   const [showQrModal, setShowQrModal] = useState(false);
   const [offerPoster, setOfferPoster] = useState<OfferPoster | null>(null);
   const [showOffer, setShowOffer] = useState(false);
 
   const referralCode = profile?.referralCode || '';
+
+  // Read team counts from the authenticated, server-calculated downline instead
+  // of stale wallet counters, which may not have been updated for legacy members.
+  useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
+    const loadTeamSummary = async () => {
+      if (!profile?.referralCode || inFlight || cancelled) return;
+      inFlight = true;
+      try {
+        const members = await getDownlineMembers(profile.referralCode);
+        if (!cancelled) setTeamMembers(members);
+      } catch (error) {
+        console.error('Unable to refresh dashboard team summary:', error);
+      } finally {
+        inFlight = false;
+      }
+    };
+    void loadTeamSummary();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadTeamSummary();
+    }, 15000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void loadTeamSummary();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [profile?.uid, profile?.referralCode]);
+
+  const directTeamCount = teamMembers
+    ? teamMembers.filter(member => Number(member.level) === 1).length
+    : Number(wallet?.directTeamCount || 0);
+  const totalTeamCount = teamMembers
+    ? teamMembers.length
+    : Number(wallet?.totalTeamCount || 0);
 
   const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name?: string; package_type?: string; amount: string | number; status?: string; cap_amount?: string | number; credited_total?: string | number; cap_reconciled?: boolean }>>([]);
   const [capReferralStatus, setCapReferralStatus] = useState<'active' | 'inactive'>('active');
@@ -518,15 +558,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {/* Member Referral ID */}
+          <div className="p-5 rounded-xl bg-[#091129]/90 border border-cyan-500/25 shadow-lg backdrop-blur-md flex items-center justify-between">
+            <div className="min-w-0">
+              <span className="text-xs text-slate-400">My Referral ID</span>
+              <div className="text-xl sm:text-2xl font-extrabold text-cyan-300 font-mono mt-1 tabular-nums break-all">
+                {referralCode || '—'}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">Share this ID to invite members</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+              <Users className="w-6 h-6" />
+            </div>
+          </div>
+
           {/* Direct Team */}
           <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md flex items-center justify-between">
             <div>
-              <span className="text-xs text-slate-400">Direct Team</span>
+              <span className="text-xs text-slate-400">Direct Referrals</span>
               <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono mt-1 tabular-nums">
-                {wallet?.directTeamCount ?? 0}
+                {directTeamCount}
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">Directly sponsored affiliates</p>
+              <p className="text-[11px] text-slate-500 mt-1">Members who joined with your referral</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
               <Users className="w-6 h-6" />
@@ -536,17 +590,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           {/* Total Team */}
           <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md flex items-center justify-between">
             <div>
-              <span className="text-xs text-slate-400">Total Team</span>
+              <span className="text-xs text-slate-400">Total Team Members</span>
               <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono mt-1 tabular-nums">
-                {wallet?.totalTeamCount ?? 0}
+                {totalTeamCount}
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">Full downline multi-generation network</p>
+              <p className="text-[11px] text-slate-500 mt-1">Direct and indirect members across your network</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
               <Users className="w-6 h-6" />
             </div>
           </div>
         </div>
+        {teamMembers && teamMembers.length > 0 && (
+          <div className="mt-4 p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-400">Recent Team Members</h4>
+              <button onClick={() => onNavigate('team-list')} className="text-xs text-cyan-400 hover:underline">View all members</button>
+            </div>
+            <div className="space-y-2">
+              {teamMembers.slice(0, 5).map(member => (
+                <div key={member.id || member.userId || member.referralCode} className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-blue-500/10 last:border-0">
+                  <div>
+                    <div className="text-sm font-semibold text-white">{member.name}</div>
+                    <div className="text-[11px] text-slate-400 font-mono">{member.referralCode || '—'} · {member.level === 1 ? 'Direct' : `Level ${member.level}`}</div>
+                  </div>
+                  <span className="text-[11px] text-slate-400">{member.joinDate ? new Date(member.joinDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* TWO COLUMN BREAKDOWN: Basic Income Breakdown & FD Income Breakdown */}
