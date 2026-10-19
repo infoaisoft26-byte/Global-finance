@@ -7,6 +7,9 @@ import { getPool } from '../../api/_lib/db.js';
 
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(body));}
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}
+const SUB_ADMIN_UID='cqXqrEvo5UN2wD1qtxdO11JpJIK2';
+const SUB_ADMIN_EMAIL='global@gf.online';
+const isConfiguredSubAdmin=(uid,email)=>String(uid||'')===SUB_ADMIN_UID&&String(email||'').trim().toLowerCase()===SUB_ADMIN_EMAIL;
 const FIRST_REFERRAL_NUMBER=201;
 function formatReferralCode(number){return `GF${String(number).padStart(6,'0')}`;}
 function generateTransactionPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';let out='';for(let i=0;i<6;i++)out+=chars[crypto.randomInt(0,chars.length)];return out;}
@@ -101,7 +104,7 @@ export default async function handler(req,res){
 
       if(userSnap.exists){
         const current=userSnap.data()||{};
-        const next={...current,email,name:requestedName,role:configuredAdminEmails.includes(email)?'admin':(current.role||'user'),
+        const next={...current,email,name:requestedName,role:configuredAdminEmails.includes(email)?'admin':(isConfiguredSubAdmin(uid,email)?'sub_admin':(current.role||'user')),
           phone:hasPhone?phone:current.phone||null,country:country||current.country||null,updatedAt:now};
         transaction.set(userRef,next,{merge:true});
         if(!walletSnap.exists)transaction.set(walletRef,emptyWallet(uid,now));
@@ -162,7 +165,7 @@ export default async function handler(req,res){
 
       const issuedNumber=Number(code.slice(2));
       registrationTransactionPassword=generateTransactionPassword();
-      const profile={uid,email,name:requestedName,referralCode:code,memberId:code,sponsorId,sponsorName,role:configuredAdminEmails.includes(email)?'admin':'user',
+      const profile={uid,email,name:requestedName,referralCode:code,memberId:code,sponsorId,sponsorName,role:configuredAdminEmails.includes(email)?'admin':(isConfiguredSubAdmin(uid,email)?'sub_admin':'user'),
         status:'active',kycStatus:configuredAdminEmails.includes(email)?'verified':'unverified',phone,country,rankCode:'MEMBER',
         transactionPasswordHash:hashTransactionPassword(registrationTransactionPassword),
         transactionPasswordCreatedAt:now,createdAt:now,updatedAt:now,storage:'firestore'};

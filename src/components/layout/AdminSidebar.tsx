@@ -46,7 +46,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
-  const { profile, logout } = useAuth();
+  const { profile, logout, isSubAdmin } = useAuth();
 
   const handleNav = (page: ActivePage) => {
     onSelectPage(page);
@@ -85,7 +85,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
-          {items.map(({ page, label, icon: Icon }) => {
+          {items.filter(({ page }) => !isSubAdmin || ['admin-dashboard', 'admin-kyc', 'admin-tickets'].includes(page)).map(({ page, label, icon: Icon }) => {
             const selected = activePage === page || (page === 'admin-users' && activePage === 'admin-user-detail');
             return (
               <button

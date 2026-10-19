@@ -19,6 +19,7 @@ interface AuthContextType {
   wallet: WalletData | null;
   loading: boolean;
   isAdmin: boolean;
+  isSubAdmin: boolean;
   isSuspended: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (memberId: string, pass: string) => Promise<void>;
@@ -323,7 +324,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(nextProfile);
   };
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'administrator';
+  const isSubAdmin = profile?.role === 'sub_admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'administrator' || isSubAdmin;
   const isSuspended = profile?.status === 'suspended';
 
   return (
@@ -333,6 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       wallet,
       loading,
       isAdmin,
+      isSubAdmin,
       isSuspended,
       loginWithGoogle,
       loginWithEmail,

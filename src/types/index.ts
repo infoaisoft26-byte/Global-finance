@@ -6,7 +6,7 @@ export interface UserProfile {
   referralCode: string; // e.g. "GF152551"
   sponsorId?: string; // Referral code of the sponsor
   sponsorName?: string; // Current active sponsor's real name
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'sub_admin';
   status: 'active' | 'suspended';
   isSuspended?: boolean;
   kycStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
