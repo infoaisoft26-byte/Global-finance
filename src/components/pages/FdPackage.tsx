@@ -1,15 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { adminGetPackages } from '../../services/financeService.ts';
-import { getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
+import { getLivePackageDefinitions, getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
 import { FD_PACKAGE_TEMPLATES, getFdPlanDailyReturn, getFdPlanScheduledReturn } from '../../data/fdPackageTemplates.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { PackageActivationRequest, PackageDefinition } from '../../types/index.ts';
 
 export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNavigateToRecharge }) => {
   const { wallet, refreshWallet, user } = useAuth();
-  const [packages, setPackages] = useState<PackageDefinition[]>(FD_PACKAGE_TEMPLATES);
+  const [packages, setPackages] = useState<PackageDefinition[]>([]);
   const [requests, setRequests] = useState<PackageActivationRequest[]>([]);
   const [submittingId, setSubmittingId] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -20,18 +19,15 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
     if (!user) return;
     if (showRefresh) setRefreshing(true);
     try {
-      const [saved, history] = await Promise.all([
-        adminGetPackages().catch(() => [] as PackageDefinition[]),
+      const [livePackages, history] = await Promise.all([
+        getLivePackageDefinitions(user),
         getPackagePurchaseHistory(user).catch(() => [] as PackageActivationRequest[]),
       ]);
-      if (saved.length) {
-        const savedFd = saved.filter(p => p.type === 'fd');
-        const byCode = new Map(savedFd.map(p => [p.code, p]));
-        const merged = FD_PACKAGE_TEMPLATES.map(t => byCode.get(t.code) || t).filter(p => p.active);
-        const custom = savedFd.filter(p => p.active && !FD_PACKAGE_TEMPLATES.some(t => t.code === p.code));
-        setPackages([...merged, ...custom]);
-      }
+      setPackages(livePackages.filter(p => p.type === 'fd' && p.active));
       setRequests(history.filter(r => r.packageType === 'fd'));
+      setError('');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load live FD plans. Please refresh and try again.');
     } finally {
       if (showRefresh) setRefreshing(false);
     }
