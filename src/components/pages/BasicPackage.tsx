@@ -31,7 +31,7 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
       if (saved.length) {
         const savedBasic = saved.filter(p => p.type === 'basic');
         const byCode = new Map(savedBasic.map(p => [p.code, p]));
-        const merged = BASIC_PACKAGE_TEMPLATES.map(t => byCode.get(t.code) || t).filter(p => p.active);
+        const merged = BASIC_PACKAGE_TEMPLATES.map(t => { const saved = byCode.get(t.code); return saved ? { ...saved, ...t, id: saved.id || t.id, active: saved.active ?? t.active } : t; }).filter(p => p.active);
         const custom = savedBasic.filter(p => p.active && !BASIC_PACKAGE_TEMPLATES.some(t => t.code === p.code));
         setPackages([...merged, ...custom]);
       }
