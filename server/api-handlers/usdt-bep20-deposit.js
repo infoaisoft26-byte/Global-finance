@@ -103,7 +103,7 @@ async function handleAdminReconcileReferralIncome(member, res) {
       SELECT id,user_id,amount,reference_id,metadata
       FROM ledger_transactions
       WHERE flow='credit' AND status='completed'
-        AND type IN ('usdt_bep20_recharge','crypto_deposit')
+        AND type IN ('usdt_bep20_recharge','crypto_deposit','usdt_bep20_auto_deposit')
       ORDER BY created_at ASC,id ASC
     `);
 
@@ -113,7 +113,7 @@ async function handleAdminReconcileReferralIncome(member, res) {
 
     for (const deposit of rows) {
       const metadata = deposit.metadata && typeof deposit.metadata === 'object' ? deposit.metadata : {};
-      const txHash = String(deposit.reference_id || metadata.txHash || '').trim().toLowerCase();
+      const txHash = String(metadata.txHash || deposit.reference_id || '').trim().toLowerCase();
       if (!/^0x[0-9a-f]{64}$/.test(txHash)) continue;
       const result = await applyDepositReferralIncome(client, {
         depositId: String(metadata.rechargeId || deposit.id),
