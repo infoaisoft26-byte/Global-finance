@@ -4,8 +4,15 @@ import { getFirestoreAdmin } from './firebaseAdmin.js';
 const MAX_LEVEL = 15;
 
 // Authoritative 15-level referral/level commission schedule.
-const LEVEL_COMMISSION_RATES = Object.freeze({1:7,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:0.5,14:0.5,15:0.5});
+const LEVEL_COMMISSION_RATES = Object.freeze({1:5,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:0.5,14:0.5,15:0.5});
 const levelRate = (level) => Number(LEVEL_COMMISSION_RATES[Number(level)] || 0);
+// Activation commissions differ from ROI-based daily level income.
+// First activation: L1 10%; retopup: L1 5%; L2-L15: 0.25%.
+const activationLevelRate = (level, firstActivation) => {
+  const n = Number(level);
+  if (n === 1) return firstActivation ? 10 : 5;
+  return n >= 2 && n <= MAX_LEVEL ? 0.25 : 0;
+};
 const money = (v) => Number(Number(v || 0).toFixed(2));
 const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100);
 
@@ -208,7 +215,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   for(const u of ups){
     if(u.status!=='active') continue;
     const level=Number(u.level); let rate=0;
-    rate=levelRate(level);
+    rate=activationLevelRate(level, first);
     if(rate<=0) continue;
 
     // Daily level income is ROI-based. A member must have at least
