@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
-import { getFirestoreAdmin } from './_lib/firebaseAdmin.js';
+import { getFirestoreAdmin } from '../../api/_lib/firebaseAdmin.js';
 import { autoCreditRecharge } from './usdt-recharge.js';
-import { autoCreditConfigured } from './_lib/bep20.js';
-import { scanAndCreditDeposits } from './_lib/usdtDeposit.js';
+import { autoCreditConfigured } from '../../api/_lib/bep20.js';
+import { scanAndCreditDeposits } from '../../api/_lib/usdtDeposit.js';
 
 function json(res,status,body){
   res.statusCode=status;

@@ -1,5 +1,5 @@
-import { getPool } from './_lib/db.js';
-import { readCookie, verifySessionToken } from './_lib/session.js';
+import { getPool } from '../../api/_lib/db.js';
+import { readCookie, verifySessionToken } from '../../api/_lib/session.js';
 
 function mapProfile(row) {
   return {

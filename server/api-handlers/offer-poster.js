@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import { verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
-import { getPool, withTransaction } from './_lib/db.js';
+import { verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
+import { getPool, withTransaction } from '../../api/_lib/db.js';
 
 function json(res, status, body) {
   res.statusCode = status;

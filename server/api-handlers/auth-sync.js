@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import { getFirestoreAdmin, verifyFirebaseIdToken, getMaintenanceState } from './_lib/firebaseAdmin.js';
-import { createSessionToken, sessionCookie } from './_lib/session.js';
-import { sendWelcomeEmail } from './_lib/email.js';
-import { syncMemberToNeon } from './_lib/syncMemberToNeon.js';
-import { getPool } from './_lib/db.js';
+import { getFirestoreAdmin, verifyFirebaseIdToken, getMaintenanceState } from '../../api/_lib/firebaseAdmin.js';
+import { createSessionToken, sessionCookie } from '../../api/_lib/session.js';
+import { sendWelcomeEmail } from '../../api/_lib/email.js';
+import { syncMemberToNeon } from '../../api/_lib/syncMemberToNeon.js';
+import { getPool } from '../../api/_lib/db.js';
 
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(body));}
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}

@@ -1,6 +1,6 @@
 // Secure production system-settings API backed by Firestore.
 import crypto from 'node:crypto';
-import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
+import { getFirestoreAdmin, verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
 
 function json(res,status,body){
   res.statusCode=status;
