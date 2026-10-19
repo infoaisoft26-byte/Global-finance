@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getLivePackageDefinitions, getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
-import { FD_PACKAGE_TEMPLATES, getFdPlanDailyReturn, getFdPlanScheduledReturn } from '../../data/fdPackageTemplates.ts';
+import { getFdPlanDailyReturn, getFdPlanScheduledReturn } from '../../data/fdPackageTemplates.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { PackageActivationRequest, PackageDefinition } from '../../types/index.ts';
 
