@@ -192,6 +192,8 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
   if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
   try{
     await client.query('BEGIN');
+    // Normalize Firestore Timestamp values before any Postgres timestamptz insert.
+    const rechargeCreatedAt = toPostgresTimestamp(createdAt);
     // Serialize concurrent reviews of the same on-chain transaction.
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[normalizedHash]);
 
@@ -228,7 +230,7 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
          VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb,$7)`,
         [ledgerId,userId,credit,`Verified USDT BEP20 recharge ${id}`,normalizedHash,
           JSON.stringify({asset:'USDT',rechargeId:id,txHash:normalizedHash,depositAddress,adminId:actor.id,reviewNote:note,chainProof:proof}),
-          createdAt || new Date()]
+          rechargeCreatedAt || new Date()]
       );
       await client.query(
         'UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',
@@ -236,7 +238,6 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
       );
     }
 
-    const rechargeCreatedAt = toPostgresTimestamp(createdAt);
     const existingRecharge=await client.query(
       'SELECT id,user_id FROM usdt_bep20_recharges WHERE tx_hash=$1 FOR UPDATE',
       [normalizedHash]
