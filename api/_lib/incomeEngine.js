@@ -38,6 +38,13 @@ export async function ensureIncomeSchema(client) {
     ADD COLUMN IF NOT EXISTS fd_total_level_income NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS total_salary NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS income_stat_date DATE`);
+  await client.query(`CREATE TABLE IF NOT EXISTS finance_rule_config(
+    rule_key VARCHAR(100) PRIMARY KEY, rule_value JSONB NOT NULL, asset VARCHAR(12) NOT NULL DEFAULT 'USDT',
+    description TEXT, enabled BOOLEAN NOT NULL DEFAULT TRUE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_by VARCHAR(128))`);
+  await client.query(`INSERT INTO finance_rule_config(rule_key,rule_value,asset,description) VALUES
+    ('referral_deposit_commission','{"level_1_percent":10,"levels_2_to_15_percent":0.25}'::jsonb,'USDT','First verified USDT deposit referral commission'),
+    ('referral_retopup_commission','{"level_1_percent":5,"levels_2_to_15_percent":0.25}'::jsonb,'USDT','Subsequent verified USDT retopup referral commission')
+    ON CONFLICT(rule_key) DO NOTHING`);
   await client.query(`CREATE TABLE IF NOT EXISTS income_events(
     event_key VARCHAR(180) PRIMARY KEY,
     event_type VARCHAR(40) NOT NULL,
@@ -131,6 +138,15 @@ async function hasActiveReferralAtLevel(client, recipientId, targetLevel) {
   return rows.length > 0;
 }
 
+async function configuredActivationRate(client, level, firstEvent) {
+  const n=Number(level);
+  if(n<1 || n>MAX_LEVEL) return 0;
+  const key=firstEvent?'referral_deposit_commission':'referral_retopup_commission';
+  const result=await client.query('SELECT rule_value FROM finance_rule_config WHERE rule_key=$1 AND enabled=TRUE',[key]);
+  const value=result.rows[0]?.rule_value || {};
+  if(n===1) return Number(value.level_1_percent ?? (firstEvent?10:5));
+  return Number(value.levels_2_to_15_percent ?? 0.25);
+}
 async function eventOnce(client, key, type, sourceUserId, activationId, baseAmount, businessDate, metadata={}) {
   const r = await client.query(`INSERT INTO income_events(event_key,event_type,source_user_id,source_activation_id,base_amount,business_date,metadata)
     VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT(event_key) DO NOTHING RETURNING event_key`,
@@ -219,7 +235,7 @@ export async function applyDepositReferralIncome(client,{depositId,userId,amount
   for(const u of ups){
     if(String(u.status||'').toLowerCase()!=='active') continue;
     const level=Number(u.level);
-    const rate=activationLevelRate(level,firstDeposit);
+    const rate=await configuredActivationRate(client,level,firstDeposit);
     if(rate<=0 || !(await hasActiveReferralAtLevel(client,u.id,level))) continue;
     const incomeType=level===1?'basic_referral':'basic_level';
     const commission=pct(base,rate);
@@ -259,7 +275,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   for(const u of ups){
     if(u.status!=='active') continue;
     const level=Number(u.level); let rate=0;
-    rate=activationLevelRate(level, first);
+    rate=await configuredActivationRate(client,level,first);
     if(rate<=0) continue;
 
     // Daily level income is ROI-based. A member must have at least
