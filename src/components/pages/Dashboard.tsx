@@ -33,7 +33,10 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile }) => {
-  const { profile, wallet } = useAuth();
+  const { user, profile, wallet } = useAuth();
+  const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name: string; package_type: string; amount: string | number; roi_daily_rate?: string | number; duration_days?: number; total_earned?: string | number; activated_at?: string | null; expires_at?: string | null; cap_multiple: number; cap_amount: string | number | null; credited_total: string | number; cap_reconciled: boolean; status: string; completed_at: string | null; principal_returned?: boolean; principal_return_amount?: string | number }>>([]);
+  const [capLoading, setCapLoading] = useState(true);
+  const [capError, setCapError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -41,6 +44,61 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const [showOffer, setShowOffer] = useState(false);
 
   const referralCode = profile?.referralCode || '';
+  const [capLastUpdated, setCapLastUpdated] = useState<Date | null>(null);
+  const [capRefreshing, setCapRefreshing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
+    if (!user) {
+      setCapCycles([]);
+      setCapError('');
+      setCapLoading(false);
+      setCapLastUpdated(null);
+      return;
+    }
+    const loadCapStatus = async (initial = false) => {
+      if (inFlight || cancelled) return;
+      inFlight = true;
+      if (initial) setCapLoading(true);
+      setCapRefreshing(true);
+      try {
+        const idToken = await user.getIdToken();
+        const response = await fetch('/api/usdt-bep20-deposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ action: 'package_history' }),
+          cache: 'no-store',
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Unable to load investment cap status');
+        if (!cancelled) {
+          setCapCycles(Array.isArray(data.items) ? data.items : []);
+          setCapError('');
+          setCapLastUpdated(new Date());
+        }
+      } catch (error) {
+        console.warn('Investment cap status unavailable:', error);
+        if (!cancelled) setCapError(error instanceof Error ? error.message : 'Unable to load investment cap status.');
+      } finally {
+        inFlight = false;
+        if (!cancelled) {
+          setCapLoading(false);
+          setCapRefreshing(false);
+        }
+      }
+    };
+    void loadCapStatus(true);
+    const interval = window.setInterval(() => { void loadCapStatus(false); }, 15000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void loadCapStatus(false); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user?.uid]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +127,45 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const formatUsdt = (val: number | undefined) => {
     const num = Number(val || 0);
     return `USDT ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}`;
+  };
+
+  const capSummary = capCycles.reduce((summary, cycle) => {
+    const invested = Number(cycle.amount || 0);
+    const cap = Number(cycle.cap_amount ?? invested * 5);
+    summary.invested += invested;
+    summary.totalCap += cap;
+    if (cycle.cap_reconciled === true) {
+      const counted = Math.min(cap, Math.max(0, Number(cycle.credited_total || 0)));
+      summary.verifiedCounted += counted;
+      summary.verifiedRemaining += Math.max(0, cap - counted);
+      summary.verifiedCycles += 1;
+    } else {
+      summary.reviewCycles += 1;
+    }
+    return summary;
+  }, { invested: 0, totalCap: 0, verifiedCounted: 0, verifiedRemaining: 0, verifiedCycles: 0, reviewCycles: 0 });
+
+  const refreshCapStatus = async () => {
+    if (!user || capRefreshing) return;
+    setCapRefreshing(true);
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/usdt-bep20-deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'package_history' }),
+        cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to load investment cap status');
+      setCapCycles(Array.isArray(data.items) ? data.items : []);
+      setCapError('');
+      setCapLastUpdated(new Date());
+    } catch (error) {
+      setCapError(error instanceof Error ? error.message : 'Unable to load investment cap status.');
+    } finally {
+      setCapRefreshing(false);
+    }
   };
 
   return (
@@ -213,8 +310,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       </div>
 
-      {/* PRIMARY STATS ROW: Basic Package & FD Package */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* PRIMARY STATS ROW: Basic, FD & live investment cap */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* Basic Package Card */}
         <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-cyan-500/40 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
@@ -264,7 +361,118 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             </button>
           </div>
         </div>
+
+        {/* Primary, auto-refreshing cap summary */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#082b3a] via-[#091129] to-[#101744] border border-cyan-400/50 shadow-xl shadow-cyan-950/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-cyan-400/10 blur-2xl pointer-events-none" />
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">Live 5X Capping</span>
+            <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> AUTO</span>
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">{capCycles.length ? formatUsdt(capSummary.totalCap) : 'Awaiting plan sync'}</div>
+          <div className="mt-1 text-xs text-cyan-100/80">{capCycles.length ? 'Total 5X cap limit across all recorded plans' : 'No package activation records have synced to cap tracking yet'}</div>
+          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-cyan-300/15 pt-3">
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Verified counted</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(capSummary.verifiedCounted)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Verified remaining</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(capSummary.verifiedRemaining)}</div></div>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="text-[10px] text-slate-400">{capSummary.reviewCycles ? `${capSummary.reviewCycles} plan(s) need admin review` : `${capSummary.verifiedCycles} verified plan(s)`}</span>
+            <button onClick={refreshCapStatus} disabled={capRefreshing} className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold text-cyan-200 disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${capRefreshing ? 'animate-spin' : ''}`} /> Refresh</button>
+          </div>
+          <div className="mt-1 text-[10px] text-slate-500">{capLastUpdated ? `Updated ${capLastUpdated.toLocaleTimeString()}` : 'Waiting for first cap sync'} · refreshes every 15 sec</div>
+        </div>
       </div>
+
+      {/* 5X INVESTMENT CAP */}
+      <section className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-cyan-500/25 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-300">5X Investment Cap</h3>
+            <p className="text-xs text-slate-400 mt-1">ROI, referral, level and bonus credits are counted toward each eligible investment cap. Principal return is subject to the same cap when processed through the capped income ledger.</p>
+          </div>
+          <span className="self-start rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-bold text-cyan-300">5X LIMIT</span>
+        </div>
+        {capLoading ? <p className="text-sm text-slate-400">Loading verified investment cap status…</p> : capError ? (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 p-3 text-sm text-rose-200">Investment cap data could not be loaded: {capError}. Please refresh or contact support if this continues.</div>
+        ) : capCycles.length === 0 ? (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-950/10 p-3"><p className="text-sm text-amber-200">No investment cycles were returned by the cap API for this account.</p><p className="mt-1 text-xs text-slate-400">If an investment is visible in Package Activations but not here, its record may be in the legacy store and needs to be linked for cap tracking.</p></div>
+        ) : <div className="space-y-3">
+          {capCycles.map((cycle) => {
+            const invested = Number(cycle.amount || 0);
+            const cap = Number(cycle.cap_amount ?? invested * 5);
+            const counted = Number(cycle.credited_total || 0);
+            const remaining = Math.max(0, cap - counted);
+            const progress = cap > 0 ? Math.min(100, Math.max(0, counted / cap * 100)) : 0;
+            const completed = cycle.status === 'completed' || counted >= cap;
+            const review = cycle.cap_reconciled !== true;
+            const statusLabel = review ? 'Admin Review' : completed ? 'Completed' : cycle.status === 'active' ? 'Active' : cycle.status;
+            const statusStyle = review ? 'text-amber-300 bg-amber-500/10 border-amber-500/25' : completed ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25' : 'text-cyan-300 bg-cyan-500/10 border-cyan-500/25';
+            return <div key={cycle.id} className="rounded-xl border border-blue-500/20 bg-[#0e173a]/55 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-white">{cycle.package_name || (cycle.package_type === 'fd' ? 'FD Package' : 'Basic Package')}</div>
+                  <div className="text-xs text-slate-400 mt-1">Investment: {formatUsdt(invested)} · Maximum 5X cap: {formatUsdt(cap)}</div>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusStyle}`}>{statusLabel}</span>
+              </div>
+              {review ? <p className="mt-3 text-xs leading-relaxed text-amber-200">Historical income needs admin reconciliation before this cycle can safely participate in cap-limited credits. Displayed progress is not yet verified.</p> : <>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Counted toward cap</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(counted)}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Cap remaining</div><div className="mt-1 text-sm font-bold text-cyan-300">{formatUsdt(remaining)}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Progress</div><div className="mt-1 text-sm font-bold text-white">{progress.toFixed(1)}%</div></div>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all" style={{ width: `${progress}%` }} /></div>
+                {cycle.principal_returned && <p className="mt-3 text-xs text-slate-300">Principal returned to Fund Wallet: <span className="font-semibold text-white">{formatUsdt(Number(cycle.principal_return_amount || 0))}</span></p>}
+                {completed && <p className="mt-3 text-xs font-semibold text-emerald-300">This investment cycle is completed. A new cycle requires a new package activation.</p>}
+              </>}
+            </div>;
+          })}
+        </div>}
+      </section>
+
+      {/* USER PLAN HISTORY: keep completed and matured plans visible */}
+      <section className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-emerald-500/25 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-300">My Plan History</h3>
+            <p className="text-xs text-slate-400 mt-1">Your active, completed and matured Basic/FD investments stay visible here.</p>
+          </div>
+          <span className="self-start rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">{capCycles.length} PLAN{capCycles.length === 1 ? '' : 'S'}</span>
+        </div>
+        {capLoading ? <p className="text-sm text-slate-400">Loading plan history…</p> : capError ? (
+          <p className="rounded-xl border border-rose-500/30 bg-rose-950/20 p-3 text-sm text-rose-200">Plan history could not be loaded: {capError}</p>
+        ) : capCycles.length === 0 ? (
+          <p className="rounded-xl border border-blue-500/20 bg-[#0e173a]/55 p-3 text-sm text-slate-400">No package activations were found for this account yet.</p>
+        ) : <div className="space-y-3">
+          {capCycles.map((cycle) => {
+            const invested = Number(cycle.amount || 0);
+            const roiEarned = Number(cycle.total_earned || 0);
+            const expiresAt = cycle.expires_at ? new Date(cycle.expires_at) : null;
+            const isPastMaturity = Boolean(expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= Date.now());
+            const isCompleted = cycle.status === 'completed' || cycle.status === 'matured';
+            const isMaturedAwaitingSettlement = !isCompleted && isPastMaturity;
+            const statusText = isCompleted ? 'Completed' : isMaturedAwaitingSettlement ? 'Matured · Settlement pending' : cycle.status === 'active' ? 'Active' : cycle.status;
+            const statusColor = isCompleted ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25' : isMaturedAwaitingSettlement ? 'text-amber-200 bg-amber-500/10 border-amber-500/25' : 'text-cyan-300 bg-cyan-500/10 border-cyan-500/25';
+            return <div key={cycle.id} className="rounded-xl border border-blue-500/20 bg-[#0e173a]/55 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-white">{cycle.package_name || (cycle.package_type === 'fd' ? 'FD Package' : 'Basic Package')}</div>
+                  <div className="mt-1 text-xs text-slate-400">Investment: {formatUsdt(invested)} · ROI rate: {Number(cycle.roi_daily_rate || 0).toLocaleString('en-US')}% · Duration: {Number(cycle.duration_days || 0)} days</div>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusColor}`}>{statusText}</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div><div className="text-[10px] uppercase tracking-wider text-slate-500">ROI credited</div><div className="mt-1 text-sm font-bold text-emerald-300">{formatUsdt(roiEarned)}</div></div>
+                <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Cap progress</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(Number(cycle.credited_total || 0))} / {formatUsdt(Number(cycle.cap_amount ?? invested * 5))}</div></div>
+                <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Activated</div><div className="mt-1 text-xs font-semibold text-slate-200">{cycle.activated_at ? new Date(cycle.activated_at).toLocaleDateString() : '—'}</div></div>
+                <div><div className="text-[10px] uppercase tracking-wider text-slate-500">Maturity date</div><div className="mt-1 text-xs font-semibold text-slate-200">{cycle.expires_at ? new Date(cycle.expires_at).toLocaleDateString() : '—'}</div></div>
+              </div>
+              {cycle.principal_returned && <p className="mt-3 text-xs text-slate-300">Principal returned: <span className="font-semibold text-white">{formatUsdt(Number(cycle.principal_return_amount || 0))}</span></p>}
+              {isMaturedAwaitingSettlement && <p className="mt-2 text-xs text-amber-200">The scheduled maturity date has passed, but the backend has not marked this plan completed yet. Please do not treat the principal as paid until it appears in your wallet ledger.</p>}
+            </div>;
+          })}
+        </div>}
+      </section>
 
       {/* BALANCE SUMMARY SECTION */}
       <div>

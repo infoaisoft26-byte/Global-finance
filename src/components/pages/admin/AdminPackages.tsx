@@ -41,7 +41,7 @@ export const AdminPackages: React.FC = () => {
 
   const mergeWithTemplates = (saved: PackageDefinition[]) => {
     const byCode = new Map(saved.map(p => [p.code, p]));
-    const defaults = templates.map(t => byCode.get(t.code) || t);
+    const defaults = templates.map(t => { const savedPkg = byCode.get(t.code); if (!savedPkg) return t; const legacyAmount = t.minAmount * 100; return Number(savedPkg.minAmount) === legacyAmount && Number(savedPkg.maxAmount) === legacyAmount ? { ...savedPkg, minAmount: t.minAmount, maxAmount: t.maxAmount } : savedPkg; });
     const custom = saved.filter(p => !templates.some(t => t.code === p.code));
     return [...defaults, ...custom];
   };
@@ -110,8 +110,8 @@ export const AdminPackages: React.FC = () => {
       name: isFd ? 'New FD Package' : 'New Basic Package',
       code: `${isFd ? 'GF_FD_CUSTOM' : 'GF_CUSTOM'}_${Date.now().toString().slice(-4)}`,
       type: activeTab,
-      minAmount: isFd ? 1000 : 200,
-      maxAmount: isFd ? 1000 : 200,
+      minAmount: isFd ? 10 : 2,
+      maxAmount: isFd ? 10 : 2,
       roiRate: isFd ? 1 : 1,
       durationDays: isFd ? 365 : 25,
       description: 'Admin-configured package.',
@@ -170,14 +170,14 @@ export const AdminPackages: React.FC = () => {
               <button onClick={() => setEditingPkg(pkg)} className="p-2 rounded-lg bg-[#0e173a] text-cyan-400 border border-blue-500/30"><Edit3 className="w-3.5 h-3.5"/></button>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
-              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Plan Amount</span><b className="text-white">{pkg.minAmount.toLocaleString('en-IN')}</b></div>
-              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Daily Return</span><b className="text-emerald-400">{pkg.roiRate}% = {daily.toLocaleString('en-IN')}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Plan Amount (USDT)</span><b className="text-white">USDT {pkg.minAmount.toFixed(2)}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Daily Return</span><b className="text-emerald-400">{pkg.roiRate}% = USDT {daily.toFixed(2)}</b></div>
               <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Days</span><b className="text-cyan-300">{pkg.durationDays}</b></div>
-              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Total Profit</span><b className="text-emerald-300">{profit.toLocaleString('en-IN')}</b></div>
+              <div className="p-2.5 rounded-xl bg-[#060b1c]"><span className="text-slate-500 block text-[10px]">Total Profit (USDT)</span><b className="text-emerald-300">USDT {profit.toFixed(2)}</b></div>
             </div>
             <div className="mt-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">Maturity Amount</span>
-              <b className="text-lg text-white">{maturity.toLocaleString('en-IN')}</b>
+              <span className="text-[11px] text-slate-400">Maturity Amount (USDT)</span>
+              <b className="text-lg text-white">USDT {maturity.toFixed(2)}</b>
             </div>
             <div className="mt-3 text-[11px] text-slate-400">{pkg.active ? 'Active & visible to members' : 'Inactive / hidden from members'}</div>
           </div>;
@@ -197,11 +197,11 @@ export const AdminPackages: React.FC = () => {
             <label className="text-slate-400 block">Days<input type="number" min="1" value={editingPkg.durationDays} onChange={e=>setEditingPkg({...editingPkg,durationDays:Number(e.target.value)})} className="mt-1 w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white"/></label>
 
             <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-[#060b1c] border border-cyan-500/20">
-              <div><span className="text-[10px] text-slate-500 block">Daily Income</span><b className="text-cyan-300">{previewDaily.toLocaleString('en-IN')}</b></div>
-              <div><span className="text-[10px] text-slate-500 block">Total Profit</span><b className="text-emerald-300">{previewProfit.toLocaleString('en-IN')}</b></div>
-              <div><span className="text-[10px] text-slate-500 block mt-2">Principal</span><b className="text-white">{Number(editingPkg.minAmount || 0).toLocaleString('en-IN')}</b></div>
-              <div><span className="text-[10px] text-slate-500 block mt-2">Maturity Amount</span><b className="text-lg text-white">{previewMaturity.toLocaleString('en-IN')}</b></div>
-              <div className="col-span-2 mt-2 text-[10px] text-slate-500">Formula: Amount + (Amount × Daily % ÷ 100 × Days)</div>
+              <div><span className="text-[10px] text-slate-500 block">Daily Income (USDT)</span><b className="text-cyan-300">USDT {previewDaily.toFixed(2)}</b></div>
+              <div><span className="text-[10px] text-slate-500 block">Total Profit (USDT)</span><b className="text-emerald-300">USDT {previewProfit.toFixed(2)}</b></div>
+              <div><span className="text-[10px] text-slate-500 block mt-2">Principal (USDT)</span><b className="text-white">USDT {Number(editingPkg.minAmount || 0).toFixed(2)}</b></div>
+              <div><span className="text-[10px] text-slate-500 block mt-2">Maturity Amount (USDT)</span><b className="text-lg text-white">USDT {previewMaturity.toFixed(2)}</b></div>
+              <div className="col-span-2 mt-2 text-[10px] text-slate-500">Formula: USDT amount + (USDT amount × daily % ÷ 100 × days)</div>
             </div>
 
             <textarea rows={2} value={editingPkg.description} onChange={e=>setEditingPkg({...editingPkg,description:e.target.value})} className="w-full px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white" placeholder="Description"/>

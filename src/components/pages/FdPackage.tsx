@@ -27,7 +27,7 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
       if (saved.length) {
         const savedFd = saved.filter(p => p.type === 'fd');
         const byCode = new Map(savedFd.map(p => [p.code, p]));
-        const merged = FD_PACKAGE_TEMPLATES.map(t => byCode.get(t.code) || t).filter(p => p.active);
+        const merged = FD_PACKAGE_TEMPLATES.map(t => { const savedPkg = byCode.get(t.code); if (!savedPkg) return t; const legacyAmount = t.minAmount * 100; return Number(savedPkg.minAmount) === legacyAmount && Number(savedPkg.maxAmount) === legacyAmount ? { ...savedPkg, minAmount: t.minAmount, maxAmount: t.maxAmount } : savedPkg; }).filter(p => p.active);
         const custom = savedFd.filter(p => p.active && !FD_PACKAGE_TEMPLATES.some(t => t.code === p.code));
         setPackages([...merged, ...custom]);
       }
@@ -86,11 +86,11 @@ export const FdPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ onNa
         return <div key={pkg.id} className={`rounded-2xl bg-[#091129] border overflow-hidden shadow-lg ${prime ? 'border-violet-500/30' : 'border-blue-500/25'}`}>
           <div className="p-4 border-b border-blue-500/15 flex items-center gap-3"><div className={`w-10 h-10 rounded-xl flex items-center justify-center ${prime ? 'bg-gradient-to-br from-violet-600 to-fuchsia-500' : 'bg-gradient-to-br from-blue-600 to-cyan-500'}`}><Package className="w-5 h-5 text-white"/></div><div><h3 className="font-bold">{pkg.name}</h3><span className="text-[10px] font-mono text-cyan-500">{pkg.code}</span></div></div>
           <div className="p-4 space-y-2 text-xs">
-            <div className="flex justify-between"><span>Plan Amount</span><b className="font-mono">{pkg.minAmount.toFixed(2)}</b></div>
-            <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-emerald-400">{pkg.roiRate}% = {daily.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Plan Amount</span><b className="font-mono">USDT {pkg.minAmount.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Daily Return</span><b className="font-mono text-emerald-400">{pkg.roiRate}% = USDT {daily.toFixed(2)}</b></div>
             <div className="flex justify-between"><span>Days</span><b>{pkg.durationDays}</b></div>
-            <div className="flex justify-between"><span>Total Profit</span><b className="font-mono text-emerald-300">{profit.toFixed(2)}</b></div>
-            <div className={`flex justify-between pt-3 mt-1 border-t ${prime ? 'border-violet-500/20' : 'border-blue-500/20'}`}><span className="font-semibold">Maturity Amount</span><b className="font-mono text-base">${maturity.toFixed(2)}</b></div>
+            <div className="flex justify-between"><span>Total Profit</span><b className="font-mono text-emerald-300">USDT {profit.toFixed(2)}</b></div>
+            <div className={`flex justify-between pt-3 mt-1 border-t ${prime ? 'border-violet-500/20' : 'border-blue-500/20'}`}><span className="font-semibold">Maturity Amount</span><b className="font-mono text-base">USDT {maturity.toFixed(2)}</b></div>
           </div>
           <button onClick={() => purchase(pkg)} disabled={waiting} className={`w-full py-3 text-white text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2 ${prime ? 'bg-violet-600 hover:bg-violet-500' : 'bg-blue-600 hover:bg-blue-500'}`}>{waiting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/>Processing…</> : 'Purchase with USDT'}</button>
         </div>;
