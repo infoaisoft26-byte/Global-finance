@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeftRight,
   CheckCircle2,
@@ -21,6 +21,7 @@ export const TransferIncomeToFund: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [requests, setRequests] = useState<TransactionRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const pendingTransferRef = useRef<{ amount: number; requestId: string } | null>(null);
 
   const apiCall = async (method: 'GET' | 'POST', body?: object) => {
     if (!user) throw new Error('Please sign in again to transfer USDT.');
@@ -89,9 +90,12 @@ export const TransferIncomeToFund: React.FC = () => {
     setSuccessMsg('');
 
     // Reuse this ID if the same request is retried after a network interruption.
-    const requestId = `WALLET_TRANSFER_${crypto.randomUUID()}`;
+    if (!pendingTransferRef.current || pendingTransferRef.current.amount !== amount) {
+      pendingTransferRef.current = { amount, requestId: `WALLET_TRANSFER_${crypto.randomUUID()}` };
+    }
     try {
-      const result = await apiCall('POST', { amount: String(amount), requestId });
+      const result = await apiCall('POST', { amount: String(amount), requestId: pendingTransferRef.current.requestId });
+      pendingTransferRef.current = null;
       setSuccessMsg(String(result.message || 'Internal transfer completed successfully.'));
       await refreshWallet();
       await loadData();
