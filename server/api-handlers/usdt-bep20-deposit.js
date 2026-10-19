@@ -142,9 +142,11 @@ async function handleAdminSyncPackages(member, body, res) {
       const saved = await upsertPackageDefinition(client, pkg, true);
       if (saved.updated) updated += 1;
     }
-    await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
-      VALUES($1,$2,$3,'EXISTING_PACKAGE_DEFINITIONS_SYNCED','package','EXISTING_PACKAGES',$4::jsonb)`,
-      [crypto.randomUUID(),member.uid,member.email,JSON.stringify({updated,requested:Math.min(body.packages.length,100),mode:'update-existing-only'})]);
+    if (updated > 0) {
+      await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+        VALUES($1,$2,$3,'EXISTING_PACKAGE_DEFINITIONS_SYNCED','package','EXISTING_PACKAGES',$4::jsonb)`,
+        [crypto.randomUUID(),member.uid,member.email,JSON.stringify({updated,requested:Math.min(body.packages.length,100),mode:'update-existing-only'})]);
+    }
     return { updated, requested:Math.min(body.packages.length,100) };
   });
   return json(res, 200, { success:true, ...result, message:`Synchronized ${result.updated} existing live package definitions. Existing activations and financial records were not changed.` });
