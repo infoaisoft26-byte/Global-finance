@@ -14,7 +14,8 @@ async function requireAdmin(req) {
   const email = String(decoded.email || '').trim().toLowerCase();
   const { rows } = await getPool().query('SELECT id,role,status FROM users WHERE id=$1 AND email=$2 LIMIT 1', [decoded.uid,email]);
   const user = rows[0];
-  if (!user || user.role!=='admin' || user.status!=='active') throw new Error('ADMIN_REQUIRED');
+  if (!user || !['admin','sub_admin'].includes(user.role) || user.status!=='active') throw new Error('ADMIN_REQUIRED');
+  return user;
 }
 
 async function financeReport(pool) {
@@ -87,9 +88,10 @@ async function networkReport(pool) {
 export default async function handler(req,res) {
   if (req.method!=='GET') return json(res,405,{error:'Method not allowed'});
   try {
-    await requireAdmin(req);
+    const actor=await requireAdmin(req);
     const pool=getPool();
     const mode=String(req.query?.mode||'network');
+    if(actor.role==='sub_admin' && mode!=='dashboard-metrics') return json(res,403,{error:'This staff account cannot access financial reports or wallet-level data'});
     return json(res,200,mode==='finance-report'?await financeReport(pool):mode==='dashboard-metrics'?await dashboardMetrics(pool):await networkReport(pool));
   } catch (error) {
     if (String(error?.message)==='ADMIN_REQUIRED') return json(res,403,{error:'Admin access required'});

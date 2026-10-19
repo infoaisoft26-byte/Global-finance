@@ -75,7 +75,7 @@ const PageFallback = () => (
 );
 
 const MainLayout: React.FC = () => {
-  const { user, loading, isAdmin, isSuspended, logout } = useAuth();
+  const { user, loading, isAdmin, isSubAdmin, isSuspended, logout } = useAuth();
   const isAdminEntry = typeof window !== 'undefined' && (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/'));
   const [activePage, setActivePage] = useState<ActivePage>(() => isAdminEntry ? 'admin-dashboard' : 'dashboard');
   const [selectedAdminUserId, setSelectedAdminUserId] = useState('');
@@ -171,7 +171,7 @@ const MainLayout: React.FC = () => {
   }
 
   const renderContent = () => {
-    if (activePage.startsWith('admin-') && !isAdmin) return <div className="p-8 text-center text-rose-300">Access denied.</div>;
+    if (activePage.startsWith('admin-') && (!isAdmin || (isSubAdmin && !['admin-dashboard', 'admin-kyc', 'admin-tickets'].includes(activePage)))) return <div className="p-8 text-center text-rose-300">Access denied. This staff account does not have permission for this section.</div>;
 
     switch (activePage) {
       case 'dashboard': return <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
