@@ -185,14 +185,15 @@ async function eventOnce(client, key, type, sourceUserId, activationId, baseAmou
 
 async function refreshReferralStatus(client,userId) {
   const q=await client.query(`SELECT COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE COALESCE(credited_total,0)<COALESCE(cap_amount,ROUND(amount*5,2)))::int AS remaining
-    FROM package_activations WHERE user_id=$1 AND cap_reconciled=TRUE`,[userId]);
-  const total=Number(q.rows[0]?.total||0), remaining=Number(q.rows[0]?.remaining||0);
-  if(total>0 && remaining===0) {
+      COUNT(*) FILTER (WHERE COALESCE(credited_total,0)<COALESCE(cap_amount,ROUND(amount*5,2)))::int AS remaining,
+      COUNT(*) FILTER (WHERE cap_reconciled=FALSE)::int AS pending
+    FROM package_activations WHERE user_id=$1`,[userId]);
+  const total=Number(q.rows[0]?.total||0), remaining=Number(q.rows[0]?.remaining||0), pending=Number(q.rows[0]?.pending||0);
+  if(total>0 && remaining===0 && pending===0) {
     await client.query(`UPDATE users SET referral_status='inactive' WHERE id=$1`,[userId]);
     return 'inactive';
   }
-  if(remaining>0) await client.query(`UPDATE users SET referral_status='active' WHERE id=$1`,[userId]);
+  if(remaining>0 || pending>0) await client.query(`UPDATE users SET referral_status='active' WHERE id=$1`,[userId]);
   return 'active';
 }
 
@@ -375,7 +376,7 @@ export async function runDailyIncome(client,businessDate) {
       })) levelCredits++;
     }
     packagesProcessed++;
-    if(money(already+roi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1`,[a.id]);
+    if(money(already+creditedRoi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1 AND status='active'`,[a.id]);
   }
   // Release signup maturity points only after the member has had at least one
   // real package and every package activation is no longer active. Points stay
