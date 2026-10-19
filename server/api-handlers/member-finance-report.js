@@ -9,8 +9,8 @@ function json(res, status, body) {
 }
 
 const INCOME_TYPES = [
-  'basic_roi','fd_roi','basic_level','fd_level','rd_level',
-  'basic_referral','fd_referral','referral_bonus','level_bonus','salary',
+  'basic_roi','fd_roi','basic_level','fd_level','rd_level','level_income',
+  'basic_referral','fd_referral','referral_income','direct_referral','referral_bonus','level_bonus','salary',
   'joining_bonus','retopup_bonus'
 ];
 
