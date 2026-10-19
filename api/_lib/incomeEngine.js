@@ -10,6 +10,71 @@ const money = (v) => Number(Number(v || 0).toFixed(2));
 const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100);
 
 export async function ensureIncomeSchema(client) {
+  await client.query(`ALTER TABLE package_activations
+    ADD COLUMN IF NOT EXISTS cap_multiple INT NOT NULL DEFAULT 5,
+    ADD COLUMN IF NOT EXISTS cap_amount NUMERIC(16,2),
+    ADD COLUMN IF NOT EXISTS credited_total NUMERIC(16,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS cap_reconciled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS principal_returned BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS principal_return_amount NUMERIC(16,2) NOT NULL DEFAULT 0`);
+  await client.query(`UPDATE package_activations SET cap_amount=ROUND(amount*COALESCE(cap_multiple,5),2) WHERE cap_amount IS NULL`);
+  await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_status VARCHAR(16) NOT NULL DEFAULT 'active'`);
+  await client.query(`CREATE TABLE IF NOT EXISTS income_cap_migrations(
+    migration_key VARCHAR(120) PRIMARY KEY, completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  const capMigration = await client.query(`INSERT INTO income_cap_migrations(migration_key)
+    VALUES('initial-ledger-reconciliation-v1') ON CONFLICT(migration_key) DO NOTHING RETURNING migration_key`);
+  if (capMigration.rowCount === 1) {
+    // Reconcile old counters from completed ledger credits; ledger and wallet balances are immutable.
+    await client.query(`WITH users_to_reconcile AS (
+        SELECT DISTINCT user_id FROM package_activations WHERE cap_reconciled=FALSE
+      ),
+      cycles AS (
+        SELECT pa.id,pa.user_id,pa.status AS status_before,
+          COALESCE(pa.cap_amount,ROUND(pa.amount*COALESCE(pa.cap_multiple,5),2)) AS cap,
+          COALESCE(SUM(COALESCE(pa.cap_amount,ROUND(pa.amount*COALESCE(pa.cap_multiple,5),2)))
+            OVER(PARTITION BY pa.user_id ORDER BY pa.activated_at,pa.id
+              ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS prior_cap
+        FROM package_activations pa JOIN users_to_reconcile r ON r.user_id=pa.user_id
+      ),
+      eligible AS (
+        SELECT l.user_id,SUM(COALESCE(l.net_amount,l.amount,0)) AS total
+        FROM ledger_transactions l JOIN users_to_reconcile r ON r.user_id=l.user_id
+        WHERE l.status='completed' AND l.flow='credit'
+          AND (l.category='income_wallet' OR l.type IN
+            ('principal_return','principal_return_credit','joining_bonus','signup_bonus','bonus','referral_bonus','level_bonus','salary'))
+        GROUP BY l.user_id
+      ),
+      allocation AS (
+        SELECT c.id,c.cap,c.status_before,LEAST(c.cap,GREATEST(0,COALESCE(e.total,0)-c.prior_cap)) AS tracked
+        FROM cycles c LEFT JOIN eligible e ON e.user_id=c.user_id
+      ),
+      updated AS (
+        UPDATE package_activations pa
+        SET cap_amount=a.cap,cap_multiple=5,credited_total=a.tracked,cap_reconciled=TRUE,
+            status=CASE WHEN a.tracked>=a.cap AND pa.status='active' THEN 'completed' ELSE pa.status END,
+            completed_at=CASE WHEN a.tracked>=a.cap THEN COALESCE(pa.completed_at,NOW()) ELSE pa.completed_at END
+        FROM allocation a WHERE pa.id=a.id AND pa.cap_reconciled=FALSE
+        RETURNING pa.id,pa.user_id,pa.package_type,pa.amount
+      ),
+      wallet_deductions AS (
+        SELECT u.user_id,
+          COALESCE(SUM(u.amount) FILTER (WHERE u.package_type='basic' AND a.status_before='active' AND a.tracked>=a.cap),0) AS basic_amount,
+          COALESCE(SUM(u.amount) FILTER (WHERE u.package_type='fd' AND a.status_before='active' AND a.tracked>=a.cap),0) AS fd_amount
+        FROM updated u JOIN allocation a ON a.id=u.id GROUP BY u.user_id
+      )
+      UPDATE wallets w SET
+        basic_package_active=GREATEST(0,w.basic_package_active-d.basic_amount),
+        fd_package_active=GREATEST(0,w.fd_package_active-d.fd_amount),
+        updated_at=NOW()
+      FROM wallet_deductions d WHERE w.user_id=d.user_id`);
+    await client.query(`UPDATE users u SET referral_status=CASE
+      WHEN EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id)
+       AND NOT EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id
+         AND COALESCE(p.credited_total,0)<COALESCE(p.cap_amount,ROUND(p.amount*5,2)))
+      THEN 'inactive' ELSE 'active' END
+      WHERE EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id)`);
+  }
   await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS rank_code VARCHAR(32) NOT NULL DEFAULT 'MEMBER'`);
   await client.query(`ALTER TABLE users
     ADD COLUMN IF NOT EXISTS transaction_password_hash TEXT,
@@ -76,14 +141,14 @@ function previousIndiaBusinessDate(now = new Date()) {
 
 async function uplines(client, userId) {
   const { rows } = await client.query(`WITH RECURSIVE u AS (
-    SELECT s.id,s.referral_code,s.sponsor_id,s.status,1 AS level,ARRAY[m.id,s.id]::varchar[] AS path
+    SELECT s.id,s.referral_code,s.sponsor_id,s.status,s.referral_status,1 AS level,ARRAY[m.id,s.id]::varchar[] AS path
       FROM users m
       JOIN users s
         ON LOWER(TRIM(COALESCE(s.referral_code,''))) = LOWER(TRIM(COALESCE(m.sponsor_id,'')))
         OR LOWER(TRIM(COALESCE(s.id::text,''))) = LOWER(TRIM(COALESCE(m.sponsor_id,'')))
       WHERE m.id=$1
     UNION ALL
-    SELECT s.id,s.referral_code,s.sponsor_id,s.status,u.level+1,u.path||s.id
+    SELECT s.id,s.referral_code,s.sponsor_id,s.status,s.referral_status,u.level+1,u.path||s.id
       FROM u
       JOIN users s
         ON LOWER(TRIM(COALESCE(s.referral_code,''))) = LOWER(TRIM(COALESCE(u.sponsor_id,'')))
@@ -97,7 +162,7 @@ async function uplines(client, userId) {
 async function hasActiveReferralAtLevel(client, recipientId, targetLevel) {
   const { rows } = await client.query(
     `WITH RECURSIVE d AS (
-       SELECT s.id, s.referral_code, s.sponsor_id, s.status, 1 AS level, ARRAY[s.id]::varchar[] AS path
+       SELECT s.id, s.referral_code, s.sponsor_id, s.status, s.referral_status, 1 AS level, ARRAY[s.id]::varchar[] AS path
        FROM users root
        JOIN users s
          ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.referral_code,'')))
@@ -106,7 +171,7 @@ async function hasActiveReferralAtLevel(client, recipientId, targetLevel) {
 
        UNION ALL
 
-       SELECT s.id, s.referral_code, s.sponsor_id, s.status, d.level+1, d.path || s.id
+       SELECT s.id, s.referral_code, s.sponsor_id, s.status, s.referral_status, d.level+1, d.path || s.id
        FROM d
        JOIN users s
          ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.referral_code,'')))
@@ -118,6 +183,7 @@ async function hasActiveReferralAtLevel(client, recipientId, targetLevel) {
      FROM d
      WHERE d.level=$2
        AND d.status='active'
+       AND COALESCE(d.referral_status,'active')='active'
      LIMIT 1`,
     [recipientId, targetLevel]
   );
@@ -131,58 +197,115 @@ async function eventOnce(client, key, type, sourceUserId, activationId, baseAmou
   return r.rowCount===1;
 }
 
+async function refreshReferralStatus(client,userId) {
+  const q=await client.query(`SELECT COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE COALESCE(credited_total,0)<COALESCE(cap_amount,ROUND(amount*5,2)))::int AS remaining,
+      COUNT(*) FILTER (WHERE cap_reconciled=FALSE)::int AS pending
+    FROM package_activations WHERE user_id=$1`,[userId]);
+  const total=Number(q.rows[0]?.total||0), remaining=Number(q.rows[0]?.remaining||0), pending=Number(q.rows[0]?.pending||0);
+  if(total>0 && remaining===0 && pending===0) {
+    await client.query(`UPDATE users SET referral_status='inactive' WHERE id=$1`,[userId]);
+    return 'inactive';
+  }
+  if(remaining>0 || pending>0) await client.query(`UPDATE users SET referral_status='active' WHERE id=$1`,[userId]);
+  return 'active';
+}
+
+async function completeActivation(client,activationId) {
+  const result=await client.query(`UPDATE package_activations
+    SET status='completed',completed_at=COALESCE(completed_at,NOW())
+    WHERE id=$1 AND status='active'
+    RETURNING user_id,amount,package_type`,[activationId]);
+  if(!result.rowCount) return false;
+  const a=result.rows[0];
+  await client.query(`UPDATE wallets SET
+    basic_package_active=GREATEST(0,basic_package_active-CASE WHEN $2='basic' THEN $3 ELSE 0 END),
+    fd_package_active=GREATEST(0,fd_package_active-CASE WHEN $2='fd' THEN $3 ELSE 0 END),
+    updated_at=NOW() WHERE user_id=$1`,[a.user_id,a.package_type,Number(a.amount||0)]);
+  return true;
+}
+
 async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=0,base,amount,description,businessDate}) {
-  amount=money(amount); if(amount<=0) return false;
+  const requested=money(amount);
+  if(requested<=0) return 0;
   const id='INC-'+crypto.createHash('sha256').update(`${eventKey}:${recipient}:${incomeType}:${level}`).digest('hex').slice(0,28);
-  const exists=await client.query('SELECT 1 FROM income_distributions WHERE id=$1',[id]); if(exists.rowCount) return false;
+  const exists=await client.query('SELECT 1 FROM income_distributions WHERE id=$1',[id]);
+  if(exists.rowCount) return 0;
+  const cycleResult=await client.query(`SELECT id,amount,cap_amount,credited_total,cap_reconciled
+    FROM package_activations WHERE user_id=$1 AND status='active'
+    ORDER BY activated_at ASC,id ASC FOR UPDATE`,[recipient]);
+  const cycles=cycleResult.rows;
+  if(!cycles.length || cycles.some(cycle=>cycle.cap_reconciled!==true)) {
+    await refreshReferralStatus(client,recipient);
+    return 0;
+  }
+  let left=requested, allowed=0;
+  const allocations=[];
+  for(const cycle of cycles) {
+    if(left<=0) break;
+    const cap=money(cycle.cap_amount ?? Number(cycle.amount)*5);
+    const already=money(cycle.credited_total||0);
+    const headroom=money(Math.max(0,cap-already));
+    if(headroom<=0) {
+      await completeActivation(client,cycle.id);
+      continue;
+    }
+    const part=money(Math.min(left,headroom));
+    if(part<=0) continue;
+    allocations.push({id:cycle.id,nextTotal:money(already+part),cap});
+    allowed=money(allowed+part); left=money(left-part);
+  }
+  if(allowed<=0) {
+    await refreshReferralStatus(client,recipient);
+    return 0;
+  }
   await client.query('INSERT INTO wallets(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[recipient]);
   const sourceUser=(await client.query('SELECT id,name,email,referral_code FROM users WHERE id=$1 LIMIT 1',[source])).rows[0];
   const recipientUser=(await client.query('SELECT id,name,email,referral_code FROM users WHERE id=$1 LIMIT 1',[recipient])).rows[0];
   const ledgerId='LED-'+id;
   const metadata={
-    sourceUserId:source,
-    referredUserId:source,
-    referredUserName:sourceUser?.name||null,
-    referredUserEmail:sourceUser?.email||null,
-    referrerUserId:recipient,
-    referrerReferralCode:recipientUser?.referral_code||null,
-    referralLevel:level,
-    level,
-    percentage:rate,
-    commissionPercentage:rate,
-    referralAmount:amount,
-    baseAmount:money(base),
-    businessDate:businessDate||null,
+    sourceUserId:source,referredUserId:source,referredUserName:sourceUser?.name||null,
+    referredUserEmail:sourceUser?.email||null,referrerUserId:recipient,
+    referrerReferralCode:recipientUser?.referral_code||null,referralLevel:level,level,
+    percentage:rate,commissionPercentage:rate,referralAmount:allowed,requestedAmount:requested,
+    baseAmount:money(base),businessDate:businessDate||null,capMultiple:5,
   };
   await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
-    VALUES($1,$2,$3,'income_wallet','credit',$4,0,$4,$5,$6,'completed',$7::jsonb)`,[ledgerId,recipient,incomeType,amount,description,eventKey,JSON.stringify(metadata)]);
-
-  const basicReferral=incomeType==='basic_referral'?amount:0;
-  const fdReferral=incomeType==='fd_referral'?amount:0;
-  const basicRoi=incomeType==='basic_roi'?amount:0;
-  const basicLevel=incomeType==='basic_level'?amount:0;
-  const fdRoi=incomeType==='fd_roi'?amount:0;
-  const fdLevel=incomeType==='fd_level'?amount:0;
-
+    VALUES($1,$2,$3,'income_wallet','credit',$4,0,$4,$5,$6,'completed',$7::jsonb)`,
+    [ledgerId,recipient,incomeType,allowed,description,eventKey,JSON.stringify(metadata)]);
+  const basicReferral=incomeType==='basic_referral'?allowed:0, fdReferral=incomeType==='fd_referral'?allowed:0;
+  const basicRoi=incomeType==='basic_roi'?allowed:0, basicLevel=incomeType==='basic_level'?allowed:0;
+  const fdRoi=incomeType==='fd_roi'?allowed:0, fdLevel=incomeType==='fd_level'?allowed:0;
   await client.query(`UPDATE wallets SET
-    income_wallet=income_wallet+$2,
-    total_income=total_income+$2,
-    referral_income=referral_income+$3,
-    fd_referral_income=fd_referral_income+$4,
+    income_wallet=income_wallet+$2,total_income=total_income+$2,
+    referral_income=referral_income+$3,fd_referral_income=fd_referral_income+$4,
     today_roi_income=CASE WHEN $5::date IS NULL THEN today_roi_income WHEN income_stat_date=$5::date THEN today_roi_income+$6 ELSE $6 END,
     today_level_income=CASE WHEN $5::date IS NULL THEN today_level_income WHEN income_stat_date=$5::date THEN today_level_income+$7 ELSE $7 END,
     fd_today_roi_income=CASE WHEN $5::date IS NULL THEN fd_today_roi_income WHEN income_stat_date=$5::date THEN fd_today_roi_income+$8 ELSE $8 END,
     fd_today_level_income=CASE WHEN $5::date IS NULL THEN fd_today_level_income WHEN income_stat_date=$5::date THEN fd_today_level_income+$9 ELSE $9 END,
-    total_roi_income=total_roi_income+$6,
-    total_level_income=total_level_income+$7,
-    fd_total_roi_income=fd_total_roi_income+$8,
-    fd_total_level_income=fd_total_level_income+$9,
+    total_roi_income=total_roi_income+$6,total_level_income=total_level_income+$7,
+    fd_total_roi_income=fd_total_roi_income+$8,fd_total_level_income=fd_total_level_income+$9,
     income_stat_date=CASE WHEN $5::date IS NULL THEN income_stat_date ELSE $5::date END,
-    updated_at=NOW() WHERE user_id=$1`,[recipient,amount,basicReferral,fdReferral,businessDate||null,basicRoi,basicLevel,fdRoi,fdLevel]);
-
+    updated_at=NOW() WHERE user_id=$1`,
+    [recipient,allowed,basicReferral,fdReferral,businessDate||null,basicRoi,basicLevel,fdRoi,fdLevel]);
+  for(const allocation of allocations) {
+    const updated=await client.query(`UPDATE package_activations SET credited_total=$2,
+      status=CASE WHEN $2>=cap_amount THEN 'completed' ELSE status END,
+      completed_at=CASE WHEN $2>=cap_amount THEN COALESCE(completed_at,NOW()) ELSE completed_at END
+      WHERE id=$1 AND status='active' RETURNING user_id,amount,package_type,status`,[allocation.id,allocation.nextTotal]);
+    if(updated.rowCount && allocation.nextTotal>=allocation.cap) {
+      const a=updated.rows[0];
+      await client.query(`UPDATE wallets SET
+        basic_package_active=GREATEST(0,basic_package_active-CASE WHEN $2='basic' THEN $3 ELSE 0 END),
+        fd_package_active=GREATEST(0,fd_package_active-CASE WHEN $2='fd' THEN $3 ELSE 0 END),
+        updated_at=NOW() WHERE user_id=$1`,[a.user_id,a.package_type,Number(a.amount||0)]);
+    }
+  }
   await client.query(`INSERT INTO income_distributions(id,event_key,recipient_user_id,source_user_id,income_type,level,percentage,base_amount,amount,ledger_id)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[id,eventKey,recipient,source,incomeType,level,rate,money(base),amount,ledgerId]);
-  return true;
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [id,eventKey,recipient,source,incomeType,level,rate,money(base),allowed,ledgerId]);
+  await refreshReferralStatus(client,recipient);
+  return allowed;
 }
 
 export async function applyActivationIncome(client,{activationId,userId,amount,packageName,packageType='basic'}) {
@@ -206,7 +329,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   const ups=await uplines(client,userId); let credited=0; let creditedAmount=0;
   const recipients=[];
   for(const u of ups){
-    if(u.status!=='active') continue;
+    if(u.status!=='active' || u.referral_status==='inactive') continue;
     const level=Number(u.level); let rate=0;
     rate=levelRate(level);
     if(rate<=0) continue;
@@ -219,10 +342,11 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
       ? (level===1 ? 'fd_referral' : 'fd_level')
       : (level===1 ? 'basic_referral' : 'basic_level');
     const distributionAmount=pct(amount,rate);
-    if(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining':'Re-topup'} referral income L${level} (${rate}%) from ${userId}`,businessDate})){
+    const actualCredit=Number(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining':'Re-topup'} referral income L${level} (${rate}%) from ${userId}`,businessDate})||0);
+    if(actualCredit>0){
       credited++;
-      creditedAmount=money(creditedAmount+distributionAmount);
-      recipients.push({userId:u.id,level,rate,amount:distributionAmount});
+      creditedAmount=money(creditedAmount+actualCredit);
+      recipients.push({userId:u.id,level,rate,amount:actualCredit});
     }
   }
   return {skipped:!eventCreated && credited===0,credited,creditedAmount,recipients};
@@ -237,6 +361,7 @@ export async function runDailyIncome(client,businessDate) {
   await client.query(`UPDATE package_activations SET status='matured' WHERE status='active' AND (expires_at AT TIME ZONE 'Asia/Kolkata')::date < $1::date`,[date]);
   const {rows}=await client.query(`SELECT pa.* FROM package_activations pa JOIN users u ON u.id=pa.user_id
     WHERE pa.status='active' AND u.status='active'
+      AND COALESCE(u.referral_status,'active')='active'
       AND (pa.activated_at AT TIME ZONE 'Asia/Kolkata')::date<=$1::date
       AND (pa.expires_at AT TIME ZONE 'Asia/Kolkata')::date>=$1::date
     FOR UPDATE OF pa`,[date]);
@@ -251,14 +376,20 @@ export async function runDailyIncome(client,businessDate) {
     const roiType=a.package_type==='fd'?'fd_roi':'basic_roi';
     const levelType=a.package_type==='fd'?'fd_level':'basic_level';
 
-    // ROI is credited only once, but level income is evaluated on every run
-    // so missing level credits can be safely recovered without duplicating ROI.
-    if(roiEventCreated){
-      if(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date})) roiCredits++;
-      await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,roi]);
+    const priorRoiCredit=await client.query(`SELECT amount FROM income_distributions
+      WHERE event_key=$1 AND recipient_user_id=$2 AND income_type=$3 AND level=0 LIMIT 1`,[key,a.user_id,roiType]);
+    let creditedRoi=Number(priorRoiCredit.rows[0]?.amount||0);
+    if(!priorRoiCredit.rowCount){
+      creditedRoi=Number(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate})||0);
+      if(creditedRoi>0){
+        roiCredits++;
+        await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,creditedRoi]);
+      }
     }
+    if(creditedRoi<=0) continue;
+    const creditedRoiBase=creditedRoi;
     for(const u of await uplines(client,a.user_id)){
-      if(u.status!=='active') continue;
+      if(u.status!=='active' || u.referral_status==='inactive') continue;
       const level=Number(u.level), rate=levelRate(level);
       if(rate<=0) continue;
 
@@ -273,14 +404,14 @@ export async function runDailyIncome(client,businessDate) {
         incomeType:levelType,
         level,
         rate,
-        base:roi,
-        amount:pct(roi,rate),
-        description:`Daily level L${level} (${rate}%) calculated on ROI ${roi.toFixed(2)} USDT from ${a.user_id}`,
+        base:creditedRoiBase,
+        amount:pct(creditedRoiBase,rate),
+        description:`Daily level L${level} (${rate}%) calculated on ROI ${creditedRoiBase.toFixed(2)} USDT from ${a.user_id}`,
         businessDate:date
       })) levelCredits++;
     }
     packagesProcessed++;
-    if(money(already+roi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1`,[a.id]);
+    if(money(already+creditedRoi)>=max) await client.query(`UPDATE package_activations SET status='matured' WHERE id=$1 AND status='active'`,[a.id]);
   }
   // Release signup maturity points only after the member has had at least one
   // real package and every package activation is no longer active. Points stay

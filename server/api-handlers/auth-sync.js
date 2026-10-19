@@ -128,9 +128,16 @@ export default async function handler(req,res){
           const sponsorDoc=sponsorQuery.docs[0];
           const s=sponsorDoc.data()||{};
           const sponsorStatus=String(s.status??'').trim().toLowerCase();
-          // Treat legacy records with no persisted status as active, but reject
-          // any explicitly non-active sponsor during the registration write.
-          if(!sponsorStatus||sponsorStatus==='active'){
+          const pool=getPool();
+          await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_status VARCHAR(16) NOT NULL DEFAULT 'active'`);
+          const sponsorCap=await pool.query(
+            `SELECT referral_status FROM users WHERE id=$1 OR referral_code=$2 LIMIT 1`,
+            [String(sponsor.uid||sponsor.id||sponsorDoc.id),sponsorCode],
+          );
+          const referralStatus=String(sponsorCap.rows[0]?.referral_status||'active').trim().toLowerCase();
+          // Login/account status and earning/referral-ID status are separate.
+          // A cap-completed ID cannot sponsor new registrations until reactivated by a verified new investment.
+          if((!sponsorStatus||sponsorStatus==='active') && referralStatus!=='inactive'){
             sponsorId=safeSponsor(s.referralCode||s.memberId||sponsorCode)||sponsorCode;
             sponsorName=String(s.name||s.displayName||s.fullName||'').trim()||null;
             sponsorRef=sponsorDoc.ref;

@@ -42,7 +42,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
 
   const referralCode = profile?.referralCode || '';
 
-  const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name?: string; package_type?: string; amount: string | number; status?: string }>>([]);
+  const [capCycles, setCapCycles] = useState<Array<{ id: string; package_name?: string; package_type?: string; amount: string | number; status?: string; cap_amount?: string | number; credited_total?: string | number; cap_reconciled?: boolean }>>([]);
+  const [capReferralStatus, setCapReferralStatus] = useState<'active' | 'inactive'>('active');
   const [capLoading, setCapLoading] = useState(true);
   const [capError, setCapError] = useState('');
   const [capRefreshing, setCapRefreshing] = useState(false);
@@ -53,6 +54,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     let inFlight = false;
     if (!user) {
       setCapCycles([]);
+      setCapReferralStatus('active');
       setCapLoading(false);
       setCapError('');
       return;
@@ -74,6 +76,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         if (!response.ok) throw new Error(data.error || 'Unable to load package history');
         if (!cancelled) {
           setCapCycles(Array.isArray(data.items) ? data.items : []);
+          setCapReferralStatus(data.referralStatus === 'inactive' ? 'inactive' : 'active');
           setCapError('');
           setCapLastUpdated(new Date());
         }
@@ -100,16 +103,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
 
   const capSummary = capCycles.reduce((summary, cycle) => {
     const invested = Number(cycle.amount || 0);
+    const cap = Number(cycle.cap_amount ?? invested * 5);
+    const counted = Math.max(0, Number(cycle.credited_total || 0));
     summary.invested += invested;
-    summary.totalCap += invested * 5;
+    summary.totalCap += cap;
+    summary.counted += counted;
+    summary.remaining += Math.max(0, cap - counted);
+    if (cycle.cap_reconciled === false) summary.unreconciled += 1;
     return summary;
-  }, { invested: 0, totalCap: 0 });
+  }, { invested: 0, totalCap: 0, counted: 0, remaining: 0, unreconciled: 0 });
   // If the current account has legacy wallet package balances but no linked
   // package-activation rows yet, show a clearly labelled estimate instead of 0.
   const walletPackageAmount = Number(wallet?.basicPackageActive || 0) + Number(wallet?.fdPackageActive || 0);
   const capHasActivationRows = capCycles.length > 0;
   const displayedInvestment = capHasActivationRows ? capSummary.invested : walletPackageAmount;
   const displayedCapLimit = capHasActivationRows ? capSummary.totalCap : walletPackageAmount * 5;
+  const displayedRemainingCap = capHasActivationRows ? capSummary.remaining : displayedCapLimit;
+  const capStatusLabel = capHasActivationRows && capSummary.unreconciled > 0 ? 'SYNC PENDING' : capReferralStatus === 'inactive' ? 'ID INACTIVE' : capHasActivationRows ? 'ID ACTIVE' : 'SYNC PENDING';
 
   const refreshCapStatus = async () => {
     if (!user || capRefreshing) return;
@@ -125,6 +135,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Unable to load package history');
       setCapCycles(Array.isArray(data.items) ? data.items : []);
+      setCapReferralStatus(data.referralStatus === 'inactive' ? 'inactive' : 'active');
       setCapError('');
       setCapLastUpdated(new Date());
     } catch (error) {
@@ -362,20 +373,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-cyan-400/10 blur-2xl pointer-events-none" />
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">Live 5X Capping</span>
-            <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE</span>
+            <span className={`flex items-center gap-1.5 text-[10px] font-bold ${capStatusLabel === 'ID INACTIVE' ? 'text-rose-300' : capStatusLabel === 'SYNC PENDING' ? 'text-amber-300' : 'text-emerald-300'}`}><span className={`w-1.5 h-1.5 rounded-full ${capStatusLabel === 'ID INACTIVE' ? 'bg-rose-400' : capStatusLabel === 'SYNC PENDING' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} /> {capStatusLabel}</span>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
-            {capLoading ? 'Loading…' : displayedInvestment > 0 ? formatUsdt(displayedCapLimit) : 'Awaiting plan sync'}
+            {capLoading ? 'Loading…' : displayedInvestment > 0 ? formatUsdt(displayedRemainingCap) : 'Awaiting plan sync'}
           </div>
           <div className="mt-1 text-xs text-cyan-100/80">
-            {capHasActivationRows ? `Total 5X cap limit for ${capCycles.length} recorded plan(s)` : displayedInvestment > 0 ? 'Estimated from current wallet package balances; plan-cycle records still need syncing' : 'No package activation records or active package balance returned for this account'}
+            {capHasActivationRows ? `Remaining eligible cap across ${capCycles.length} recorded plan(s)` : displayedInvestment > 0 ? 'Estimated from current wallet package balances; plan-cycle records still need syncing' : 'No package activation records or active package balance returned for this account'}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-cyan-300/15 pt-3">
+          <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 border-t border-cyan-300/15 pt-3">
             <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Recorded investment</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(displayedInvestment)}</div></div>
-            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Calculated 5X limit</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(displayedCapLimit)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Total 5X cap</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(displayedCapLimit)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Counted income</div><div className="mt-1 text-sm font-bold text-white">{capHasActivationRows && capSummary.unreconciled > 0 ? 'Pending' : formatUsdt(capSummary.counted)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Remaining cap</div><div className="mt-1 text-sm font-bold text-emerald-200">{capHasActivationRows && capSummary.unreconciled > 0 ? 'Pending' : formatUsdt(displayedRemainingCap)}</div></div>
           </div>
           <div className="mt-3 flex items-center justify-between gap-2">
-            <span className="text-[10px] text-slate-400">{capError ? 'Could not refresh package data' : capHasActivationRows ? 'Verified from recorded package activations' : displayedInvestment > 0 ? 'Wallet fallback estimate — activation sync pending' : 'Package history syncs automatically'}</span>
+            <span className="text-[10px] text-slate-400">{capError ? 'Could not refresh package data' : capHasActivationRows && capSummary.unreconciled > 0 ? 'Historical cap reconciliation pending' : capHasActivationRows ? 'Verified from recorded package activations and ledger credits' : displayedInvestment > 0 ? 'Wallet fallback estimate — activation sync pending' : 'Package history syncs automatically'}</span>
             <button onClick={refreshCapStatus} disabled={capRefreshing} className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold text-cyan-200 disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${capRefreshing ? 'animate-spin' : ''}`} /> Refresh</button>
           </div>
           {capError && <div className="mt-2 text-[10px] text-rose-300">{capError}</div>}

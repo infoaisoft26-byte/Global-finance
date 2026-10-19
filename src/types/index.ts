@@ -149,7 +149,14 @@ export interface PackageActivationRecord {
   roiDailyRate: number; // in percentage e.g. 0.8%
   durationDays: number;
   totalEarned: number;
-  status: 'active' | 'matured' | 'cancelled';
+  status: 'active' | 'matured' | 'completed' | 'cancelled';
+  capMultiple?: number;
+  capAmount?: number;
+  creditedTotal?: number;
+  capReconciled?: boolean;
+  completedAt?: string | null;
+  principalReturned?: boolean;
+  principalReturnAmount?: number;
   activatedAt: string;
   expiresAt: string;
 }
@@ -214,7 +221,9 @@ export interface DownlineMember {
   level: number;
   joinDate: string;
   activePackage: number;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'suspended';
+  accountStatus?: string;
+  referralStatus?: 'active' | 'inactive';
   commissionFromMember?: number;
   totalCommissionFromMember?: number;
 }
