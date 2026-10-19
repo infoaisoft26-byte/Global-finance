@@ -62,3 +62,37 @@ export async function adminGetPackagePurchaseHistory(user: { getIdToken: () => P
   const data = await callUsdtEndpoint(user, { action: 'admin_package_history' });
   return (Array.isArray(data.items) ? data.items : []).map(mapActivationRow);
 }
+
+function mapPackageDefinition(row: any) {
+  return {
+    id: String(row.id || ''),
+    name: String(row.name || ''),
+    code: String(row.code || ''),
+    type: row.type === 'fd' ? 'fd' : 'basic',
+    minAmount: Number(row.min_amount ?? row.minAmount ?? 0),
+    maxAmount: Number(row.max_amount ?? row.maxAmount ?? row.min_amount ?? row.minAmount ?? 0),
+    roiRate: Number(row.roi_rate ?? row.roiRate ?? 0),
+    durationDays: Number(row.duration_days ?? row.durationDays ?? 0),
+    description: String(row.description || ''),
+    terms: String(row.terms || ''),
+    active: row.active !== false,
+    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
+  } as import('../types/index.ts').PackageDefinition;
+}
+
+export async function getLivePackageDefinitions(user: { getIdToken: () => Promise<string> }) {
+  const data = await callUsdtEndpoint(user, { action: 'package_list' });
+  return (Array.isArray(data.items) ? data.items : []).map(mapPackageDefinition);
+}
+
+export async function saveLivePackageDefinition(user: { getIdToken: () => Promise<string> }, pkg: import('../types/index.ts').PackageDefinition) {
+  return await callUsdtEndpoint(user, { action: 'admin_save_package', package: pkg });
+}
+
+export async function syncExistingLivePackageDefinitions(
+  user: { getIdToken: () => Promise<string> },
+  packages: import('../types/index.ts').PackageDefinition[]
+) {
+  return await callUsdtEndpoint(user, { action: 'admin_sync_packages', packages });
+}
