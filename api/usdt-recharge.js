@@ -242,7 +242,20 @@ async function loadDownline(pool, actor) {
   // Postgres. Read the production relational records instead of a possibly
   // stale Firestore copy; this is strictly read-only.
   const result = await pool.query(`
-    WITH RECURSIVE network AS (
+    WITH RECURSIVE root AS (
+      SELECT
+        u.id::text AS id,
+        COALESCE(u.referral_code, '')::text AS referral_code
+      FROM users u
+      WHERE u.id::text = $1
+         OR (
+           NULLIF(BTRIM(COALESCE($2, '')), '') IS NOT NULL
+           AND UPPER(BTRIM(COALESCE(u.referral_code, ''))) = UPPER(BTRIM($2))
+         )
+      ORDER BY CASE WHEN u.id::text = $1 THEN 0 ELSE 1 END
+      LIMIT 1
+    ),
+    network AS (
       SELECT
         u.id::text AS id,
         u.sponsor_id,
@@ -253,11 +266,21 @@ async function loadDownline(pool, actor) {
         u.status,
         u.created_at,
         1::int AS level,
-        ARRAY[u.id::text] AS path
+        ARRAY[r.id, u.id::text] AS path
       FROM users u
-      WHERE u.sponsor_id = (
-        SELECT root.referral_code FROM users root WHERE root.id::text = $1 LIMIT 1
-      )
+      CROSS JOIN root r
+      WHERE u.id::text <> r.id
+        AND (
+          (
+            NULLIF(BTRIM(COALESCE(r.referral_code, '')), '') IS NOT NULL
+            AND UPPER(BTRIM(COALESCE(u.sponsor_id::text, ''))) = UPPER(BTRIM(r.referral_code))
+          )
+          OR BTRIM(COALESCE(u.sponsor_id::text, '')) = r.id
+          OR (
+            NULLIF(BTRIM(COALESCE($1, '')), '') IS NOT NULL
+            AND BTRIM(COALESCE(u.sponsor_id::text, '')) = BTRIM($1)
+          )
+        )
       UNION ALL
       SELECT
         child.id::text,
@@ -271,7 +294,12 @@ async function loadDownline(pool, actor) {
         parent.level + 1,
         parent.path || child.id::text
       FROM users child
-      JOIN network parent ON child.sponsor_id = parent.referral_code
+      JOIN network parent
+        ON BTRIM(COALESCE(child.sponsor_id::text, '')) = parent.id
+        OR (
+          NULLIF(BTRIM(COALESCE(parent.referral_code, '')), '') IS NOT NULL
+          AND UPPER(BTRIM(COALESCE(child.sponsor_id::text, ''))) = UPPER(BTRIM(parent.referral_code))
+        )
       WHERE parent.level < 15
         AND NOT child.id::text = ANY(parent.path)
     )
@@ -295,7 +323,7 @@ async function loadDownline(pool, actor) {
         AND l.type IN ('referral_bonus','referral_income','direct_referral','basic_referral','fd_referral','level_bonus','level_income','basic_level','fd_level','rd_level')
     ) comm ON TRUE
     ORDER BY n.level ASC, COALESCE(n.name, '') ASC
-  `, [actor.id]);
+  `, [actor.id, actor.referralCode || '']);
 
   return result.rows.map((u) => {
     const activePackage = Number(u.active_package || 0);
