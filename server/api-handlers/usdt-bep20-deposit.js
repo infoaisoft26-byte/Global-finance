@@ -153,7 +153,7 @@ async function handleAdminReconcileReferralIncome(member, res) {
   return json(res, 200, {
     success: true,
     ...result,
-    message: 'Referral income reconciliation completed from real package activations.',
+    message: 'Referral commission reconciliation completed from verified USDT deposits.',
   });
 }
 
