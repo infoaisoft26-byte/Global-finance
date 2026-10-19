@@ -361,6 +361,7 @@ export async function runDailyIncome(client,businessDate) {
   await client.query(`UPDATE package_activations SET status='matured' WHERE status='active' AND (expires_at AT TIME ZONE 'Asia/Kolkata')::date < $1::date`,[date]);
   const {rows}=await client.query(`SELECT pa.* FROM package_activations pa JOIN users u ON u.id=pa.user_id
     WHERE pa.status='active' AND u.status='active'
+      AND COALESCE(u.referral_status,'active')='active'
       AND (pa.activated_at AT TIME ZONE 'Asia/Kolkata')::date<=$1::date
       AND (pa.expires_at AT TIME ZONE 'Asia/Kolkata')::date>=$1::date
     FOR UPDATE OF pa`,[date]);
