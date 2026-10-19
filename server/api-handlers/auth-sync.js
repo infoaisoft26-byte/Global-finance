@@ -169,7 +169,8 @@ export default async function handler(req,res){
         status:'active',kycStatus:configuredAdminEmails.includes(email)?'verified':'unverified',phone,country,rankCode:'MEMBER',
         transactionPasswordHash:hashTransactionPassword(registrationTransactionPassword),
         transactionPasswordCreatedAt:now,createdAt:now,updatedAt:now,storage:'firestore'};
-      const wallet={...emptyWallet(uid,now),lockedMaturityPoints:150,maturityPointsStatus:'locked',maturityPointsGrantedAt:now,maturityPointsReleasedAt:null};
+      const staffAccount=isConfiguredSubAdmin(uid,email);
+      const wallet={...emptyWallet(uid,now),lockedMaturityPoints:staffAccount?0:150,maturityPointsStatus:staffAccount?'none':'locked',maturityPointsGrantedAt:staffAccount?null:now,maturityPointsReleasedAt:null};
 
       let sponsorWalletRef=null;
       let sponsorWalletSnap=null;
