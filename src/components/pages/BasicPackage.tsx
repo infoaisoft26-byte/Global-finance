@@ -3,7 +3,6 @@ import { AlertCircle, CheckCircle2, Clock, Package, RefreshCw, Wallet } from 'lu
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getLivePackageDefinitions, getPackagePurchaseHistory, purchasePackageWithUsdt } from '../../services/packagePurchaseApi.ts';
 import {
-  BASIC_PACKAGE_TEMPLATES,
   getBasicPlanDailyReturn,
   getBasicPlanScheduledReturn
 } from '../../data/basicPackageTemplates.ts';
