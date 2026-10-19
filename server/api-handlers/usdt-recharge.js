@@ -567,7 +567,21 @@ export default async function handler(req,res){
       if(proofUrl && !/^https:\/\//i.test(proofUrl))
         return json(res,400,{error:'Payment proof must be a valid HTTPS URL.'});
       const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl||null);
-      return json(res,201,{success:true,id,status:'pending',message:'TXID submitted. Your recharge will be credited after on-chain verification and admin review.'});
+      // Try automatic credit immediately only when a unique member deposit address
+      // is configured. Shared-address deposits remain pending for admin review.
+      let autoResult={status:'pending',attempted:false};
+      try {
+        autoResult=await autoCreditRecharge({id,actor,txHash,amount});
+      } catch (autoError) {
+        console.error('USDT auto-credit attempt failed:',autoError instanceof Error?autoError.message:autoError);
+      }
+      const status=autoResult.status||'pending';
+      return json(res,201,{
+        success:true,id,...autoResult,status,
+        message:status==='approved'
+          ? 'USDT verified and credited to your fund wallet.'
+          : 'TXID submitted. Automatic credit will run only for a verified personal deposit address; otherwise the request remains pending for admin review.'
+      });
     }
 
     if(body.action==='retry'){
