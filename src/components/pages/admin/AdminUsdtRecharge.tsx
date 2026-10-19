@@ -12,9 +12,9 @@ export const AdminUsdtRecharge: React.FC = () => {
   const [note, setNote] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
-  const load = async () => {
+  const load = async (showLoading = true) => {
     if (!user) return;
-    setLoading(true);
+    if (showLoading) setLoading(true);
     setError('');
     try {
       const data = await listUsdtRecharges(user, 'admin');
@@ -22,11 +22,15 @@ export const AdminUsdtRecharge: React.FC = () => {
     } catch (err: any) {
       setError(err?.message || 'Unable to load recharge requests.');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, [user?.uid]);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => { void load(false); }, 15000);
+    return () => window.clearInterval(timer);
+  }, [user?.uid]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
