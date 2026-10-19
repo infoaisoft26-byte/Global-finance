@@ -3,6 +3,7 @@ const handlers = {
   "admin-user-detail": () => import("../server/api-handlers/admin-user-detail.js"),
   "auth-sync": () => import("../server/api-handlers/auth-sync.js"),
   "member-profile": () => import("../server/api-handlers/member-profile.js"),
+  "member-wallet": () => import("../server/api-handlers/member-wallet.js"),
   "offer-poster": () => import("../server/api-handlers/offer-poster.js"),
   "p2p-transfer": () => import("../server/api-handlers/p2p-transfer.js"),
   "referral-lookup": () => import("../server/api-handlers/referral-lookup.js"),
