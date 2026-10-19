@@ -16,8 +16,15 @@ const handlers = {
 };
 
 export default async function handler(req, res) {
+  // Vercel catch-all routes may expose the path through req.query.path, or
+  // leave it empty when a direct /api/<route> request reaches this function.
+  // Resolve both forms so valid handlers do not incorrectly return 404.
   const rawPath = req.query?.path;
-  const route = (Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath || ""))
+  const fromQuery = Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath || "");
+  const fromUrl = String(req.url || "").split("?")[0];
+  const candidate = (fromQuery || fromUrl).replace(/^\\/+|\\/+$/g, "");
+  const route = candidate
+    .replace(/^api\\//, "")
     .split("/")
     .filter(Boolean)
     .join("/");
