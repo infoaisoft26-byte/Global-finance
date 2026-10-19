@@ -105,3 +105,20 @@ export async function reviewUsdtRecharge(
 ) {
   return call(user, 'admin', 'POST', { action, id, note });
 }
+
+
+export async function manualCreditUsdt(
+  user: FirebaseUser,
+  memberKey: string,
+  amountUsdt: string,
+  reference: string,
+  note: string
+): Promise<{ success: boolean; memberId: string; memberEmail: string; referralCode: string; creditUsdt: number; ledgerId: string }> {
+  return call(user, 'admin', 'POST', {
+    action: 'manual-credit',
+    memberKey,
+    amountUsdt,
+    reference,
+    note,
+  });
+}
