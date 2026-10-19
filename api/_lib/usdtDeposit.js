@@ -1,7 +1,7 @@
 import { HDNodeWallet } from 'ethers';
 import { getFirestoreAdmin } from './firebaseAdmin.js';
 import { withTransaction } from './db.js';
-import { ensureIncomeSchema } from './incomeEngine.js';
+import { applyDepositReferralIncome, ensureIncomeSchema } from './incomeEngine.js';
 
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const CONFIRMATIONS = 12;
@@ -273,6 +273,29 @@ export async function getMemberDepositDetails(userId) {
   };
 }
 
+async function mirrorReferralCommissionsToFirestore(db,txHash) {
+  const eventKey='DEPOSIT:'+String(txHash||'').toLowerCase();
+  const result=await withTransaction(async client=>client.query(`
+    SELECT d.ledger_id,d.recipient_user_id,d.source_user_id,d.income_type,d.level,d.percentage,d.base_amount,d.amount,d.event_key,d.created_at,l.description,l.metadata
+      FROM income_distributions d JOIN ledger_transactions l ON l.id=d.ledger_id
+     WHERE d.event_key=$1 ORDER BY d.level ASC,d.recipient_user_id ASC`,[eventKey]));
+  for(const row of result.rows){
+    const userId=String(row.recipient_user_id||''), ledgerId=String(row.ledger_id||''), amount=Number(row.amount||0);
+    if(!userId||!ledgerId||!Number.isFinite(amount)||amount<=0) continue;
+    const walletRef=db.collection('wallets').doc(userId), ledgerRef=db.collection('transactions').doc(ledgerId), now=new Date().toISOString();
+    await db.runTransaction(async tx=>{
+      const [walletSnap,ledgerSnap]=await Promise.all([tx.get(walletRef),tx.get(ledgerRef)]);
+      if(ledgerSnap.exists) return;
+      const wallet=walletSnap.exists?walletSnap.data()||{}:{userId,fundWallet:0,incomeWallet:0,totalIncome:0,totalWithdrawal:0,referralIncome:0,totalLevelIncome:0,todayLevelIncome:0};
+      const type=String(row.income_type||''), direct=type==='basic_referral', level=type==='basic_level';
+      const businessDate=String(row.metadata?.businessDate||''), statDate=String(wallet.incomeStatDate||'');
+      const todayLevel=level?(businessDate&&businessDate===statDate?Number(wallet.todayLevelIncome||0)+amount:amount):Number(wallet.todayLevelIncome||0);
+      const metadata={...(row.metadata&&typeof row.metadata==='object'?row.metadata:{}),asset:'USDT',txHash:String(txHash||'').toLowerCase(),eventKey,sourceUserId:String(row.source_user_id),referredUserId:String(row.source_user_id),referralLevel:Number(row.level||0),percentage:Number(row.percentage||0),commissionPercentage:Number(row.percentage||0),baseAmount:Number(row.base_amount||0)};
+      tx.set(walletRef,{...wallet,userId,incomeWallet:Number((Number(wallet.incomeWallet||0)+amount).toFixed(8)),totalIncome:Number((Number(wallet.totalIncome||0)+amount).toFixed(8)),referralIncome:Number((Number(wallet.referralIncome||0)+(direct?amount:0)).toFixed(8)),totalLevelIncome:Number((Number(wallet.totalLevelIncome||0)+(level?amount:0)).toFixed(8)),todayLevelIncome:todayLevel,incomeStatDate:businessDate||statDate||null,updatedAt:now},{merge:true});
+      tx.set(ledgerRef,{id:ledgerId,userId,type,category:'income_wallet',flow:'credit',amount,fee:0,netAmount:amount,description:String(row.description||'Automatic USDT referral commission'),referenceId:eventKey,status:'completed',metadata,createdAt:row.created_at?new Date(row.created_at).toISOString():now});
+    });
+  }
+}
 async function creditDepositEvent(db, log, addressToUser, decimals, safeHead) {
   const txHash = String(log.transactionHash || '').toLowerCase();
   const logIndex = BigInt(log.logIndex).toString();
@@ -386,6 +409,7 @@ async function creditDepositEvent(db, log, addressToUser, decimals, safeHead) {
       'UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',
       [exact.text,userId]
     );
+    await applyDepositReferralIncome(client,{depositId:eventId,userId,amount:exact.number,txHash});
     await client.query(
       `UPDATE usdt_deposit_events
        SET status='credited',ledger_id=$3,confirmations=$4,credited_at=NOW(),firestore_synced=FALSE
@@ -405,6 +429,8 @@ async function creditDepositEvent(db, log, addressToUser, decimals, safeHead) {
     }, { merge: true });
     return 'ignored';
   }
+
+  await mirrorReferralCommissionsToFirestore(db,txHash);
 
   // Idempotent Firestore mirror: a retry after partial failure will see the
   // deterministic ledger document and will not increment the visible wallet twice.
