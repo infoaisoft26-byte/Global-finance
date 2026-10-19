@@ -284,10 +284,14 @@ async function review(actor,id,action,note){
   // before the live Neon ledger was credited. creditNeonRecharge locks and
   // deduplicates by the on-chain TXID, so retrying cannot double-credit Neon.
   if(action==='reconcile'){
-    if(initial.status!=='approved') throw new Error('RECHARGE_NOT_APPROVED');
-    if(initial.ledgerId || initial.neonLedgerId){
-      return {status:'approved',alreadyReconciled:true,ledgerId:initial.ledgerId||initial.neonLedgerId};
-    }
+    // Older admin edits may have stored boolean true instead of the canonical
+    // Firestore status string. Accept it only for this recovery path; the
+    // on-chain transfer is still verified below before any credit can occur.
+    const storedStatus=String(initial.status ?? '').trim().toLowerCase();
+    if(storedStatus!=='approved' && initial.status!==true) throw new Error('RECHARGE_NOT_APPROVED');
+    // Never trust a Firestore ledgerId as proof of a Neon credit: an old manual
+    // edit may have stored a member UID here. creditNeonRecharge locks by TXID
+    // and returns the existing real ledger entry or creates exactly one.
     const proof=await verifyBep20(
       String(initial.txHash||''),
       String(initial.amountUsdt||''),
