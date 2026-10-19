@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, RefreshCw, Search, XCircle, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext.tsx';
-import { listUsdtRecharges, reviewUsdtRecharge, type UsdtRechargeRequest } from '../../../services/usdtRechargeService.ts';
+import { listUsdtRecharges, reviewUsdtRecharge, manualCreditUsdt, type UsdtRechargeRequest } from '../../../services/usdtRechargeService.ts';
 
 export const AdminUsdtRecharge: React.FC = () => {
   const { user } = useAuth();
@@ -11,6 +11,12 @@ export const AdminUsdtRecharge: React.FC = () => {
   const [search, setSearch] = useState('');
   const [note, setNote] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  const [manualMemberKey, setManualMemberKey] = useState('');
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualReference, setManualReference] = useState('');
+  const [manualNote, setManualNote] = useState('');
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualSuccess, setManualSuccess] = useState('');
 
   const load = async (showLoading = true) => {
     if (!user) return;
@@ -61,6 +67,33 @@ export const AdminUsdtRecharge: React.FC = () => {
     }
   };
 
+  const submitManualCredit = async () => {
+    if (!user) return;
+    const memberKey = manualMemberKey.trim();
+    const amount = manualAmount.trim();
+    const reference = manualReference.trim();
+    if (!memberKey || !amount || !reference) {
+      setError('Member ID/email, USDT amount, and unique reference are required.');
+      return;
+    }
+    if (!window.confirm(`Confirm manual credit of ${amount} USDT to member ${memberKey}? Verify the payment and recipient before proceeding.`)) return;
+    setManualBusy(true);
+    setError('');
+    setManualSuccess('');
+    try {
+      const result = await manualCreditUsdt(user, memberKey, amount, reference, manualNote.trim());
+      setManualSuccess(`Credited ${result.creditUsdt} USDT to ${result.memberEmail || result.memberId}. Ledger: ${result.ledgerId}. Package activation is not included.`);
+      setManualMemberKey('');
+      setManualAmount('');
+      setManualReference('');
+      setManualNote('');
+    } catch (err: any) {
+      setError(err?.message || 'Manual credit failed.');
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
   const pending = requests.filter(r => r.status === 'pending').length;
   const approved = requests.filter(r => r.status === 'approved').length;
   const rejected = requests.filter(r => r.status === 'rejected').length;
@@ -78,6 +111,23 @@ export const AdminUsdtRecharge: React.FC = () => {
       </div>
 
       {error && <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">{error}</div>}
+
+      <section className="p-5 rounded-2xl bg-[#091129] border border-amber-500/30 space-y-3">
+        <div>
+          <h3 className="text-sm font-bold text-amber-300">Manual USDT Credit (Admin Only)</h3>
+          <p className="text-xs text-slate-400 mt-1">For verified payments while automatic recharge is being fixed. Credits only the Fund Wallet; it does not activate a package. Use a unique reference to prevent duplicate credits.</p>
+        </div>
+        {manualSuccess && <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs break-words">{manualSuccess}</div>}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input value={manualMemberKey} onChange={e => setManualMemberKey(e.target.value)} placeholder="Member UID, referral/member ID, or email" className="w-full px-3 py-3 rounded-xl bg-[#060b1c] border border-blue-500/25 text-sm text-white" />
+          <input value={manualAmount} onChange={e => setManualAmount(e.target.value)} inputMode="decimal" placeholder="Verified amount (USDT)" className="w-full px-3 py-3 rounded-xl bg-[#060b1c] border border-blue-500/25 text-sm text-white" />
+          <input value={manualReference} onChange={e => setManualReference(e.target.value)} placeholder="Unique receipt/reference ID (required)" className="w-full px-3 py-3 rounded-xl bg-[#060b1c] border border-blue-500/25 text-sm text-white" />
+          <input value={manualNote} onChange={e => setManualNote(e.target.value)} placeholder="Admin note (optional)" className="w-full px-3 py-3 rounded-xl bg-[#060b1c] border border-blue-500/25 text-sm text-white" />
+        </div>
+        <button onClick={() => void submitManualCredit()} disabled={manualBusy || !manualMemberKey.trim() || !manualAmount.trim() || !manualReference.trim()} className="px-4 py-3 rounded-xl bg-amber-500/15 border border-amber-400/40 text-amber-200 text-xs font-bold disabled:opacity-50">
+          {manualBusy ? 'Processing…' : 'Confirm Manual USDT Credit'}
+        </button>
+      </section>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="p-4 rounded-xl bg-[#091129] border border-amber-500/20"><div className="text-[10px] uppercase text-slate-500">Pending</div><div className="text-2xl font-bold text-amber-300 mt-1">{pending}</div></div>
