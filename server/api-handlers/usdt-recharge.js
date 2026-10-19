@@ -220,6 +220,7 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
       );
     }
 
+    const rechargeCreatedAt = createdAt?.toDate?.() || (createdAt ? new Date(createdAt) : null);
     const existingRecharge=await client.query(
       'SELECT id,user_id FROM usdt_bep20_recharges WHERE tx_hash=$1 FOR UPDATE',
       [normalizedHash]
@@ -236,7 +237,7 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
          reviewed_by=EXCLUDED.reviewed_by,reviewed_at=EXCLUDED.reviewed_at
        WHERE usdt_bep20_recharges.user_id=EXCLUDED.user_id
        RETURNING id`,
-      [id,userId,normalizedHash,String(depositAddress||BEP20_WALLET).toLowerCase(),credit,ledgerId,note||'Approved after on-chain verification',actor.id,createdAt||null,null]
+      [id,userId,normalizedHash,String(depositAddress||BEP20_WALLET).toLowerCase(),credit,ledgerId,note||'Approved after on-chain verification',actor.id,rechargeCreatedAt,null]
     );
     if(!rechargeWrite.rowCount) throw new Error('TXID_ALREADY_CREDITED');
     await client.query('COMMIT');
