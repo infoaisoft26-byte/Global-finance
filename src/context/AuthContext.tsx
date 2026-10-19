@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { browserLocalPersistence, setPersistence } from 'firebase/auth';
 import {
   auth,
   googleAuthProvider,
@@ -160,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithGoogle = async () => {
     setLoading(true);
     try {
+      await setPersistence(auth, browserLocalPersistence);
       const res = await signInWithPopup(auth, googleAuthProvider);
       if (res.user) {
         setUser(res.user);
@@ -196,6 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginEmail = identifier.toLowerCase();
       }
 
+      await setPersistence(auth, browserLocalPersistence);
       const res = await signInWithEmailAndPassword(auth, loginEmail, pass);
       if (res.user) {
         setUser(res.user);
@@ -227,6 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const sponsor = sponsorCode || sponsorReferralParam;
     pendingSponsorRef.current = sponsor;
     try {
+      await setPersistence(auth, browserLocalPersistence);
       const res = await createUserWithEmailAndPassword(auth, email, pass);
       if (res.user) {
         await updateProfile(res.user, { displayName: name });
