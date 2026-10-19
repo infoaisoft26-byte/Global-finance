@@ -3,6 +3,7 @@ import type { FirebaseUser } from '../lib/firebase.ts';
 export interface UsdtRechargeRequest {
   id: string;
   userId: string;
+  memberId?: string;
   userName?: string;
   userEmail?: string;
   referralCode?: string;
