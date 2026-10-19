@@ -11,9 +11,9 @@ export const IncomeWalletSummary: React.FC = () => {
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [lastUpdated,setLastUpdated]=useState<Date|null>(null);
-  const load=useCallback(async()=>{
+  const load=useCallback(async(silent=false)=>{
     if(!user)return;
-    setLoading(true);setError('');
+    if(!silent)setLoading(true);setError('');
     try{
       const token=await user.getIdToken();
       const res=await fetch('/api/member-finance-report?report=income',{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
@@ -21,9 +21,9 @@ export const IncomeWalletSummary: React.FC = () => {
       if(!res.ok)throw new Error(body.error||'Unable to load wallet summary');
       setRows(Array.isArray(body.rows)?body.rows:[]);setSummary(body.summary||{});setLastUpdated(new Date());
     }catch(e:any){setError(e?.message||'Unable to load wallet summary');}
-    finally{setLoading(false);}
+    finally{if(!silent)setLoading(false);}
   },[user]);
-  useEffect(()=>{ void load(); const timer=window.setInterval(()=>{ void load(); },15000); return ()=>window.clearInterval(timer); },[load]);
+  useEffect(()=>{ void load(); const timer=window.setInterval(()=>{ void load(true); },15000); return ()=>window.clearInterval(timer); },[load]);
   const refresh=async()=>{await refreshWallet();await load();};
   return <div className="space-y-6">
     <div className="p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
