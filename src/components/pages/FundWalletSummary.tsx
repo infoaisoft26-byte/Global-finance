@@ -10,6 +10,7 @@ export const FundWalletSummary: React.FC = () => {
   const [summary,setSummary]=useState<any>({});
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
+  const [lastUpdated,setLastUpdated]=useState<Date|null>(null);
   const load=useCallback(async()=>{
     if(!user)return;
     setLoading(true);setError('');
@@ -18,11 +19,11 @@ export const FundWalletSummary: React.FC = () => {
       const res=await fetch('/api/member-finance-report?report=fund',{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
       const body=await res.json().catch(()=>({}));
       if(!res.ok)throw new Error(body.error||'Unable to load wallet summary');
-      setRows(Array.isArray(body.rows)?body.rows:[]);setSummary(body.summary||{});
+      setRows(Array.isArray(body.rows)?body.rows:[]);setSummary(body.summary||{});setLastUpdated(new Date());
     }catch(e:any){setError(e?.message||'Unable to load wallet summary');}
     finally{setLoading(false);}
   },[user]);
-  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{ void load(); const timer=window.setInterval(()=>{ void load(); },15000); return ()=>window.clearInterval(timer); },[load]);
   const refresh=async()=>{await refreshWallet();await load();};
   return <div className="space-y-6">
     <div className="p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
