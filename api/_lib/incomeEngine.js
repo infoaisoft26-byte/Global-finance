@@ -219,7 +219,7 @@ export async function applyDepositReferralIncome(client,{depositId,userId,amount
   const priorDeposits=await client.query(
     `SELECT COUNT(*)::int AS n FROM ledger_transactions
       WHERE user_id=$1 AND flow='credit' AND status='completed'
-        AND type IN ('crypto_deposit','usdt_bep20_recharge')
+        AND type IN ('crypto_deposit','usdt_bep20_recharge','usdt_bep20_auto_deposit')
         AND lower(COALESCE(reference_id,''))<>lower($2)`,
     [userId,normalizedHash]
   );
