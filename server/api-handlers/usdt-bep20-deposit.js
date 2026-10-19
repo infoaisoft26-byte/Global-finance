@@ -70,6 +70,86 @@ async function handleCron(req, res) {
   return json(res, 200, { ok: true, ...result });
 }
 
+async function handlePackageList(member, res) {
+  const rows = await withTransaction(async (client) => {
+    const user = await client.query('SELECT id,status FROM users WHERE id=$1 LIMIT 1', [member.uid]);
+    if (!user.rowCount || user.rows[0].status !== 'active') throw new Error('ACTIVE_MEMBER_REQUIRED');
+    const result = await client.query(`SELECT id,name,code,type,min_amount,max_amount,roi_rate,duration_days,description,terms,active,created_at,updated_at
+      FROM packages WHERE active=TRUE ORDER BY type,min_amount,name`);
+    return result.rows;
+  });
+  return json(res, 200, { items: rows });
+}
+
+function normalizePackageInput(input) {
+  const pkg = input && typeof input === 'object' ? input : {};
+  const id = String(pkg.id || '').trim();
+  const name = String(pkg.name || '').trim();
+  const code = String(pkg.code || '').trim().toUpperCase();
+  const type = String(pkg.type || '').trim().toLowerCase();
+  const minAmount = Number(pkg.minAmount ?? pkg.min_amount);
+  const maxAmount = Number(pkg.maxAmount ?? pkg.max_amount ?? minAmount);
+  const roiRate = Number(pkg.roiRate ?? pkg.roi_rate);
+  const durationDays = Number(pkg.durationDays ?? pkg.duration_days);
+  if (!id || !name || !code || !['basic','fd'].includes(type) ||
+      !Number.isFinite(minAmount) || minAmount <= 0 ||
+      !Number.isFinite(maxAmount) || maxAmount < minAmount ||
+      !Number.isFinite(roiRate) || roiRate < 0 ||
+      !Number.isInteger(durationDays) || durationDays < 1) {
+    throw new Error('INVALID_PACKAGE');
+  }
+  return { id, name, code, type, minAmount, maxAmount, roiRate, durationDays,
+    description: String(pkg.description || ''), terms: String(pkg.terms || ''),
+    active: pkg.active !== false };
+}
+
+async function upsertPackageDefinition(client, pkg, onlyExisting = false) {
+  const existing = await client.query('SELECT id FROM packages WHERE id=$1 OR code=$2 LIMIT 1', [pkg.id, pkg.code]);
+  if (existing.rowCount) {
+    const stableId = existing.rows[0].id;
+    await client.query(`UPDATE packages SET name=$2,code=$3,type=$4,min_amount=$5,max_amount=$6,
+      roi_rate=$7,duration_days=$8,description=$9,terms=$10,active=$11,updated_at=NOW() WHERE id=$1`,
+      [stableId,pkg.name,pkg.code,pkg.type,pkg.minAmount,pkg.maxAmount,pkg.roiRate,pkg.durationDays,pkg.description,pkg.terms,pkg.active]);
+    return { updated: true, inserted: false };
+  }
+  if (onlyExisting) return { updated: false, inserted: false };
+  await client.query(`INSERT INTO packages(id,name,code,type,min_amount,max_amount,roi_rate,duration_days,description,terms,active,created_at,updated_at)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW())`,
+    [pkg.id,pkg.name,pkg.code,pkg.type,pkg.minAmount,pkg.maxAmount,pkg.roiRate,pkg.durationDays,pkg.description,pkg.terms,pkg.active]);
+  return { updated: false, inserted: true };
+}
+
+async function handleAdminSavePackage(member, body, res) {
+  requireAdmin(member);
+  const pkg = normalizePackageInput(body.package);
+  const result = await withTransaction(async (client) => {
+    const saved = await upsertPackageDefinition(client, pkg, false);
+    await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+      VALUES($1,$2,$3,'PACKAGE_DEFINITION_SYNCED','package',$4,$5::jsonb)`,
+      [crypto.randomUUID(),member.uid,member.email,pkg.id,JSON.stringify({code:pkg.code,name:pkg.name,type:pkg.type,minAmount:pkg.minAmount,roiRate:pkg.roiRate,durationDays:pkg.durationDays,active:pkg.active,...saved})]);
+    return saved;
+  });
+  return json(res, 200, { success:true, ...result, message:'Package saved to the live package database.' });
+}
+
+async function handleAdminSyncPackages(member, body, res) {
+  requireAdmin(member);
+  if (!Array.isArray(body.packages)) return json(res, 400, { error:'Packages list is required' });
+  const result = await withTransaction(async (client) => {
+    let updated = 0;
+    for (const item of body.packages.slice(0, 100)) {
+      const pkg = normalizePackageInput(item);
+      const saved = await upsertPackageDefinition(client, pkg, true);
+      if (saved.updated) updated += 1;
+    }
+    await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+      VALUES($1,$2,$3,'EXISTING_PACKAGE_DEFINITIONS_SYNCED','package','EXISTING_PACKAGES',$4::jsonb)`,
+      [crypto.randomUUID(),member.uid,member.email,JSON.stringify({updated,requested:Math.min(body.packages.length,100),mode:'update-existing-only'})]);
+    return { updated, requested:Math.min(body.packages.length,100) };
+  });
+  return json(res, 200, { success:true, ...result, message:`Synchronized ${result.updated} existing live package definitions. Existing activations and financial records were not changed.` });
+}
+
 async function handlePackageHistory(member, res) {
   const result = await withTransaction(async (client) => {
     await ensureIncomeSchema(client);
@@ -211,6 +291,9 @@ export default async function handler(req,res) {
     const member = await requireMember(req);
     const body = typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
     const action = String(body.action||'verify_deposit');
+    if (action==='package_list') return await handlePackageList(member,res);
+    if (action==='admin_save_package') return await handleAdminSavePackage(member,body,res);
+    if (action==='admin_sync_packages') return await handleAdminSyncPackages(member,body,res);
     if (action==='package_history') return await handlePackageHistory(member,res);
     if (action==='admin_package_history') return await handleAdminPackageHistory(member,res);
     if (action==='admin_reconcile_referral_income') return await handleAdminReconcileReferralIncome(member,res);
@@ -219,6 +302,7 @@ export default async function handler(req,res) {
     return json(res,400,{error:'Invalid action'});
   } catch (error) {
     const message = String(error?.message||'');
+    if (message==='INVALID_PACKAGE') return json(res,400,{error:'Package fields are invalid'});
     if (message==='AUTH_REQUIRED') return json(res,401,{error:'Authentication required'});
     if (message==='ADMIN_REQUIRED') return json(res,403,{error:'Admin access required'});
     if (message==='ACTIVE_MEMBER_REQUIRED') return json(res,403,{error:'Active member account required'});
