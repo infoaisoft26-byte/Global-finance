@@ -194,8 +194,8 @@ async function handlePackagePurchase(member, body, res) {
     asset: 'USDT',
     fundWallet: Number(result.wallet?.fund_wallet || 0),
     automaticIncomeCredits: 0,
-    referralIncomeCredited: Number(result.commissions.creditedAmount || 0),
-    referralRecipients: result.commissions.recipients || [],
+    referralIncomeCredited: 0,
+    referralRecipients: [],
     message: `${result.pkg.name} purchased successfully. USDT ${result.amount.toFixed(2)} deducted automatically from Available USDT.`,
   });
 }
