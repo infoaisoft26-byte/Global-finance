@@ -18,7 +18,23 @@ const hashPattern=/^0x[0-9a-fA-F]{64}$/;
 const amountPattern=/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/;
 
 function bodyOf(req){return typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});}
-function iso(v){return v?.toDate?.()?.toISOString?.() || (v ? String(v) : new Date().toISOString());}
+function toPostgresTimestamp(value){
+  if(value==null || value==='') return null;
+  if(typeof value==='object' && typeof value._seconds==='number'){
+    const milliseconds=value._seconds*1000+(typeof value._nanoseconds==='number'?value._nanoseconds:0)/1e6;
+    const date=new Date(milliseconds);
+    if(Number.isNaN(date.getTime())) throw new Error('INVALID_RECHARGE_TIMESTAMP');
+    return date.toISOString();
+  }
+  if(value && typeof value.toDate==='function'){
+    const date=value.toDate();
+    if(date instanceof Date && !Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  const date=value instanceof Date?value:new Date(value);
+  if(Number.isNaN(date.getTime())) throw new Error('INVALID_RECHARGE_TIMESTAMP');
+  return date.toISOString();
+}
+function iso(v){return v?.toDate?.()?.toISOString?.() || (v && typeof v==="object" && typeof v._seconds==="number" ? toPostgresTimestamp(v) : (v ? String(v) : new Date().toISOString()));}
 function num(v){return Number(v||0);}
 function adminEmailAllowed(email){
   const configured=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
@@ -220,7 +236,7 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
       );
     }
 
-    const rechargeCreatedAt = createdAt?.toDate?.() || (createdAt ? new Date(createdAt) : null);
+    const rechargeCreatedAt = toPostgresTimestamp(createdAt);
     const existingRecharge=await client.query(
       'SELECT id,user_id FROM usdt_bep20_recharges WHERE tx_hash=$1 FOR UPDATE',
       [normalizedHash]
