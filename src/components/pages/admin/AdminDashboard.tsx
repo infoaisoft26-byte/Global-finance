@@ -58,20 +58,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
   const [loading, setLoading] = useState(true);
 
-  const fetchMetrics = async () => {
-    setLoading(true);
+  const fetchMetrics = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const data = await adminGetDashboardMetrics();
       setMetrics(data);
     } catch (err) {
       console.error('Failed to load admin metrics:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMetrics();
+    void fetchMetrics();
+    const timer = window.setInterval(() => { void fetchMetrics(false); }, 15000);
+    return () => window.clearInterval(timer);
   }, []);
 
   return (
@@ -96,7 +98,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         </div>
 
         <button
-          onClick={fetchMetrics}
+          onClick={() => void fetchMetrics()}
           disabled={loading}
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0f1b3e] hover:bg-[#152554] border border-blue-500/30 text-xs font-semibold text-white transition-colors disabled:opacity-50"
         >
