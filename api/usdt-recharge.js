@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { getFirestoreAdmin, verifyFirebaseIdToken } from './_lib/firebaseAdmin.js';
 import { BEP20_WALLET, rechargeConfigured, autoCreditConfigured, verifyBep20 } from './_lib/bep20.js';
-import { addressGenerationConfigured } from './_lib/usdtDeposit.js';
+import { addressGenerationConfigured, getMemberDepositDetails } from './_lib/usdtDeposit.js';
 
 function json(res,status,body){
   res.statusCode=status;
@@ -240,18 +240,14 @@ export default async function handler(req,res){
     if(req.method==='GET'){
       if(action==='deposit-address'){
         if(admin) return json(res,403,{error:'Member account required'});
-        if(!rechargeConfigured()) return json(res,503,{configured:false,error:'USDT recharge is not enabled yet. Do not send USDT until the address is visible.'});
-        return json(res,200,{
-          configured:true,
-          network:'BNB Smart Chain (BEP20)',
-          token:'USDT',
-          contractAddress:String(process.env.USDT_BEP20_CONTRACT_ADDRESS||'0x55d398326f99059fF775485246999027B3197955').trim(),
-          depositAddress:BEP20_WALLET,
-          derivationIndex:-1,
-          confirmationsRequired:12,
-          deposits:[],
-          depositMode:'shared-address-manual-review'
+        if(!addressGenerationConfigured()) return json(res,503,{
+          configured:false,
+          error:'Automatic deposits are not fully configured. Do not send USDT until your unique personal deposit address is displayed.'
         });
+        // Never expose the legacy shared wallet as a member's automatic deposit
+        // address. Allocate/return the member's unique address from the account XPUB.
+        const details=await getMemberDepositDetails(actor.id);
+        return json(res,200,{...details,depositMode:'unique-address-auto-verification'});
       }
       if(scope==='ledger'){
         const q=admin
