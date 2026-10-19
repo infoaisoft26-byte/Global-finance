@@ -197,6 +197,20 @@ async function refreshReferralStatus(client,userId) {
   return 'active';
 }
 
+async function completeActivation(client,activationId) {
+  const result=await client.query(`UPDATE package_activations
+    SET status='completed',completed_at=COALESCE(completed_at,NOW())
+    WHERE id=$1 AND status='active'
+    RETURNING user_id,amount,package_type`,[activationId]);
+  if(!result.rowCount) return false;
+  const a=result.rows[0];
+  await client.query(`UPDATE wallets SET
+    basic_package_active=GREATEST(0,basic_package_active-CASE WHEN $2='basic' THEN $3 ELSE 0 END),
+    fd_package_active=GREATEST(0,fd_package_active-CASE WHEN $2='fd' THEN $3 ELSE 0 END),
+    updated_at=NOW() WHERE user_id=$1`,[a.user_id,a.package_type,Number(a.amount||0)]);
+  return true;
+}
+
 async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=0,base,amount,description,businessDate}) {
   const requested=money(amount);
   if(requested<=0) return 0;
@@ -219,13 +233,12 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
     const already=money(cycle.credited_total||0);
     const headroom=money(Math.max(0,cap-already));
     if(headroom<=0) {
-      await client.query(`UPDATE package_activations SET status='completed',completed_at=COALESCE(completed_at,NOW())
-        WHERE id=$1 AND status='active'`,[cycle.id]);
+      await completeActivation(client,cycle.id);
       continue;
     }
     const part=money(Math.min(left,headroom));
     if(part<=0) continue;
-    allocations.push({id:cycle.id,nextTotal:money(already+part)});
+    allocations.push({id:cycle.id,nextTotal:money(already+part),cap});
     allowed=money(allowed+part); left=money(left-part);
   }
   if(allowed<=0) {
@@ -262,10 +275,17 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
     updated_at=NOW() WHERE user_id=$1`,
     [recipient,allowed,basicReferral,fdReferral,businessDate||null,basicRoi,basicLevel,fdRoi,fdLevel]);
   for(const allocation of allocations) {
-    await client.query(`UPDATE package_activations SET credited_total=$2,
+    const updated=await client.query(`UPDATE package_activations SET credited_total=$2,
       status=CASE WHEN $2>=cap_amount THEN 'completed' ELSE status END,
       completed_at=CASE WHEN $2>=cap_amount THEN COALESCE(completed_at,NOW()) ELSE completed_at END
-      WHERE id=$1 AND status='active'`,[allocation.id,allocation.nextTotal]);
+      WHERE id=$1 AND status='active' RETURNING user_id,amount,package_type,status`,[allocation.id,allocation.nextTotal]);
+    if(updated.rowCount && allocation.nextTotal>=allocation.cap) {
+      const a=updated.rows[0];
+      await client.query(`UPDATE wallets SET
+        basic_package_active=GREATEST(0,basic_package_active-CASE WHEN $2='basic' THEN $3 ELSE 0 END),
+        fd_package_active=GREATEST(0,fd_package_active-CASE WHEN $2='fd' THEN $3 ELSE 0 END),
+        updated_at=NOW() WHERE user_id=$1`,[a.user_id,a.package_type,Number(a.amount||0)]);
+    }
   }
   await client.query(`INSERT INTO income_distributions(id,event_key,recipient_user_id,source_user_id,income_type,level,percentage,base_amount,amount,ledger_id)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
