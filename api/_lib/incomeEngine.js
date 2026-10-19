@@ -30,7 +30,7 @@ export async function ensureIncomeSchema(client) {
         SELECT DISTINCT user_id FROM package_activations WHERE cap_reconciled=FALSE
       ),
       cycles AS (
-        SELECT pa.id,pa.user_id,
+        SELECT pa.id,pa.user_id,pa.status AS status_before,
           COALESCE(pa.cap_amount,ROUND(pa.amount*COALESCE(pa.cap_multiple,5),2)) AS cap,
           COALESCE(SUM(COALESCE(pa.cap_amount,ROUND(pa.amount*COALESCE(pa.cap_multiple,5),2)))
             OVER(PARTITION BY pa.user_id ORDER BY pa.activated_at,pa.id
@@ -46,14 +46,28 @@ export async function ensureIncomeSchema(client) {
         GROUP BY l.user_id
       ),
       allocation AS (
-        SELECT c.id,c.cap,LEAST(c.cap,GREATEST(0,COALESCE(e.total,0)-c.prior_cap)) AS tracked
+        SELECT c.id,c.cap,c.status_before,LEAST(c.cap,GREATEST(0,COALESCE(e.total,0)-c.prior_cap)) AS tracked
         FROM cycles c LEFT JOIN eligible e ON e.user_id=c.user_id
+      ),
+      updated AS (
+        UPDATE package_activations pa
+        SET cap_amount=a.cap,cap_multiple=5,credited_total=a.tracked,cap_reconciled=TRUE,
+            status=CASE WHEN a.tracked>=a.cap AND pa.status='active' THEN 'completed' ELSE pa.status END,
+            completed_at=CASE WHEN a.tracked>=a.cap THEN COALESCE(pa.completed_at,NOW()) ELSE pa.completed_at END
+        FROM allocation a WHERE pa.id=a.id AND pa.cap_reconciled=FALSE
+        RETURNING pa.id,pa.user_id,pa.package_type,pa.amount
+      ),
+      wallet_deductions AS (
+        SELECT u.user_id,
+          COALESCE(SUM(u.amount) FILTER (WHERE u.package_type='basic' AND a.status_before='active' AND a.tracked>=a.cap),0) AS basic_amount,
+          COALESCE(SUM(u.amount) FILTER (WHERE u.package_type='fd' AND a.status_before='active' AND a.tracked>=a.cap),0) AS fd_amount
+        FROM updated u JOIN allocation a ON a.id=u.id GROUP BY u.user_id
       )
-      UPDATE package_activations pa
-      SET cap_amount=a.cap,cap_multiple=5,credited_total=a.tracked,cap_reconciled=TRUE,
-          status=CASE WHEN a.tracked>=a.cap AND pa.status='active' THEN 'completed' ELSE pa.status END,
-          completed_at=CASE WHEN a.tracked>=a.cap THEN COALESCE(pa.completed_at,NOW()) ELSE pa.completed_at END
-      FROM allocation a WHERE pa.id=a.id AND pa.cap_reconciled=FALSE`);
+      UPDATE wallets w SET
+        basic_package_active=GREATEST(0,w.basic_package_active-d.basic_amount),
+        fd_package_active=GREATEST(0,w.fd_package_active-d.fd_amount),
+        updated_at=NOW()
+      FROM wallet_deductions d WHERE w.user_id=d.user_id`);
     await client.query(`UPDATE users u SET referral_status=CASE
       WHEN EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id)
        AND NOT EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id
