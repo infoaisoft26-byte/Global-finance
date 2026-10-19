@@ -220,7 +220,8 @@ export async function applyDepositReferralIncome(client,{depositId,userId,amount
     `SELECT COUNT(*)::int AS n FROM ledger_transactions
       WHERE user_id=$1 AND flow='credit' AND status='completed'
         AND type IN ('crypto_deposit','usdt_bep20_recharge','usdt_bep20_auto_deposit')
-        AND lower(COALESCE(reference_id,''))<>lower($2)`,
+        AND lower(COALESCE(reference_id,''))<>lower($2)
+        AND lower(COALESCE(metadata->>'txHash',''))<>lower($2)`,
     [userId,normalizedHash]
   );
   const firstDeposit=Number(priorDeposits.rows[0]?.n||0)===0;
