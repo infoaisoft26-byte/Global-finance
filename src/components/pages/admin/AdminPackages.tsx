@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Edit3, Package, Plus, RefreshCw, Sparkles, X } from 'lucide-react';
 import { adminGetPackageDefinitions, adminSavePackageDefinition } from '../../../services/financeService.ts';
+import { syncExistingLivePackageDefinitions } from '../../../services/packagePurchaseApi.ts';
 import {
   BASIC_PACKAGE_TEMPLATES,
   getBasicPlanDailyReturn,
@@ -50,6 +51,16 @@ export const AdminPackages: React.FC = () => {
     if (showRefresh) setRefreshing(true);
     try {
       const saved = await withTimeout(adminGetPackageDefinitions(), [] as PackageDefinition[]);
+      // Keep the purchase/income engine aligned with existing admin definitions.
+      // This only updates matching package codes; it never inserts extra plans or edits activations.
+      if (currentAdmin && saved.length) {
+        try {
+          await syncExistingLivePackageDefinitions(currentAdmin, saved);
+        } catch (syncError) {
+          console.warn('Live package sync failed:', syncError);
+          setError('Some plan settings could not sync to member purchase plans. Re-save the affected plan or retry.');
+        }
+      }
       setPackages(saved.length ? mergeWithTemplates(saved) : templates);
     } catch (err: any) {
       console.warn('Package background refresh failed:', err);
