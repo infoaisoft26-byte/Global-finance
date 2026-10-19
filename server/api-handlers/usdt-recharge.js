@@ -32,10 +32,11 @@ function adminEmailAllowed(email){
   const configured=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
   return new Set([configured,'admin@gf.online','admin@gf.app'].filter(Boolean)).has(String(email||'').toLowerCase());
 }
-function mapRecharge(d,id){
+function mapRecharge(d,id,member={}){
   return {
     id,
     userId:d.userId,
+    memberId:String(d.memberId||member.memberId||member.memberID||member.member_id||member.userMemberId||''),
     userName:d.userName||'',
     userEmail:d.userEmail||'',
     referralCode:d.referralCode||'',
@@ -69,7 +70,7 @@ async function actorFromToken(req){
   const u=snap.data()||{};
   const email=String(decoded.email||u.email||'').trim().toLowerCase();
   if(u.status!=='active') throw new Error('ACTIVE_MEMBER_REQUIRED');
-  return {id:decoded.uid,email,name:u.name||decoded.name||'',role:u.role||'user',referralCode:u.referralCode||''};
+  return {id:decoded.uid,email,name:u.name||decoded.name||'',role:u.role||'user',memberId:String(u.memberId||u.memberID||u.member_id||u.userMemberId||''),referralCode:u.referralCode||''};
 }
 function requireAdmin(actor){
   if(!['admin','super_admin','administrator'].includes(actor.role) && !adminEmailAllowed(actor.email)) throw new Error('ADMIN_REQUIRED');
@@ -85,7 +86,7 @@ async function createRecharge(db,actor,amount,txHash,proofUrl){
     const userSnap=await t.get(db.collection('users').doc(actor.id));
     if(!userSnap.exists || userSnap.data()?.status!=='active') throw new Error('ACTIVE_MEMBER_REQUIRED');
     t.set(ref,{
-      id,userId:actor.id,userName:actor.name,userEmail:actor.email,referralCode:actor.referralCode,
+      id,userId:actor.id,memberId:actor.memberId||'',userName:actor.name,userEmail:actor.email,referralCode:actor.referralCode,
       txHash,depositAddress:BEP20_WALLET.toLowerCase(),amountUsdt:amount,
       status:'pending',creditUsdt:null,reviewNote:null,proofUrl:proofUrl||null,
       createdAt:now,reviewedAt:null,reviewedBy:null,ledgerId:null,storage:'firestore',
@@ -171,10 +172,18 @@ async function listRequests(actor,admin){
     ? db.collection('usdtRecharges')
     : db.collection('usdtRecharges').where('userId','==',actor.id);
   const snap=await q.get();
-  return snap.docs
-    .map(d=>({id:d.id,data:d.data()||{}}))
+  const rows=snap.docs.map(d=>({id:d.id,data:d.data()||{}}));
+  // Backfill display-only member identifiers for older recharge documents without changing financial records.
+  const userIds=[...new Set(rows.map(r=>String(r.data.userId||'')).filter(Boolean))];
+  const userRefs=userIds.map(uid=>db.collection('users').doc(uid));
+  const userSnaps=userRefs.length?await db.getAll(...userRefs):[];
+  const memberByUid=new Map(userSnaps.map(s=>{
+    const u=s.exists?s.data()||{}:{};
+    return [s.id,{memberId:u.memberId||u.memberID||u.member_id||u.userMemberId||''}];
+  }));
+  return rows
     .sort((a,b)=>new Date(iso(b.data.createdAt)).getTime()-new Date(iso(a.data.createdAt)).getTime())
-    .map(({id,data})=>mapRecharge(data,id));
+    .map(({id,data})=>mapRecharge(data,id,memberByUid.get(String(data.userId||''))||{}));
 }
 async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,note,proof,createdAt}){
   const pool=getPool();
