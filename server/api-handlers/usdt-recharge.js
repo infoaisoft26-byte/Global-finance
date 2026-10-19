@@ -3,6 +3,7 @@ import { getFirestoreAdmin, verifyFirebaseIdToken } from '../../api/_lib/firebas
 import { DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from '../../api/_lib/bep20.js';
 import { addressGenerationConfigured, getMemberDepositDetails } from '../../api/_lib/usdtDeposit.js';
 import { getPool } from '../../api/_lib/db.js';
+import { applyDepositReferralIncome } from '../../api/_lib/incomeEngine.js';
 
 // Keep the configured receiving wallet local to this route. This avoids a
 // cold-start failure if the deployed helper export differs during rollout.
@@ -248,6 +249,12 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
         [credit,userId]
       );
     }
+
+    // Commission only after the on-chain transfer has been verified and its fund-wallet ledger is present.
+    // This shares the same PostgreSQL transaction, so a failed commission rolls back the deposit credit too.
+    await applyDepositReferralIncome(client, {
+      depositId:id,userId,amount:credit,txHash:normalizedHash,
+    });
 
     const existingRecharge=await client.query(
       'SELECT id,user_id FROM usdt_bep20_recharges WHERE tx_hash=$1 FOR UPDATE',
