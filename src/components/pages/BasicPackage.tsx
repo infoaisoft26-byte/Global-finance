@@ -41,7 +41,13 @@ export const BasicPackage: React.FC<{ onNavigateToRecharge: () => void }> = ({ o
     }
   };
 
-  useEffect(() => { void loadData(false); }, [user?.uid]);
+  useEffect(() => {
+    if (!user) { setRequests([]); return; }
+    void loadData(false);
+    // Keep purchased/activated plans visible without requiring a logout or manual reload.
+    const refreshId = window.setInterval(() => { void loadData(false); }, 15000);
+    return () => window.clearInterval(refreshId);
+  }, [user?.uid]);
 
   const purchase = async (pkg: PackageDefinition) => {
     if (!user) return;
