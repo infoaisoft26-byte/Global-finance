@@ -14,6 +14,7 @@ import {
   addDoc
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.ts';
+import { saveLivePackageDefinition } from './packagePurchaseApi.ts';
 import type { 
   UserProfile, 
   WalletData, 
@@ -1096,6 +1097,10 @@ export async function adminSavePackageDefinition(
   adminUserId: string,
   pkg: PackageDefinition
 ): Promise<void> {
+  const liveAdmin = auth.currentUser;
+  if (!liveAdmin) throw new Error('Admin authentication required');
+  // Save the authoritative package configuration used by purchases and income first.
+  await saveLivePackageDefinition(liveAdmin, { ...pkg, updatedAt: new Date().toISOString() });
   const pkgRef = doc(db, 'package_definitions', pkg.id);
   await setDoc(pkgRef, {
     ...pkg,
