@@ -12,9 +12,9 @@ export const AdminReports: React.FC=()=>{
   const [search,setSearch]=useState('');
   const [error,setError]=useState('');
 
-  const load=async()=>{
+  const load=async(showLoading=true)=>{
     if(!user)return;
-    setLoading(true);setError('');
+    if(showLoading)setLoading(true);setError('');
     try{
       const token=await user.getIdToken();
       const res=await fetch('/api/admin-network?mode=finance-report',{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
@@ -22,9 +22,13 @@ export const AdminReports: React.FC=()=>{
       if(!res.ok)throw new Error(body.error||'Unable to load finance report');
       setData(body);
     }catch(e:any){setError(e?.message||'Unable to load report');}
-    finally{setLoading(false);}
+    finally{if(showLoading)setLoading(false);}
   };
-  useEffect(()=>{void load();},[user?.uid]);
+  useEffect(()=>{
+    void load();
+    const timer=window.setInterval(()=>{void load(false);},15000);
+    return ()=>window.clearInterval(timer);
+  },[user?.uid]);
 
   const rows=useMemo(()=>{
     const source=data?.[tab]||[];const q=search.trim().toLowerCase();
@@ -42,15 +46,17 @@ export const AdminReports: React.FC=()=>{
   const s=data?.summary||{};
   return <div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div><h2 className="text-xl font-bold text-white">End-to-End Finance Report</h2><p className="text-xs text-slate-400 mt-1">Verified USDT deposit → wallet credit → package purchase debit → active package.</p></div>
+      <div><h2 className="text-xl font-bold text-white">End-to-End Finance Report</h2><p className="text-xs text-slate-400 mt-1">Verified USDT deposit → wallet credit → package purchase debit → daily income ledger. Auto-refreshes every 15 seconds.</p>{data?.generatedAt&&<p className="text-[10px] text-cyan-400 mt-1">Last sync: {new Date(data.generatedAt).toLocaleString('en-IN')}</p>}</div>
       <div className="flex gap-2"><button onClick={exportCsv} className="px-3 py-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-xs text-white flex items-center gap-2"><Download className="w-4 h-4"/>Export CSV</button><button onClick={load} disabled={loading} className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`}/>Refresh</button></div>
     </div>
     {error&&<div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">{error}</div>}
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
       <div className="p-4 rounded-2xl bg-[#091129] border border-cyan-500/25"><div className="text-[10px] uppercase text-slate-500">Verified Deposits</div><div className="text-lg font-bold text-white">USDT {money(s.totalDeposits)}</div><div className="text-[10px] text-slate-500">{s.depositCount||0} deposits</div></div>
       <div className="p-4 rounded-2xl bg-[#091129] border border-violet-500/25"><div className="text-[10px] uppercase text-slate-500">Package Purchases</div><div className="text-lg font-bold text-white">USDT {money(s.totalPackagePurchases)}</div><div className="text-[10px] text-slate-500">{s.purchaseCount||0} purchases</div></div>
       <div className="p-4 rounded-2xl bg-[#091129] border border-emerald-500/25"><div className="text-[10px] uppercase text-slate-500">Available USDT</div><div className="text-lg font-bold text-white">USDT {money(s.availableUsdt)}</div></div>
       <div className="p-4 rounded-2xl bg-[#091129] border border-amber-500/25"><div className="text-[10px] uppercase text-slate-500">Active Packages</div><div className="text-lg font-bold text-white">USDT {money(Number(s.activeBasic||0)+Number(s.activeFd||0))}</div></div>
+      <div className="p-4 rounded-2xl bg-[#091129] border border-sky-500/25"><div className="text-[10px] uppercase text-slate-500">Today Deposits (IST)</div><div className="text-lg font-bold text-white">USDT {money(s.todayDeposits)}</div></div>
+      <div className="p-4 rounded-2xl bg-[#091129] border border-emerald-500/25"><div className="text-[10px] uppercase text-slate-500">Today Income Credited</div><div className="text-lg font-bold text-white">USDT {money(s.todayIncome)}</div><div className="text-[10px] text-slate-500">{s.todayIncomeCredits||0} ledger credits</div></div>
     </div>
     <div className="flex flex-col sm:flex-row gap-3 justify-between"><div className="flex gap-2">{(['ledger','purchases','wallets'] as const).map(x=><button key={x} onClick={()=>setTab(x)} className={`px-3 py-2 rounded-xl text-xs font-bold ${tab===x?'bg-blue-600 text-white':'bg-[#091129] border border-blue-500/20 text-slate-400'}`}>{x==='ledger'?'Ledger':x==='purchases'?'Purchases':'Wallets'}</button>)}</div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search member, TXID, package..." className="px-3 py-2 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white text-xs"/></div>
     <div className="rounded-2xl bg-[#091129] border border-blue-500/25 overflow-x-auto">
