@@ -176,7 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           headers: { Authorization: `Bearer ${idToken}` },
         });
         const data = await response.json().catch(() => ({}));
-        if (!cancelled && response.ok && data?.wallet) setWallet(data.wallet as WalletData);
+        if (!cancelled && response.ok && data?.wallet) setWallet(previous => ({ ...(previous || {}), ...(data.wallet as WalletData), userId: user.uid }));
       } catch (error) {
         if (!cancelled) console.warn('Wallet refresh poll failed:', error);
       }
