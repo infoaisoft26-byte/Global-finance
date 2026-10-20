@@ -138,32 +138,48 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
 
   const columns: Column<TransactionLedger>[] = [
     {
-      key: 'createdAt',
-      header: 'Payout Date & Time',
+      key: 'memberName',
+      header: 'Name',
+      accessor: () => profile?.name || '—'
+    },
+    {
+      key: 'gfId',
+      header: 'GF ID',
+      accessor: () => profile?.referralCode || '—'
+    },
+    {
+      key: 'fund',
+      header: 'Fund',
+      render: (item) => {
+        const metadata = item.metadata || {};
+        const fund = metadata.fundName || metadata.packageName || metadata.packageType || metadata.fund || metadata.sourceWallet;
+        return <span className="text-xs text-slate-200">{String(fund || item.description || item.type || '—')}</span>;
+      }
+    },
+    {
+      key: 'sponsor',
+      header: 'Sponsor',
+      render: (item) => {
+        const metadata = item.metadata || {};
+        const sponsor = metadata.sponsorName || metadata.sponsorId || metadata.sponsorCode;
+        return <span className="text-xs text-slate-200">{String(sponsor || profile?.sponsorName || profile?.sponsorId || '—')}</span>;
+      }
+    },
+    {
+      key: 'date',
+      header: 'Date',
       render: (item) => (
         <span className="text-xs text-slate-300 font-mono">
-          {new Date(item.createdAt).toLocaleString('en-IN', {
-            dateStyle: 'medium',
-            timeStyle: 'short'
-          })}
+          {new Date(item.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
         </span>
       )
     },
     {
-      key: 'id',
-      header: 'Ledger Ref',
+      key: 'time',
+      header: 'Time',
       render: (item) => (
-        <span className="font-mono text-cyan-400 text-xs font-semibold">
-          {item.id}
-        </span>
-      )
-    },
-    {
-      key: 'description',
-      header: 'Income Description',
-      render: (item) => (
-        <span className="text-xs text-slate-200">
-          {item.description}
+        <span className="text-xs text-slate-300 font-mono">
+          {new Date(item.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}
         </span>
       )
     },
@@ -172,16 +188,22 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       header: 'Amount Credited',
       render: (item) => (
         <span className="font-mono text-xs font-bold text-emerald-400">
-          {item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+          {Number(item.netAmount || item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
         </span>
       )
     },
     {
       key: 'status',
       header: 'Status',
-      render: () => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          {String(item.status || 'completed').toUpperCase()}
+      render: (item) => (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${
+          String(item.status).toLowerCase() === 'completed' || String(item.status).toLowerCase() === 'credited' || String(item.status).toLowerCase() === 'approved'
+            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+            : String(item.status).toLowerCase() === 'pending'
+              ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+        }`}>
+          {String(item.status || 'unknown').toUpperCase()}
         </span>
       )
     }
