@@ -345,6 +345,9 @@ export interface SystemSettings {
   // Support
   supportTicketsEnabled: boolean;
 
+  // Admin-controlled percentages for eligible Level 1–15 commissions.
+  levelCommissionRates: Record<number, number>;
+
   updatedAt: string;
   updatedBy?: string;
 }
