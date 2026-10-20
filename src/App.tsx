@@ -48,7 +48,7 @@ import type { ActivePage, SystemSettings } from './types/index.ts';
 import { ShieldCheck, RefreshCw, ShieldAlert, LogOut, AlertTriangle, Wrench } from 'lucide-react';
 
 const adminPageFromPath = (pathname: string): ActivePage => {
-  const slug = pathname.replace(/^\\/admin\\/?/, '').split('/')[0];
+  const slug = pathname.startsWith('/admin/') ? pathname.slice('/admin/'.length).split('/')[0] : '';
   const routes: Record<string, ActivePage> = {
     '': 'admin-dashboard',
     'p2p-report': 'admin-p2p-report',
@@ -86,8 +86,30 @@ const MainLayout: React.FC = () => {
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [publicMaintenance, setPublicMaintenance] = useState<{maintenanceMode:boolean;message?:string}>({ maintenanceMode: false });
 
+  const navigateToPage = (page: ActivePage) => {
+    setActivePage(page);
+    if (typeof window !== 'undefined') {
+      const nextPath = adminPathForPage(page);
+      if (nextPath && window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
+    }
+  };
+
   useEffect(() => {
-    if (isAdminEntry && isAdmin) setActivePage('admin-dashboard');
+    const syncPageFromUrl = () => {
+      if (window.location.pathname === '/admin' || window.location.pathname === '/admin/') {
+        setActivePage('admin-dashboard');
+      } else if (window.location.pathname.startsWith('/admin/')) {
+        setActivePage(adminPageFromPath(window.location.pathname));
+      }
+    };
+    window.addEventListener('popstate', syncPageFromUrl);
+    return () => window.removeEventListener('popstate', syncPageFromUrl);
+  }, []);
+
+  useEffect(() => {
+    if (isAdminEntry && isAdmin && (window.location.pathname === '/admin' || window.location.pathname === '/admin/')) {
+      setActivePage('admin-dashboard');
+    }
   }, [isAdminEntry, isAdmin]);
 
   // Admin accounts always enter the dedicated admin portal, never the member workspace.
@@ -313,7 +335,7 @@ const MainLayout: React.FC = () => {
       {isAdminEntry ? (
         <AdminSidebar
           activePage={activePage}
-          onSelectPage={setActivePage}
+          onSelectPage={navigateToPage}
           isOpenMobile={isSidebarOpenMobile}
           onCloseMobile={() => setIsSidebarOpenMobile(false)}
         />
@@ -331,7 +353,7 @@ const MainLayout: React.FC = () => {
           activePage={activePage}
           onToggleSidebar={() => setIsSidebarOpenMobile(prev => !prev)}
           onOpenProfile={() => !isAdminEntry && setShowProfileModal(true)}
-          onNavigate={setActivePage}
+          onNavigate={isAdminEntry ? navigateToPage : setActivePage}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
