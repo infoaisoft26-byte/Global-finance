@@ -41,6 +41,9 @@ const AdminReports = lazy(() => import('./components/pages/admin/AdminReports.ts
 const AdminPackages = lazy(() => import('./components/pages/admin/AdminPackages.tsx').then(m => ({ default: m.AdminPackages })));
 const AdminPackageActivations = lazy(() => import('./components/pages/admin/AdminPackageActivations.tsx').then(m => ({ default: m.AdminPackageActivations })));
 const AdminTransactions = lazy(() => import('./components/pages/admin/AdminTransactionsAccounting.tsx').then(m => ({ default: m.AdminTransactionsAccounting })));
+const AdminP2PReport = lazy(() => import('./components/pages/admin/AdminP2PReport.tsx').then(m => ({ default: m.AdminP2PReport })));
+const AdminUsdtRecharge = lazy(() => import('./components/pages/admin/AdminUsdtRecharge.tsx').then(m => ({ default: m.AdminUsdtRecharge })));
+const AdminOfferPoster = lazy(() => import('./components/pages/admin/AdminOfferPoster.tsx').then(m => ({ default: m.AdminOfferPoster })));
 const AdminAudit = lazy(() => import('./components/pages/admin/AdminAudit.tsx').then(m => ({ default: m.AdminAudit })));
 const AdminSettingsPage = lazy(() => import('./components/pages/admin/AdminSettingsPage.tsx').then(m => ({ default: m.AdminSettingsPage })));
 
@@ -65,6 +68,30 @@ class PageErrorBoundary extends Component<{ children: React.ReactNode }, { hasEr
   }
 }
 
+const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
+  const params = new URLSearchParams(search);
+  const requested = params.get('section');
+  const routes: Record<string, ActivePage> = {
+    dashboard: 'admin-dashboard', 'p2p-report': 'admin-p2p-report',
+    transactions: 'admin-transactions', users: 'admin-users',
+    'user-detail': 'admin-user-detail', kyc: 'admin-kyc', tickets: 'admin-tickets',
+    reports: 'admin-reports', packages: 'admin-packages',
+    'package-activations': 'admin-package-activations', 'usdt-recharge': 'admin-usdt-recharge',
+    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster'
+  };
+  if (requested && routes[requested]) return routes[requested];
+  const normalized = pathname.replace(/\\/+$/, '') || '/admin';
+  const slug = normalized.startsWith('/admin/') ? normalized.slice('/admin/'.length).split('/')[0] : '';
+  return routes[slug] || 'admin-dashboard';
+};
+
+const adminPathForPage = (page: ActivePage): string | null => {
+  if (page === 'admin-dashboard') return '/admin';
+  if (!page.startsWith('admin-')) return null;
+  const slug = page === 'admin-p2p-report' ? 'p2p-report' : page.slice('admin-'.length);
+  return page === 'admin-user-detail' ? '/admin/user-detail' : `/admin/${encodeURIComponent(slug)}`;
+};
+
 const PageFallback = () => (
   <div className="min-h-[280px] flex items-center justify-center">
     <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -77,14 +104,30 @@ const PageFallback = () => (
 const MainLayout: React.FC = () => {
   const { user, loading, isAdmin, isSubAdmin, isSuspended, logout } = useAuth();
   const isAdminEntry = typeof window !== 'undefined' && (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/'));
-  const [activePage, setActivePage] = useState<ActivePage>(() => isAdminEntry ? 'admin-dashboard' : 'dashboard');
+  const [activePage, setActivePage] = useState<ActivePage>(() => isAdminEntry ? adminPageFromPath(window.location.pathname, window.location.search) : 'dashboard');
   const [selectedAdminUserId, setSelectedAdminUserId] = useState('');
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
 
+  const navigateToPage = (page: ActivePage) => {
+    setActivePage(page);
+    const nextPath = adminPathForPage(page);
+    if (nextPath && typeof window !== 'undefined') {
+      const nextUrl = nextPath;
+      if (window.location.pathname + window.location.search !== nextUrl) window.history.pushState({ adminPage: page }, '', nextUrl);
+    }
+    setIsSidebarOpenMobile(false);
+  };
+
   useEffect(() => {
-    if (isAdminEntry && isAdmin) setActivePage('admin-dashboard');
+    const sync = () => setActivePage(adminPageFromPath(window.location.pathname, window.location.search));
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, []);
+
+  useEffect(() => {
+    if (isAdminEntry && isAdmin) setActivePage(adminPageFromPath(window.location.pathname, window.location.search));
   }, [isAdminEntry, isAdmin]);
 
   useEffect(() => {
@@ -202,7 +245,10 @@ const MainLayout: React.FC = () => {
       case 'income-wallet-summary':
       case 'income-history': return <IncomeWalletSummary />;
       case 'support-tickets': return <SupportTickets />;
-      case 'admin-dashboard': return <AdminDashboardFast onNavigate={setActivePage} />;
+      case 'admin-dashboard': return <AdminDashboardFast onNavigate={navigateToPage} />;
+      case 'admin-p2p-report': return <AdminP2PReport />;
+      case 'admin-usdt-recharge': return <AdminUsdtRecharge />;
+      case 'admin-offer-poster': return <AdminOfferPoster />;
       case 'admin-transactions': return <AdminTransactions />;
       case 'admin-package-activations': return <AdminPackageActivations />;
       case 'admin-users': return <AdminUsers onSelectUser={(userId) => { setSelectedAdminUserId(userId); setActivePage('admin-user-detail'); }} />;
@@ -213,7 +259,7 @@ const MainLayout: React.FC = () => {
       case 'admin-packages': return <AdminPackages />;
       case 'admin-audit': return <AdminAudit />;
       case 'admin-settings': return <AdminSettingsPage />;
-      default: return isAdminEntry ? <AdminDashboardFast onNavigate={setActivePage} /> : <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
+      default: return isAdminEntry ? <AdminDashboardFast onNavigate={navigateToPage} /> : <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
     }
   };
 
@@ -226,13 +272,13 @@ const MainLayout: React.FC = () => {
       )}
 
       {isAdminEntry ? (
-        <AdminSidebar activePage={activePage} onSelectPage={setActivePage} isOpenMobile={isSidebarOpenMobile} onCloseMobile={() => setIsSidebarOpenMobile(false)} />
+        <AdminSidebar activePage={activePage} onSelectPage={navigateToPage} isOpenMobile={isSidebarOpenMobile} onCloseMobile={() => setIsSidebarOpenMobile(false)} />
       ) : (
         <Sidebar activePage={activePage} onSelectPage={setActivePage} isOpenMobile={isSidebarOpenMobile} onCloseMobile={() => setIsSidebarOpenMobile(false)} />
       )}
 
       <div className="lg:pl-72 flex-1 flex flex-col min-w-0">
-        <Header activePage={activePage} onToggleSidebar={() => setIsSidebarOpenMobile(v => !v)} onOpenProfile={() => !isAdminEntry && setShowProfileModal(true)} onNavigate={setActivePage} />
+        <Header activePage={activePage} onToggleSidebar={() => setIsSidebarOpenMobile(v => !v)} onOpenProfile={() => !isAdminEntry && setShowProfileModal(true)} onNavigate={isAdminEntry ? navigateToPage : setActivePage} />
         <main className="flex-1 min-w-0 w-full p-4 sm:p-6 lg:p-8 mx-auto">
           <PageErrorBoundary><Suspense fallback={<PageFallback />}>{renderContent()}</Suspense></PageErrorBoundary>
         </main>
