@@ -96,6 +96,13 @@ export async function ensureIncomeSchema(client) {
     ADD COLUMN IF NOT EXISTS fd_total_level_income NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS total_salary NUMERIC(16,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS income_stat_date DATE`);
+  await client.query(`CREATE TABLE IF NOT EXISTS finance_rule_config(
+    rule_key VARCHAR(100) PRIMARY KEY, rule_value JSONB NOT NULL, asset VARCHAR(12) NOT NULL DEFAULT 'USDT',
+    description TEXT, enabled BOOLEAN NOT NULL DEFAULT TRUE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_by VARCHAR(128))`);
+  await client.query(`INSERT INTO finance_rule_config(rule_key,rule_value,asset,description) VALUES
+    ('referral_deposit_commission','{"level_1_percent":10,"levels_2_to_15_percent":0.25}'::jsonb,'USDT','First verified USDT deposit referral commission'),
+    ('referral_retopup_commission','{"level_1_percent":5,"levels_2_to_15_percent":0.25}'::jsonb,'USDT','Subsequent verified USDT retopup referral commission')
+    ON CONFLICT(rule_key) DO NOTHING`);
   await client.query(`CREATE TABLE IF NOT EXISTS income_events(
     event_key VARCHAR(180) PRIMARY KEY,
     event_type VARCHAR(40) NOT NULL,
@@ -190,6 +197,17 @@ async function hasActiveReferralAtLevel(client, recipientId, targetLevel) {
   return rows.length > 0;
 }
 
+async function configuredActivationRate(client, level, firstEvent) {
+  const n=Number(level);
+  if(n<1 || n>MAX_LEVEL) return 0;
+  const key=firstEvent?'referral_deposit_commission':'referral_retopup_commission';
+  const result=await client.query('SELECT rule_value,enabled FROM finance_rule_config WHERE rule_key=$1',[key]);
+  if(result.rows[0] && result.rows[0].enabled===false) return 0;
+  const value=result.rows[0]?.rule_value || {};
+  const fallback=n===1?(firstEvent?10:5):0.25;
+  const configured=Number(n===1?(value.level_1_percent ?? fallback):(value.levels_2_to_15_percent ?? fallback));
+  return Number.isFinite(configured) && configured>=0 && configured<=100 ? configured : fallback;
+}
 async function eventOnce(client, key, type, sourceUserId, activationId, baseAmount, businessDate, metadata={}) {
   const r = await client.query(`INSERT INTO income_events(event_key,event_type,source_user_id,source_activation_id,base_amount,business_date,metadata)
     VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT(event_key) DO NOTHING RETURNING event_key`,
@@ -308,6 +326,47 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
   return allowed;
 }
 
+// Credit referral commissions only after a verified USDT deposit/recharge.
+// TXID is the idempotency key so retries cannot pay the same referral twice.
+export async function applyDepositReferralIncome(client,{depositId,userId,amount,txHash}) {
+  await ensureIncomeSchema(client);
+  const normalizedHash=String(txHash||'').trim().toLowerCase();
+  const base=money(amount);
+  if(!userId || !normalizedHash || base<=0) throw new Error('INVALID_REFERRAL_DEPOSIT');
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['referral-deposit-user:'+userId]);
+  const priorDeposits=await client.query(
+    `SELECT COUNT(*)::int AS n FROM ledger_transactions
+      WHERE user_id=$1 AND flow='credit' AND status='completed'
+        AND type IN ('crypto_deposit','usdt_bep20_recharge','usdt_bep20_auto_deposit')
+        AND lower(COALESCE(reference_id,''))<>lower($2)
+        AND lower(COALESCE(metadata->>'txHash',''))<>lower($2)`,
+    [userId,normalizedHash]
+  );
+  const priorActivations=await client.query('SELECT COUNT(*)::int AS n FROM package_activations WHERE user_id=$1',[userId]);
+  const walletState=await client.query('SELECT fund_wallet FROM wallets WHERE user_id=$1 FOR UPDATE',[userId]);
+  const currentFund=Number(walletState.rows[0]?.fund_wallet||0);
+  const hasPreexistingFunds=currentFund > base + 0.00000001;
+  const firstDeposit=Number(priorDeposits.rows[0]?.n||0)===0 && Number(priorActivations.rows[0]?.n||0)===0 && !hasPreexistingFunds;
+  const eventKey='DEPOSIT:'+normalizedHash;
+  const businessDate=currentIndiaBusinessDate();
+  await eventOnce(client,eventKey,'deposit_commission',userId,null,base,businessDate,{depositId:depositId||null,txHash:normalizedHash,firstDeposit,asset:'USDT'});
+  const ups=await uplines(client,userId);
+  let credited=0,creditedAmount=0;
+  const recipients=[];
+  for(const u of ups){
+    if(String(u.status||'').toLowerCase()!=='active') continue;
+    const level=Number(u.level);
+    const rate=await configuredActivationRate(client,level,firstDeposit);
+    if(rate<=0 || !(await hasActiveReferralAtLevel(client,u.id,level))) continue;
+    const incomeType=level===1?'basic_referral':'basic_level';
+    const commission=pct(base,rate);
+    const label=firstDeposit?'First verified USDT deposit':'Verified USDT retopup';
+    if(await credit(client,{eventKey,recipient:u.id,source:userId,incomeType,level,rate,base,amount:commission,description:label+' referral commission L'+level+' ('+rate+'%) from '+userId,businessDate})){
+      credited++; creditedAmount=money(creditedAmount+commission); recipients.push({userId:u.id,level,rate,amount:commission});
+    }
+  }
+  return {firstDeposit,credited,creditedAmount,recipients};
+}
 export async function applyActivationIncome(client,{activationId,userId,amount,packageName,packageType='basic'}) {
   await ensureIncomeSchema(client);
   const activationOrder = await client.query(
