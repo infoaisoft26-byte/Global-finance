@@ -39,6 +39,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   requireKycForP2p: false,
   requireKycForPackageActivation: false,
   supportTicketsEnabled: true,
+  levelCommissionRates: { 1: 5, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1, 12: 1, 13: 0.5, 14: 0.5, 15: 0.5 },
   usdtBep20DepositAddress: DEFAULT_BEP20_ADDRESS,
   depositNetworkLabel: 'BNB Smart Chain (BEP20)',
   depositNetworkNotice: 'Send only USDT using the BNB Smart Chain (BEP20) network to this address. Sending any other asset or network may result in loss.',
