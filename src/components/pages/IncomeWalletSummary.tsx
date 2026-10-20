@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CreditCard, TrendingUp, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { DataTable, type Column } from '../common/DataTable.tsx';
@@ -12,9 +12,9 @@ export const IncomeWalletSummary: React.FC = () => {
   const [transactions, setTransactions] = useState<TransactionLedger[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async (showSpinner = true) => {
     if (!profile) return;
-    setLoading(true);
+    if (showSpinner) setLoading(true);
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error('Authentication required');
@@ -33,17 +33,37 @@ export const IncomeWalletSummary: React.FC = () => {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
-  };
+  }, [profile?.uid]);
 
   useEffect(() => {
-    loadData();
-  }, [profile?.uid]);
+    let cancelled = false;
+    let inFlight = false;
+    const refresh = async (showSpinner = false) => {
+      if (cancelled || inFlight || document.visibilityState !== 'visible') return;
+      inFlight = true;
+      try {
+        await loadData(showSpinner);
+        await refreshWallet();
+      } finally {
+        inFlight = false;
+      }
+    };
+    void refresh(true);
+    const timer = window.setInterval(() => { void refresh(false); }, 60000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(false); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [loadData, refreshWallet]);
 
   const handleRefresh = async () => {
     await refreshWallet();
-    await loadData();
+    await loadData(true);
   };
 
   const completedEntries = transactions.filter((item) => ['completed', 'approved', 'credited'].includes(String(item.status).toLowerCase()));
@@ -128,7 +148,7 @@ export const IncomeWalletSummary: React.FC = () => {
             Income History
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            All actual Income Wallet ledger entries: registration bonus, ROI, referral, level, salary, transfers and other recorded credits/debits.
+            All actual Income Wallet ledger entries from the secured ledger, including direct referral, level, ROI, registration bonus, salary and other recorded credits/debits. Auto-syncs every minute while this page is open.
           </p>
         </div>
 
