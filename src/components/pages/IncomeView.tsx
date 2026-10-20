@@ -138,32 +138,47 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
 
   const columns: Column<TransactionLedger>[] = [
     {
-      key: 'memberName',
+      key: 'name',
       header: 'Name',
-      accessor: () => profile?.name || '—'
+      render: () => <span className="text-xs text-slate-200 font-semibold">{profile?.name || '—'}</span>
     },
     {
       key: 'gfId',
       header: 'GF ID',
-      accessor: () => profile?.referralCode || '—'
+      render: () => <span className="font-mono text-cyan-400 text-xs font-semibold">{profile?.referralCode || '—'}</span>
     },
     {
       key: 'fund',
       header: 'Fund',
       render: (item) => {
         const metadata = item.metadata || {};
-        const fund = metadata.fundName || metadata.packageName || metadata.packageType || metadata.fund || metadata.sourceWallet;
-        return <span className="text-xs text-slate-200">{String(fund || item.description || item.type || '—')}</span>;
+        const fund = metadata.fund || metadata.packageName || metadata.packageType;
+        const typeLabels: Record<string, string> = {
+          basic_roi: 'Basic Fund ROI',
+          fd_roi: 'FD Fund ROI',
+          basic_referral: 'Basic Fund Referral',
+          fd_referral: 'FD Fund Referral',
+          basic_level: 'Basic Fund Level',
+          fd_level: 'FD Fund Level',
+          rd_level: 'RD Fund Level',
+          salary: 'Salary Fund',
+          joining_bonus: 'Joining Bonus',
+          referral_bonus: 'Referral Fund',
+          level_bonus: 'Level Fund',
+          roi_daily: 'ROI Fund',
+          other_income: 'Other Income'
+        };
+        return <span className="text-xs text-slate-200">{String(fund || typeLabels[String(item.type)] || config.title)}</span>;
       }
     },
     {
       key: 'sponsor',
       header: 'Sponsor',
-      render: (item) => {
-        const metadata = item.metadata || {};
-        const sponsor = metadata.sponsorName || metadata.sponsorId || metadata.sponsorCode;
-        return <span className="text-xs text-slate-200">{String(sponsor || profile?.sponsorName || profile?.sponsorId || '—')}</span>;
-      }
+      render: () => (
+        <span className="text-xs text-slate-300">
+          {profile?.sponsorName || profile?.sponsorId || '—'}
+        </span>
+      )
     },
     {
       key: 'date',
@@ -179,7 +194,13 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       header: 'Time',
       render: (item) => (
         <span className="text-xs text-slate-300 font-mono">
-          {new Date(item.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}
+          {new Date(item.createdAt).toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          })}
         </span>
       )
     },
@@ -201,9 +222,9 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
             : String(item.status).toLowerCase() === 'pending'
               ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+              : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
         }`}>
-          {String(item.status || 'unknown').toUpperCase()}
+          {String(item.status || 'completed').toUpperCase()}
         </span>
       )
     }
