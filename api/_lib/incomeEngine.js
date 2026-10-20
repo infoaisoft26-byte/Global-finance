@@ -462,5 +462,34 @@ export async function runDailyIncome(client,businessDate) {
     });
     if (released) maturityPointsReleased++;
   }
+  // Rebuild per-day summary counters from the authoritative ledger for this business date.
+  // This makes retries idempotent and clears stale "today" values for members with no credit today.
+  await client.query(`UPDATE wallets SET
+    today_roi_income=0,
+    today_level_income=0,
+    fd_today_roi_income=0,
+    fd_today_level_income=0,
+    income_stat_date=$1::date,
+    updated_at=NOW()`,[date]);
+  await client.query(`WITH daily_totals AS (
+      SELECT d.recipient_user_id,
+        COALESCE(SUM(d.amount) FILTER (WHERE d.income_type='basic_roi'),0) AS basic_roi,
+        COALESCE(SUM(d.amount) FILTER (WHERE d.income_type='basic_level'),0) AS basic_level,
+        COALESCE(SUM(d.amount) FILTER (WHERE d.income_type='fd_roi'),0) AS fd_roi,
+        COALESCE(SUM(d.amount) FILTER (WHERE d.income_type='fd_level'),0) AS fd_level
+      FROM income_distributions d
+      JOIN income_events e ON e.event_key=d.event_key
+      WHERE e.business_date=$1::date
+      GROUP BY d.recipient_user_id
+    )
+    UPDATE wallets w SET
+      today_roi_income=COALESCE(t.basic_roi,0),
+      today_level_income=COALESCE(t.basic_level,0),
+      fd_today_roi_income=COALESCE(t.fd_roi,0),
+      fd_today_level_income=COALESCE(t.fd_level,0),
+      income_stat_date=$1::date,
+      updated_at=NOW()
+    FROM daily_totals t
+    WHERE w.user_id=t.recipient_user_id`,[date]);
   return {businessDate:date,packages:rows.length,packagesProcessed,roiCredits,levelCredits,maturityPointsReleased};
 }
