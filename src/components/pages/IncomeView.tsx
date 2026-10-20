@@ -122,13 +122,6 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
 
   useEffect(() => {
     loadIncomeRecords();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        loadIncomeRecords(false);
-        refreshWallet();
-      }
-    }, 60000);
-    return () => window.clearInterval(timer);
   }, [profile?.uid, page]);
 
   const handleRefresh = async () => {
