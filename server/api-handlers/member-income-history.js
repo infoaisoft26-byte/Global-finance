@@ -84,8 +84,7 @@ export default async function handler(req, res) {
     }
 
     const transactions = [...records.values()]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      ;
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return json(res, 200, { transactions, source: 'recorded_ledgers', count: transactions.length });
   } catch (error) {
     console.error('member-income-history failed:', error instanceof Error ? error.message : error);
