@@ -3,9 +3,34 @@ import { getFirestoreAdmin, verifyFirebaseIdToken, getMaintenanceState } from '.
 import { createSessionToken, sessionCookie } from '../../api/_lib/session.js';
 import { sendWelcomeEmail } from '../../api/_lib/email.js';
 import { syncMemberToNeon } from '../../api/_lib/syncMemberToNeon.js';
-import { getPool } from '../../api/_lib/db.js';
+import { getPool, withTransaction } from '../../api/_lib/db.js';
 
 function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(body));}
+
+const SIGNUP_BONUS_USDT = 0.50;
+async function creditSignupBonus(uid, email) {
+  return await withTransaction(async (client) => {
+    const inserted = await client.query(
+      `INSERT INTO ledger_transactions
+        (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
+       VALUES ($1,$2,'joining_bonus','income_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb)
+       ON CONFLICT (id) DO NOTHING RETURNING id`,
+      [`SIGNUP-BONUS-${uid}`, uid, SIGNUP_BONUS_USDT, 'New member registration bonus', `SIGNUP-BONUS-${uid}`, JSON.stringify({ asset:'USDT', source:'registration', bonusAmount:SIGNUP_BONUS_USDT })],
+    );
+    if (!inserted.rowCount) return { credited:false, amount:0 };
+    await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [uid]);
+    await client.query(
+      'UPDATE wallets SET income_wallet=income_wallet+$2,total_income=total_income+$2,updated_at=NOW() WHERE user_id=$1',
+      [uid, SIGNUP_BONUS_USDT],
+    );
+    await client.query(
+      `INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+       VALUES($1,$2,$3,'SIGNUP_BONUS_CREDITED','ledger',$4,$5::jsonb)`,
+      [crypto.randomUUID(), uid, email, `SIGNUP-BONUS-${uid}`, JSON.stringify({ amount:SIGNUP_BONUS_USDT, asset:'USDT' })],
+    );
+    return { credited:true, amount:SIGNUP_BONUS_USDT };
+  });
+}
 function safeSponsor(value){const v=String(value||'').trim().toUpperCase();return /^GF\d{6}$/.test(v)?v:'';}
 const SUB_ADMIN_UID='cqXqrEvo5UN2wD1qtxdO11JpJIK2';
 const SUB_ADMIN_EMAIL='global@gf.online';
@@ -166,7 +191,7 @@ export default async function handler(req,res){
       const issuedNumber=Number(code.slice(2));
       registrationTransactionPassword=generateTransactionPassword();
       const profile={uid,email,name:requestedName,referralCode:code,memberId:code,sponsorId,sponsorName,role:configuredAdminEmails.includes(email)?'admin':(isConfiguredSubAdmin(uid,email)?'sub_admin':'user'),
-        status:'active',kycStatus:configuredAdminEmails.includes(email)?'verified':'unverified',phone,country,rankCode:'MEMBER',
+        status:'active',referralStatus:staffAccount?'active':'inactive',kycStatus:configuredAdminEmails.includes(email)?'verified':'unverified',phone,country,rankCode:'MEMBER',
         transactionPasswordHash:hashTransactionPassword(registrationTransactionPassword),
         transactionPasswordCreatedAt:now,createdAt:now,updatedAt:now,storage:'firestore'};
       const staffAccount=isConfiguredSubAdmin(uid,email);
@@ -216,6 +241,14 @@ export default async function handler(req,res){
     }
     // Admin/network pages and financial APIs read Neon; wallet rows are created only when missing.
     await syncMemberToNeon(result.profile, result.wallet);
+    if(result.isNewRegistration && result.profile.role==='user'){
+      try {
+        await creditSignupBonus(uid, email);
+      } catch(error) {
+        // Registration remains valid; the deterministic ledger ID makes safe retries possible.
+        console.error('Signup bonus credit failed:',error instanceof Error?error.message:error);
+      }
+    }
     if(result.isNewRegistration&&registrationEmail){
       try{await sendWelcomeEmail(registrationEmail);}
       catch(error){console.error('Welcome email failed:',error instanceof Error?error.message:error);}

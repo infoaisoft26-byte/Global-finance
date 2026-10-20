@@ -10,10 +10,11 @@ export async function syncMemberToNeon(profile, wallet = {}) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_status VARCHAR(16) NOT NULL DEFAULT 'active'`);
     await client.query(
       `INSERT INTO users
-        (id, email, name, phone, referral_code, sponsor_id, role, status, kyc_status, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE($10::timestamptz,NOW()),NOW())
+        (id, email, name, phone, referral_code, sponsor_id, role, status, referral_status, kyc_status, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11::timestamptz,NOW()),NOW())
        ON CONFLICT (id) DO UPDATE SET
          email=EXCLUDED.email,
          name=EXCLUDED.name,
@@ -32,6 +33,7 @@ export async function syncMemberToNeon(profile, wallet = {}) {
         profile.sponsorId || null,
         profile.role || 'user',
         profile.status || 'active',
+        profile.referralStatus || 'active',
         profile.kycStatus || 'unverified',
         profile.createdAt?.toDate?.()?.toISOString?.() || profile.createdAt || null,
       ],
