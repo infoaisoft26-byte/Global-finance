@@ -98,9 +98,9 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
 
   const config = incomeConfigs[page] || incomeConfigs['basic-roi']!;
 
-  const loadIncomeRecords = async () => {
+  const loadIncomeRecords = async (showSpinner = true) => {
     if (!profile) return;
-    setLoading(true);
+    if (showSpinner) setLoading(true);
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error('Authentication required');
@@ -116,7 +116,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
@@ -124,7 +124,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     loadIncomeRecords();
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
-        loadIncomeRecords();
+        loadIncomeRecords(false);
         refreshWallet();
       }
     }, 60000);
