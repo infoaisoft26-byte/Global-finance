@@ -30,8 +30,7 @@ export default async function handler(req, res) {
               description, reference_id, status, metadata, created_at
          FROM ledger_transactions
         WHERE user_id = $1 AND category = 'income_wallet'
-        ORDER BY created_at DESC
-        LIMIT 1000`,
+        ORDER BY created_at DESC`,
       [uid],
     );
     const records = new Map();
@@ -57,7 +56,7 @@ export default async function handler(req, res) {
     // Include legacy Firebase ledger rows too, without duplicating IDs already mirrored to Neon.
     try {
       const snap = await getFirestoreAdmin().collection('transactions')
-        .where('userId', '==', uid).limit(1000).get();
+        .where('userId', '==', uid).get();
       for (const doc of snap.docs) {
         const raw = doc.data() || {};
         if (String(raw.category || '') !== 'income_wallet') continue;
@@ -86,7 +85,7 @@ export default async function handler(req, res) {
 
     const transactions = [...records.values()]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 1000);
+      ;
     return json(res, 200, { transactions, source: 'recorded_ledgers', count: transactions.length });
   } catch (error) {
     console.error('member-income-history failed:', error instanceof Error ? error.message : error);
