@@ -91,7 +91,7 @@ export default async function handler(req,res) {
     const actor=await requireAdmin(req);
     const pool=getPool();
     const mode=String(req.query?.mode||'network');
-    if(actor.role==='sub_admin' && mode!=='dashboard-metrics') return json(res,403,{error:'This staff account cannot access financial reports or wallet-level data'});
+    if(actor.role==='sub_admin' && !['dashboard-metrics','finance-report','network'].includes(mode)) return json(res,403,{error:'This staff account cannot access this report'});
     return json(res,200,mode==='finance-report'?await financeReport(pool):mode==='dashboard-metrics'?await dashboardMetrics(pool):await networkReport(pool));
   } catch (error) {
     if (String(error?.message)==='ADMIN_REQUIRED') return json(res,403,{error:'Admin access required'});
