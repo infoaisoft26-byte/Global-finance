@@ -114,8 +114,9 @@ const MainLayout: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isAdminEntry && isAdmin && (window.location.pathname === '/admin' || window.location.pathname === '/admin/')) {
-      setActivePage('admin-dashboard');
+    if (isAdminEntry && isAdmin) {
+      // Always honor the requested admin section, including query-based routes.
+      setActivePage(adminPageFromPath(window.location.pathname, window.location.search));
     }
   }, [isAdminEntry, isAdmin]);
 
