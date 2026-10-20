@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, TrendingUp, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { getTransactions } from '../../services/financeService.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionLedger } from '../../types/index.ts';
 import { auth } from '../../lib/firebase.ts';
@@ -46,6 +45,10 @@ export const IncomeWalletSummary: React.FC = () => {
     await refreshWallet();
     await loadData();
   };
+
+  const completedEntries = transactions.filter((item) => ['completed', 'approved', 'credited'].includes(String(item.status).toLowerCase()));
+  const totalCredits = completedEntries.filter((item) => item.flow === 'credit').reduce((sum, item) => sum + Number(item.netAmount || item.amount || 0), 0);
+  const totalDebits = completedEntries.filter((item) => item.flow === 'debit').reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   const columns: Column<TransactionLedger>[] = [
     {
@@ -134,6 +137,17 @@ export const IncomeWalletSummary: React.FC = () => {
           <div className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono tabular-nums">
             USDT {(wallet?.incomeWallet || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
           </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="p-4 rounded-xl bg-[#091129] border border-emerald-500/25">
+          <div className="text-xs text-slate-400">Actual Completed Credits</div>
+          <div className="mt-2 text-xl font-bold font-mono text-emerald-400">USDT {totalCredits.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129] border border-rose-500/25">
+          <div className="text-xs text-slate-400">Actual Completed Debits</div>
+          <div className="mt-2 text-xl font-bold font-mono text-rose-400">USDT {totalDebits.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</div>
         </div>
       </div>
 
