@@ -67,7 +67,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     'offer-poster': 'admin-offer-poster',
   };
   if (requested && queryRoutes[requested]) return queryRoutes[requested];
-  const normalizedPath = pathname.replace(/\\/+$/, '') || '/admin';
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/admin';
   const slug = normalizedPath.startsWith('/admin/') ? normalizedPath.slice('/admin/'.length).split('/')[0] : '';
   return queryRoutes[slug] || 'admin-dashboard';
 };
