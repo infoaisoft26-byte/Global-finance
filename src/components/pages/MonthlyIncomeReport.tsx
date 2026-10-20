@@ -1,188 +1,85 @@
-import React, { useState, useEffect } from 'react';
-import { FileBarChart2, Calendar, TrendingUp, RefreshCw } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { getTransactions } from '../../services/financeService.ts';
+import { auth } from '../../lib/firebase.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
-import type { TransactionLedger } from '../../types/index.ts';
 
 interface MonthlyAggregate {
-  id: string;
-  monthYear: string;
-  basicRoi: number;
-  fdRoi: number;
-  referral: number;
-  level: number;
-  salary: number;
-  grossEarnings: number;
+  id: string; monthYear: string; roiIncome: number; referralIncome: number; levelIncome: number;
+  salaryIncome: number; registrationBonus: number; otherIncome: number; grossEarnings: number;
 }
-
+const money = (v: number) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+const completed = (t: any) => ['completed','approved','credited'].includes(String(t.status || '').toLowerCase());
+const typeOf = (t: any) => String(t.type || '').toLowerCase();
+const isRoi = (t: any) => /(^|_)(roi|daily_roi)(_|$)/.test(typeOf(t)) || typeOf(t) === 'roi_daily';
+const isReferral = (t: any) => /referral/.test(typeOf(t)) || typeOf(t) === 'direct_referral';
+const isLevel = (t: any) => /level/.test(typeOf(t)) || typeOf(t) === 'rd_level';
+const isSalary = (t: any) => typeOf(t) === 'salary';
+const isBonus = (t: any) => ['joining_bonus','registration_bonus','signup_bonus'].includes(typeOf(t));
 export const MonthlyIncomeReport: React.FC = () => {
-  const { profile, wallet } = useAuth();
+  const { profile, user, refreshWallet } = useAuth();
   const [monthlyData, setMonthlyData] = useState<MonthlyAggregate[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const loadMonthlyReport = async () => {
-    if (!profile) return;
-    setLoading(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const loadMonthlyReport = useCallback(async (showSpinner = true) => {
+    if (!profile || !user) return;
+    if (showSpinner) setLoading(true);
     try {
-      const txns = await getTransactions(profile.uid, 'income_wallet');
+      const token = await (auth.currentUser || user).getIdToken();
+      const response = await fetch('/api/member-income-history', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload.transactions)) throw new Error(payload.error || 'Unable to load recorded income ledger');
       const groups: Record<string, MonthlyAggregate> = {};
-
-      const currentMonthStr = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-      groups[currentMonthStr] = {
-        id: currentMonthStr,
-        monthYear: currentMonthStr,
-        basicRoi: wallet?.totalRoiIncome || 0,
-        fdRoi: wallet?.fdTotalRoiIncome || 0,
-        referral: (wallet?.referralIncome || 0) + (wallet?.fdReferralIncome || 0),
-        level: (wallet?.totalLevelIncome || 0) + (wallet?.fdTotalLevelIncome || 0),
-        salary: wallet?.totalSalary || 0,
-        grossEarnings: (wallet?.totalIncome || 0)
-      };
-
-      for (const t of txns) {
-        if (t.flow === 'credit') {
-          const mStr = new Date(t.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-          if (!groups[mStr]) {
-            groups[mStr] = {
-              id: mStr,
-              monthYear: mStr,
-              basicRoi: 0,
-              fdRoi: 0,
-              referral: 0,
-              level: 0,
-              salary: 0,
-              grossEarnings: 0
-            };
-          }
-          if (t.type === 'basic_roi') groups[mStr].basicRoi += t.amount;
-          else if (t.type === 'fd_roi') groups[mStr].fdRoi += t.amount;
-          else if (t.type === 'basic_referral' || t.type === 'fd_referral') groups[mStr].referral += t.amount;
-          else if (t.type === 'basic_level' || t.type === 'fd_level' || t.type === 'rd_level') groups[mStr].level += t.amount;
-          else if (t.type === 'salary') groups[mStr].salary += t.amount;
-
-          groups[mStr].grossEarnings += t.amount;
-        }
+      for (const t of payload.transactions) {
+        if (t.flow !== 'credit' || !completed(t)) continue;
+        const date = new Date(t.createdAt);
+        if (Number.isNaN(date.getTime())) continue;
+        const key = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata', month: '2-digit', year: 'numeric' });
+        const label = date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'long', year: 'numeric' });
+        if (!groups[key]) groups[key] = { id: key, monthYear: label, roiIncome: 0, referralIncome: 0, levelIncome: 0, salaryIncome: 0, registrationBonus: 0, otherIncome: 0, grossEarnings: 0 };
+        const amount = Number(t.netAmount ?? t.amount ?? 0);
+        if (!Number.isFinite(amount)) continue;
+        if (isRoi(t)) groups[key].roiIncome += amount;
+        else if (isReferral(t)) groups[key].referralIncome += amount;
+        else if (isLevel(t)) groups[key].levelIncome += amount;
+        else if (isSalary(t)) groups[key].salaryIncome += amount;
+        else if (isBonus(t)) groups[key].registrationBonus += amount;
+        else groups[key].otherIncome += amount;
+        groups[key].grossEarnings += amount;
       }
-
-      setMonthlyData(Object.values(groups));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+      setMonthlyData(Object.values(groups).sort((a,b) => b.id.localeCompare(a.id)));
+      setLastSync(new Date());
+    } catch (err) { console.error('Monthly income report load failed:', err); }
+    finally { if (showSpinner) setLoading(false); }
+  }, [profile?.uid, user?.uid]);
   useEffect(() => {
-    loadMonthlyReport();
-  }, [profile?.uid, wallet]);
-
+    let cancelled = false; let inFlight = false;
+    const refresh = async (spinner = false) => {
+      if (cancelled || inFlight || document.visibilityState !== 'visible') return;
+      inFlight = true;
+      try { await loadMonthlyReport(spinner); await refreshWallet(); } finally { inFlight = false; }
+    };
+    void refresh(true);
+    const timer = window.setInterval(() => { void refresh(false); }, 60000);
+    const visible = () => { if (document.visibilityState === 'visible') void refresh(false); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+  }, [loadMonthlyReport, refreshWallet]);
   const columns: Column<MonthlyAggregate>[] = [
-    {
-      key: 'monthYear',
-      header: 'Month & Year',
-      render: (item) => (
-        <span className="text-xs text-white font-mono font-semibold">
-          {item.monthYear}
-        </span>
-      )
-    },
-    {
-      key: 'basicRoi',
-      header: 'Basic ROI Total',
-      render: (item) => (
-        <span className="font-mono text-xs text-cyan-300">
-          USDT {item.basicRoi.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
-        </span>
-      )
-    },
-    {
-      key: 'fdRoi',
-      header: 'FD ROI Total',
-      render: (item) => (
-        <span className="font-mono text-xs text-amber-300">
-          USDT {item.fdRoi.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
-        </span>
-      )
-    },
-    {
-      key: 'referral',
-      header: 'Referral Direct Income',
-      render: (item) => (
-        <span className="font-mono text-xs text-emerald-300">
-          USDT {item.referral.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
-        </span>
-      )
-    },
-    {
-      key: 'level',
-      header: 'Level Generations',
-      render: (item) => (
-        <span className="font-mono text-xs text-teal-300">
-          USDT {item.level.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
-        </span>
-      )
-    },
-    {
-      key: 'salary',
-      header: 'Monthly Salary',
-      render: (item) => (
-        <span className="font-mono text-xs text-rose-300">
-          USDT {item.salary.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
-        </span>
-      )
-    },
-    {
-      key: 'grossEarnings',
-      header: 'Gross Monthly Earnings',
-      render: (item) => (
-        <span className="font-mono text-xs font-bold text-white bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-500/30">
-          USDT {item.grossEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
-        </span>
-      )
-    }
+    { key:'monthYear', header:'Month & Year' },
+    { key:'roiIncome', header:'ROI Income (USDT)', render:item => money(item.roiIncome) },
+    { key:'referralIncome', header:'Referral Income (USDT)', render:item => money(item.referralIncome) },
+    { key:'levelIncome', header:'Level Income (USDT)', render:item => money(item.levelIncome) },
+    { key:'salaryIncome', header:'Salary (USDT)', render:item => money(item.salaryIncome) },
+    { key:'registrationBonus', header:'Registration Bonus (USDT)', render:item => money(item.registrationBonus) },
+    { key:'otherIncome', header:'Other Income (USDT)', render:item => money(item.otherIncome) },
+    { key:'grossEarnings', header:'Total Credited (USDT)', render:item => <span className="font-bold text-emerald-300">{money(item.grossEarnings)}</span> }
   ];
-
-  return (
-    <div className="space-y-6">
-      <div className="p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-            Financial Statements
-          </span>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight mt-0.5">
-            Monthly Income Report
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Comprehensive calendar month aggregates and gross earnings statements.
-          </p>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[#0e173a] border border-blue-500/30 text-right">
-          <span className="text-xs text-slate-400">Cumulative Income</span>
-          <div className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono tabular-nums">
-            USDT {(wallet?.totalIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
-            Monthly Aggregate Statement
-          </h3>
-          <span className="text-xs text-slate-500">Monthly fiscal statements</span>
-        </div>
-
-        <DataTable
-          title="Monthly Income Report"
-          columns={columns}
-          data={monthlyData}
-          onRefresh={loadMonthlyReport}
-          isLoading={loading}
-          emptyMessage="No monthly income aggregates found."
-        />
-      </div>
+  const recordedTotal = monthlyData.reduce((sum, month) => sum + month.grossEarnings, 0);
+  return <div className="space-y-6">
+    <div className="p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div><h2 className="text-2xl font-extrabold text-white">Monthly Income Report</h2><p className="text-sm text-slate-400 mt-1">Calendar-month aggregates from actual completed income-wallet ledger credits. Cumulative wallet counters are not mixed into monthly totals.</p>{lastSync && <p className="text-[10px] text-cyan-400 mt-1">Last sync: {lastSync.toLocaleString('en-IN')}</p>}</div>
+      <div className="text-right"><div className="text-xs text-slate-400">Recorded Income (USDT)</div><div className="text-2xl font-bold text-emerald-400">{money(recordedTotal)}</div></div>
     </div>
-  );
+    <DataTable title="Monthly Income Report" columns={columns} data={monthlyData} onRefresh={() => loadMonthlyReport(true)} isLoading={loading} emptyMessage="No completed income credits have been recorded yet." />
+  </div>;
 };
