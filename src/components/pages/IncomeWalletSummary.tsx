@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext.tsx';
 import { getTransactions } from '../../services/financeService.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionLedger } from '../../types/index.ts';
+import { auth } from '../../lib/firebase.ts';
 
 const displayUsdtText = (value: unknown) => String(value ?? '').replace(/₹/g, 'USDT ').replace(/\bINR\b/gi, 'USDT');
 
@@ -16,8 +17,20 @@ export const IncomeWalletSummary: React.FC = () => {
     if (!profile) return;
     setLoading(true);
     try {
-      const data = await getTransactions(profile.uid, 'income_wallet');
-      setTransactions(data);
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Authentication required');
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/member-income-history', {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store'
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload.transactions)) {
+        throw new Error(payload.error || 'Unable to load income history');
+      }
+      setTransactions(payload.transactions as TransactionLedger[]);
     } catch (err) {
       console.error(err);
     } finally {
@@ -58,10 +71,10 @@ export const IncomeWalletSummary: React.FC = () => {
     },
     {
       key: 'type',
-      header: 'Category',
+      header: 'Income Type',
       render: (item) => (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-          {item.type.replace('_', ' ')}
+          {String(item.type) === 'joining_bonus' ? 'Registration Bonus' : String(item.type || 'other income').replace(/_/g, ' ')}
         </span>
       )
     },
@@ -89,11 +102,15 @@ export const IncomeWalletSummary: React.FC = () => {
     {
       key: 'status',
       header: 'Ledger Status',
-      render: (item) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          RECORDED
-        </span>
-      )
+      render: (item) => {
+        const status = String(item.status || 'unknown').toUpperCase();
+        const complete = ['COMPLETED', 'APPROVED', 'CREDITED'].includes(status);
+        return (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${complete ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border-amber-500/20'}`}>
+            {status}
+          </span>
+        );
+      }
     }
   ];
 
@@ -105,10 +122,10 @@ export const IncomeWalletSummary: React.FC = () => {
             Wallet Auditing
           </span>
           <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight mt-0.5">
-            Income Wallet Summary
+            Income History
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Complete transaction ledger for all credited commissions, withdrawals, and balance conversions.
+            All actual Income Wallet ledger entries: registration bonus, ROI, referral, level, salary, transfers and other recorded credits/debits.
           </p>
         </div>
 
@@ -123,7 +140,7 @@ export const IncomeWalletSummary: React.FC = () => {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
-            Income Wallet Ledger Entries
+            Complete Income History
           </h3>
           <span className="text-xs text-slate-500">Immutable ledger trail</span>
         </div>
@@ -134,7 +151,7 @@ export const IncomeWalletSummary: React.FC = () => {
           data={transactions}
           onRefresh={handleRefresh}
           isLoading={loading}
-          emptyMessage="No Income Wallet entries found."
+          emptyMessage="No actual Income Wallet ledger entries have been recorded yet."
         />
       </div>
     </div>
