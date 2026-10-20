@@ -87,11 +87,14 @@ const MainLayout: React.FC = () => {
   const [publicMaintenance, setPublicMaintenance] = useState<{maintenanceMode:boolean;message?:string}>({ maintenanceMode: false });
 
   const navigateToPage = (page: ActivePage) => {
-    setActivePage(page);
-    if (typeof window !== 'undefined') {
-      const nextPath = adminPathForPage(page);
-      if (nextPath && window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
+    const nextPath = adminPathForPage(page);
+    // Force a real navigation for admin sections so the selected report is
+    // resolved from the URL on a fresh app mount, not stale in-memory state.
+    if (typeof window !== 'undefined' && nextPath && window.location.pathname !== nextPath) {
+      window.location.assign(nextPath);
+      return;
     }
+    setActivePage(page);
   };
 
   useEffect(() => {
