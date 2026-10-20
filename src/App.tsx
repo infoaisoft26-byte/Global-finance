@@ -47,10 +47,39 @@ import { getSystemSettings } from './services/settingsService.ts';
 import type { ActivePage, SystemSettings } from './types/index.ts';
 import { ShieldCheck, RefreshCw, ShieldAlert, LogOut, AlertTriangle, Wrench } from 'lucide-react';
 
+const adminPageFromPath = (pathname: string): ActivePage => {
+  const slug = pathname.replace(/^\\/admin\\/?/, '').split('/')[0];
+  const routes: Record<string, ActivePage> = {
+    '': 'admin-dashboard',
+    'p2p-report': 'admin-p2p-report',
+    'transactions': 'admin-transactions',
+    'users': 'admin-users',
+    'user-detail': 'admin-user-detail',
+    'kyc': 'admin-kyc',
+    'tickets': 'admin-tickets',
+    'reports': 'admin-reports',
+    'packages': 'admin-packages',
+    'package-activations': 'admin-package-activations',
+    'usdt-recharge': 'admin-usdt-recharge',
+    'audit': 'admin-audit',
+    'settings': 'admin-settings',
+    'offer-poster': 'admin-offer-poster',
+  };
+  return routes[slug] || 'admin-dashboard';
+};
+
+const adminPathForPage = (page: ActivePage): string | null => {
+  if (page === 'admin-dashboard') return '/admin';
+  if (page === 'admin-user-detail') return null;
+  if (!page.startsWith('admin-')) return null;
+  const slug = page === 'admin-p2p-report' ? 'p2p-report' : page.slice('admin-'.length);
+  return `/admin/${slug}`;
+};
+
 const MainLayout: React.FC = () => {
   const { user, loading, isAdmin, isSuspended, logout } = useAuth();
   const isAdminEntry = typeof window !== 'undefined' && (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/'));
-  const [activePage, setActivePage] = useState<ActivePage>(() => isAdminEntry ? 'admin-dashboard' : 'dashboard');
+  const [activePage, setActivePage] = useState<ActivePage>(() => isAdminEntry ? adminPageFromPath(window.location.pathname) : 'dashboard');
   const [selectedAdminUserId, setSelectedAdminUserId] = useState<string>('');
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
@@ -231,7 +260,7 @@ const MainLayout: React.FC = () => {
       case 'support-tickets':
         return <SupportTickets />;
       case 'admin-dashboard':
-        return <AdminDashboard onNavigate={setActivePage} />;
+        return <AdminDashboard onNavigate={navigateToPage} />;
       case 'admin-transactions':
         return <AdminTransactions />;
       case 'admin-p2p-report':
