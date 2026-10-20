@@ -81,7 +81,21 @@ function welcomeHtml({ name, memberId, email, transactionPassword }) {
 </html>`;
 }
 
+function normalizeRecipient(value) {
+  const raw = String(value ?? '').trim();
+  const angleAddress = raw.match(/<\s*([^<>\s]+@[^<>\s]+)\s*>/);
+  const candidate = (angleAddress ? angleAddress[1] : raw).trim().replace(/[\r\n]/g, '');
+  if (!/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(candidate)) return '';
+  return candidate.toLowerCase();
+}
+
 export async function sendWelcomeEmail({ to, name, memberId, transactionPassword }) {
+  const recipient = normalizeRecipient(to);
+  if (!recipient) {
+    console.warn('Welcome email skipped: registration recipient is missing or invalid.');
+    return { sent: false, skipped: true, reason: 'invalid_recipient' };
+  }
+
   const apiKey = String(process.env.RESEND_API_KEY || '').trim();
   const from = String(process.env.EMAIL_FROM || '').trim();
   if (!apiKey || !from) {
@@ -98,9 +112,9 @@ export async function sendWelcomeEmail({ to, name, memberId, transactionPassword
     },
     body: JSON.stringify({
       from,
-      to: [to],
+      to: [recipient],
       subject: `Welcome to ${brand} - Account Registration Successful`,
-      html: welcomeHtml({ name, memberId, email: to, transactionPassword }),
+      html: welcomeHtml({ name, memberId, email: recipient, transactionPassword }),
     }),
   });
 
