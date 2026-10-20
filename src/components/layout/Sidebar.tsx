@@ -312,7 +312,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {openSections.income && (
               <div className="pl-6 pt-1 space-y-1">
                 <button
-                  onClick={() => handleNav('basic-roi')}
+                  onClick={() => handleNav('income-history')}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors ${
+                    activePage === 'income-history'
+                      ? 'bg-blue-600/30 text-cyan-300 font-semibold border-l-2 border-cyan-400'
+                      : 'hover:bg-[#0e1635] text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>Income History (All)</span>
+                </button>
+                <button
+                  onClick={() => handleNav('basic-roi')
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors ${
                     activePage === 'basic-roi'
                       ? 'bg-blue-600/30 text-cyan-300 font-semibold border-l-2 border-cyan-400'
