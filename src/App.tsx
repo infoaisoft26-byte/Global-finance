@@ -232,7 +232,8 @@ const MainLayout: React.FC = () => {
   }
 
   const renderContent = () => {
-    const isAdminRoute = activePage.startsWith('admin-');
+    const resolvedPage = isAdminEntry ? adminPageFromPath(window.location.pathname, window.location.search) : activePage;
+    const isAdminRoute = resolvedPage.startsWith('admin-');
     if (isAdminRoute && !isAdmin) {
       return (
         <div className="p-8 rounded-2xl bg-[#091129] border border-rose-500/30 text-center space-y-3">
@@ -243,7 +244,7 @@ const MainLayout: React.FC = () => {
       );
     }
 
-    switch (activePage) {
+    switch (resolvedPage) {
       case 'dashboard':
         return <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
       case 'recharge':
