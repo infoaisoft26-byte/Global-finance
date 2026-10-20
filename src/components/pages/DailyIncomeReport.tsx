@@ -1,168 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import { FileBarChart2, Calendar, TrendingUp, RefreshCw } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { getTransactions } from '../../services/financeService.ts';
+import { auth } from '../../lib/firebase.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
-import type { TransactionLedger } from '../../types/index.ts';
 
 interface DailyAggregate {
-  id: string;
-  date: string;
-  roiIncome: number;
-  levelIncome: number;
-  referralIncome: number;
-  salaryIncome: number;
-  totalIncome: number;
+  id: string; date: string; roiIncome: number; referralIncome: number; levelIncome: number;
+  salaryIncome: number; registrationBonus: number; otherIncome: number; totalIncome: number;
 }
-
+const money = (v: number) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+const completed = (t: any) => ['completed','approved','credited'].includes(String(t.status || '').toLowerCase());
+const typeOf = (t: any) => String(t.type || '').toLowerCase();
+const isRoi = (t: any) => /(^|_)(roi|daily_roi)(_|$)/.test(typeOf(t)) || typeOf(t) === 'roi_daily';
+const isReferral = (t: any) => /referral/.test(typeOf(t)) || typeOf(t) === 'direct_referral';
+const isLevel = (t: any) => /level/.test(typeOf(t)) || typeOf(t) === 'rd_level';
+const isSalary = (t: any) => typeOf(t) === 'salary';
+const isBonus = (t: any) => ['joining_bonus','registration_bonus','signup_bonus'].includes(typeOf(t));
 export const DailyIncomeReport: React.FC = () => {
-  const { profile, wallet } = useAuth();
+  const { profile, user, wallet, refreshWallet } = useAuth();
   const [dailyData, setDailyData] = useState<DailyAggregate[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const loadDailyReport = async () => {
-    if (!profile) return;
-    setLoading(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const loadDailyReport = useCallback(async (showSpinner = true) => {
+    if (!profile || !user) return;
+    if (showSpinner) setLoading(true);
     try {
-      const txns = await getTransactions(profile.uid, 'income_wallet');
+      const token = await (auth.currentUser || user).getIdToken();
+      const response = await fetch('/api/member-income-history', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload.transactions)) throw new Error(payload.error || 'Unable to load recorded income ledger');
       const groups: Record<string, DailyAggregate> = {};
-
-      for (const t of txns) {
-        if (t.flow === 'credit') {
-          const dStr = new Date(t.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' });
-          if (!groups[dStr]) {
-            groups[dStr] = {
-              id: dStr,
-              date: dStr,
-              roiIncome: 0,
-              levelIncome: 0,
-              referralIncome: 0,
-              salaryIncome: 0,
-              totalIncome: 0
-            };
-          }
-          if (t.type === 'basic_roi' || t.type === 'fd_roi') {
-            groups[dStr].roiIncome += t.amount;
-          } else if (t.type === 'basic_level' || t.type === 'fd_level' || t.type === 'rd_level') {
-            groups[dStr].levelIncome += t.amount;
-          } else if (t.type === 'basic_referral' || t.type === 'fd_referral') {
-            groups[dStr].referralIncome += t.amount;
-          } else if (t.type === 'salary') {
-            groups[dStr].salaryIncome += t.amount;
-          }
-          if (t.type !== 'salary') groups[dStr].totalIncome += t.amount;
-        }
+      for (const t of payload.transactions) {
+        if (t.flow !== 'credit' || !completed(t)) continue;
+        const date = new Date(t.createdAt);
+        if (Number.isNaN(date.getTime())) continue;
+        const key = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        if (!groups[key]) groups[key] = { id: key, date: new Date(`${key}T00:00:00+05:30`).toLocaleDateString('en-IN', { dateStyle: 'medium', timeZone: 'Asia/Kolkata' }), roiIncome: 0, referralIncome: 0, levelIncome: 0, salaryIncome: 0, registrationBonus: 0, otherIncome: 0, totalIncome: 0 };
+        const amount = Number(t.netAmount ?? t.amount ?? 0);
+        if (!Number.isFinite(amount)) continue;
+        if (isRoi(t)) groups[key].roiIncome += amount;
+        else if (isReferral(t)) groups[key].referralIncome += amount;
+        else if (isLevel(t)) groups[key].levelIncome += amount;
+        else if (isSalary(t)) groups[key].salaryIncome += amount;
+        else if (isBonus(t)) groups[key].registrationBonus += amount;
+        else groups[key].otherIncome += amount;
+        groups[key].totalIncome += amount;
       }
-
-      setDailyData(Object.values(groups));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+      setDailyData(Object.values(groups).sort((a,b) => b.id.localeCompare(a.id)));
+      setLastSync(new Date());
+    } catch (err) { console.error('Daily income report load failed:', err); }
+    finally { if (showSpinner) setLoading(false); }
+  }, [profile?.uid, user?.uid]);
   useEffect(() => {
-    loadDailyReport();
-  }, [profile?.uid, wallet]);
-
+    let cancelled = false; let inFlight = false;
+    const refresh = async (spinner = false) => {
+      if (cancelled || inFlight || document.visibilityState !== 'visible') return;
+      inFlight = true;
+      try { await loadDailyReport(spinner); await refreshWallet(); } finally { inFlight = false; }
+    };
+    void refresh(true);
+    const timer = window.setInterval(() => { void refresh(false); }, 60000);
+    const visible = () => { if (document.visibilityState === 'visible') void refresh(false); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+  }, [loadDailyReport, refreshWallet]);
   const columns: Column<DailyAggregate>[] = [
-    {
-      key: 'date',
-      header: 'Report Date',
-      render: (item) => (
-        <span className="text-xs text-white font-mono font-semibold">
-          {item.date}
-        </span>
-      )
-    },
-    {
-      key: 'roiIncome',
-      header: 'Total ROI Income',
-      render: (item) => (
-        <span className="font-mono text-xs text-cyan-300">
-          USDT {item.roiIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
-        </span>
-      )
-    },
-    {
-      key: 'levelIncome',
-      header: 'Total Level Income',
-      render: (item) => (
-        <span className="font-mono text-xs text-teal-300">
-          USDT {item.levelIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
-        </span>
-      )
-    },
-    {
-      key: 'referralIncome',
-      header: 'Referral Direct Income',
-      render: (item) => (
-        <span className="font-mono text-xs text-emerald-300">
-          USDT {item.referralIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
-        </span>
-      )
-    },
-    {
-      key: 'salaryIncome',
-      header: 'Salary Bonus',
-      render: (item) => (
-        <span className="font-mono text-xs text-rose-300">
-          USDT {item.salaryIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}
-        </span>
-      )
-    },
-    {
-      key: 'totalIncome',
-      header: 'Total Day Income',
-      render: (item) => (
-        <span className="font-mono text-xs font-bold text-white bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/30">
-          USDT {item.totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
-        </span>
-      )
-    }
+    { key:'date', header:'Report Date' },
+    { key:'roiIncome', header:'ROI Income (USDT)', render:item => money(item.roiIncome) },
+    { key:'referralIncome', header:'Referral Income (USDT)', render:item => money(item.referralIncome) },
+    { key:'levelIncome', header:'Level Income (USDT)', render:item => money(item.levelIncome) },
+    { key:'salaryIncome', header:'Salary (USDT)', render:item => money(item.salaryIncome) },
+    { key:'registrationBonus', header:'Registration Bonus (USDT)', render:item => money(item.registrationBonus) },
+    { key:'otherIncome', header:'Other Income (USDT)', render:item => money(item.otherIncome) },
+    { key:'totalIncome', header:'Total Credited (USDT)', render:item => <span className="font-bold text-emerald-300">{money(item.totalIncome)}</span> }
   ];
-
-  return (
-    <div className="space-y-6">
-      <div className="p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-            Financial Statements
-          </span>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight mt-0.5">
-            Daily Income Report
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Daily ROI, referral and level income are recorded from the live ledger. Level income is calculated on ROI income, not invested amount, with 1 active referral required at each level.
-          </p>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[#0e173a] border border-blue-500/30 text-right">
-          <span className="text-xs text-slate-400">Total Income</span>
-          <div className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono tabular-nums">
-USDT {Number((wallet?.totalIncome || 0) - (wallet?.totalSalary || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
-            Daily Breakdown Ledger
-          </h3>
-          <span className="text-xs text-slate-500">Day-level ledger aggregations</span>
-        </div>
-
-        <DataTable
-          title="Daily Income Report"
-          columns={columns}
-          data={dailyData}
-          onRefresh={loadDailyReport}
-          isLoading={loading}
-          emptyMessage="No daily income entries found."
-        />
-      </div>
+  const recordedTotal = dailyData.reduce((sum, day) => sum + day.totalIncome, 0);
+  return <div className="space-y-6">
+    <div className="p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div><h2 className="text-2xl font-extrabold text-white">Daily Income Report</h2><p className="text-sm text-slate-400 mt-1">Daily breakdown from actual completed income-wallet ledger credits only. All values are recorded, not projected.</p>{lastSync && <p className="text-[10px] text-cyan-400 mt-1">Last sync: {lastSync.toLocaleString('en-IN')}</p>}</div>
+      <div className="text-right"><div className="text-xs text-slate-400">Recorded Income (USDT)</div><div className="text-2xl font-bold text-emerald-400">{money(recordedTotal)}</div></div>
     </div>
-  );
+    <DataTable title="Daily Income Report" columns={columns} data={dailyData} onRefresh={() => loadDailyReport(true)} isLoading={loading} emptyMessage="No completed income credits have been recorded yet." />
+  </div>;
 };
