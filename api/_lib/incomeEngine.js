@@ -3,9 +3,29 @@ import { getFirestoreAdmin } from './firebaseAdmin.js';
 
 const MAX_LEVEL = 15;
 
-// Authoritative 15-level referral/level commission schedule.
-const LEVEL_COMMISSION_RATES = Object.freeze({1:7,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:0.5,14:0.5,15:0.5});
-const levelRate = (level) => Number(LEVEL_COMMISSION_RATES[Number(level)] || 0);
+// Default 15-level commission schedule. Admin settings in Firestore override these
+// rates for future eligible transactions; existing ledger entries are never rewritten.
+const DEFAULT_LEVEL_COMMISSION_RATES = Object.freeze({1:5,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:0.5,14:0.5,15:0.5});
+const levelRate = (level, rates = DEFAULT_LEVEL_COMMISSION_RATES) => Number(rates[Number(level)] ?? 0);
+
+async function getLevelCommissionRates() {
+  try {
+    const db = getFirestoreAdmin();
+    const snap = await db.collection('system').doc('settings').get();
+    const stored = snap.exists ? snap.data()?.levelCommissionRates : null;
+    const rates = {};
+    for (let level = 1; level <= MAX_LEVEL; level++) {
+      const value = Number(stored?.[level] ?? DEFAULT_LEVEL_COMMISSION_RATES[level]);
+      rates[level] = Number.isFinite(value) && value >= 0 && value <= 100
+        ? value
+        : DEFAULT_LEVEL_COMMISSION_RATES[level];
+    }
+    return rates;
+  } catch (error) {
+    console.error('Unable to load admin level commission rates; using defaults:', error instanceof Error ? error.message : error);
+    return { ...DEFAULT_LEVEL_COMMISSION_RATES };
+  }
+}
 const money = (v) => Number(Number(v || 0).toFixed(2));
 const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100);
 
@@ -310,6 +330,7 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
 
 export async function applyActivationIncome(client,{activationId,userId,amount,packageName,packageType='basic'}) {
   await ensureIncomeSchema(client);
+  const rates = await getLevelCommissionRates();
   const activationOrder = await client.query(
     `SELECT COUNT(*)::int AS n
        FROM package_activations a
@@ -331,7 +352,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   for(const u of ups){
     if(u.status!=='active' || u.referral_status==='inactive') continue;
     const level=Number(u.level); let rate=0;
-    rate=levelRate(level);
+    rate=levelRate(level, rates);
     if(rate<=0) continue;
 
     // Daily level income is ROI-based. A member must have at least
@@ -355,6 +376,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
 // Daily level income is calculated only on recorded ROI income, never on invested principal.
 export async function runDailyIncome(client,businessDate) {
   await ensureIncomeSchema(client);
+  const rates = await getLevelCommissionRates();
   const date=businessDate || previousIndiaBusinessDate();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_BUSINESS_DATE');
   // Expired activations must transition out of active status even if a prior daily run was missed.
@@ -390,7 +412,7 @@ export async function runDailyIncome(client,businessDate) {
     const creditedRoiBase=creditedRoi;
     for(const u of await uplines(client,a.user_id)){
       if(u.status!=='active' || u.referral_status==='inactive') continue;
-      const level=Number(u.level), rate=levelRate(level);
+      const level=Number(u.level), rate=levelRate(level, rates);
       if(rate<=0) continue;
 
       // 1:1 level qualification: at least one active member must exist
