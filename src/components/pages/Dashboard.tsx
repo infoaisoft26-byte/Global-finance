@@ -76,7 +76,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     const result = { total: 0, referral: 0, basicReferral: 0, fdReferral: 0, level: 0, roi: 0, salary: 0, bonus: 0, other: 0 };
     for (const t of incomeLedger) {
       if (t.flow !== 'credit' || !['completed','approved','credited'].includes(String(t.status || '').toLowerCase())) continue;
-      const amount = Number(t.netAmount ?? t.amount ?? 0);
+      const amount = Number(t.netAmount || t.amount || 0);
       if (!Number.isFinite(amount)) continue;
       result.total += amount;
       const type = String(t.type || '').toLowerCase();
