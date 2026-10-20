@@ -16,7 +16,7 @@ const isLevel = (t: any) => /level/.test(typeOf(t)) || typeOf(t) === 'rd_level';
 const isSalary = (t: any) => typeOf(t) === 'salary';
 const isBonus = (t: any) => ['joining_bonus','registration_bonus','signup_bonus'].includes(typeOf(t));
 export const DailyIncomeReport: React.FC = () => {
-  const { profile, user, wallet, refreshWallet } = useAuth();
+  const { profile, user, refreshWallet } = useAuth();
   const [dailyData, setDailyData] = useState<DailyAggregate[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
