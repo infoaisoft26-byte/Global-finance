@@ -160,7 +160,7 @@ export default async function handler(req,res){
           await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_status VARCHAR(16) NOT NULL DEFAULT 'active'`);
           const sponsorCap=await pool.query(
             `SELECT referral_status FROM users WHERE id=$1 OR referral_code=$2 LIMIT 1`,
-            [String(sponsor.uid||sponsor.id||sponsorDoc.id),sponsorCode],
+            [String(s.uid||s.id||sponsorDoc.id),sponsorCode],
           );
           const referralStatus=String(sponsorCap.rows[0]?.referral_status||'active').trim().toLowerCase();
           // Login/account status and earning/referral-ID status are separate.
@@ -190,11 +190,11 @@ export default async function handler(req,res){
 
       const issuedNumber=Number(code.slice(2));
       registrationTransactionPassword=generateTransactionPassword();
+      const staffAccount=isConfiguredSubAdmin(uid,email);
       const profile={uid,email,name:requestedName,referralCode:code,memberId:code,sponsorId,sponsorName,role:configuredAdminEmails.includes(email)?'admin':(isConfiguredSubAdmin(uid,email)?'sub_admin':'user'),
         status:'active',referralStatus:staffAccount?'active':'inactive',kycStatus:configuredAdminEmails.includes(email)?'verified':'unverified',phone,country,rankCode:'MEMBER',
         transactionPasswordHash:hashTransactionPassword(registrationTransactionPassword),
         transactionPasswordCreatedAt:now,createdAt:now,updatedAt:now,storage:'firestore'};
-      const staffAccount=isConfiguredSubAdmin(uid,email);
       const wallet={...emptyWallet(uid,now),lockedMaturityPoints:staffAccount?0:150,maturityPointsStatus:staffAccount?'none':'locked',maturityPointsGrantedAt:staffAccount?null:now,maturityPointsReleasedAt:null};
 
       let sponsorWalletRef=null;
