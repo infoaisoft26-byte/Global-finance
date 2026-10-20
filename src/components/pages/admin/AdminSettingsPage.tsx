@@ -44,7 +44,7 @@ export const AdminSettingsPage: React.FC = () => {
         depositNetworkLabel: 'BNB Smart Chain (BEP20)'
       });
       setSettings(updated as ExtendedSettings);
-      setSuccessMsg('USDT BEP20 deposit settings saved. All users will see these same details.');
+      setSuccessMsg('Settings saved. Level 1–15 commission rates apply to future eligible credits; existing ledger entries are unchanged.');
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) { setErrorMsg(err?.message || 'Failed to save settings'); }
     finally { setSaving(false); }
@@ -85,6 +85,45 @@ export const AdminSettingsPage: React.FC = () => {
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-3 text-xs"><div className="flex items-center gap-2 border-b border-blue-500/20 pb-2"><Layers className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase text-cyan-400">Package Visibility</h3></div><div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20"><span className="text-white font-semibold">Basic Package</span><div className="text-emerald-400 mt-1">LIVE / Visible to users</div></div><div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20"><span className="text-white font-semibold">FD Package</span><div className="text-emerald-400 mt-1">LIVE / Visible to users</div></div></div>
           <div className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-3 text-xs"><div className="flex items-center gap-2 border-b border-blue-500/20 pb-2"><ShieldCheck className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase text-cyan-400">Deposit Status</h3></div><div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 flex justify-between"><span>USDT BEP20 Display</span><span className={settings.depositDisplayEnabled !== false ? 'text-emerald-400' : 'text-rose-400'}>{settings.depositDisplayEnabled !== false ? 'VISIBLE' : 'HIDDEN'}</span></div><div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 flex justify-between"><span>Network</span><span className="text-cyan-300">BEP20 ONLY</span></div></div>
+        </section>
+
+        <section className="p-5 rounded-2xl bg-[#091129] border border-cyan-500/30 space-y-4">
+          <div className="flex items-center gap-2 border-b border-cyan-500/20 pb-3">
+            <Layers className="w-4 h-4 text-cyan-400" />
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-300">Level Commission Settings (L1–L15)</h3>
+              <p className="text-xs text-slate-400 mt-1">Percent of eligible joining/re-topup amount or daily ROI, according to the existing income rules. Changes apply to future settlements only.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {Array.from({ length: 15 }, (_, index) => index + 1).map((level) => (
+              <label key={level} className="block text-xs text-slate-300">
+                <span className="block mb-1 font-semibold">Level {level} (%)</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  required
+                  value={Number(settings.levelCommissionRates?.[level] ?? ({1:5,...Object.fromEntries(Array.from({length:11},(_,i)=>[i+2,1])),13:0.5,14:0.5,15:0.5})[level] ?? 0)}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? 0 : Number(e.target.value);
+                    setSettings({
+                      ...settings,
+                      levelCommissionRates: {
+                        ...(settings.levelCommissionRates || {}),
+                        [level]: Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0
+                      }
+                    });
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-cyan-500/30 text-white"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="p-3 rounded-xl bg-blue-950/30 border border-blue-500/20 text-xs text-blue-100">
+            Default: L1 5%, L2–L12 1%, L13–L15 0.5%. Saving changes the rate configuration only; it does not alter past credits or existing wallet balances.
+          </div>
         </section>
 
         <div className="flex justify-end"><button type="submit" disabled={saving} className="px-7 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-xs flex items-center gap-2 disabled:opacity-50">{saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{saving ? 'Saving…' : 'Save USDT BEP20 Settings'}</button></div>
