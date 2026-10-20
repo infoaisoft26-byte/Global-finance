@@ -10,7 +10,7 @@ import {
   Percent
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { getTransactions } from '../../services/financeService.ts';
+import { auth } from '../../lib/firebase.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionLedger, ActivePage, TransactionType } from '../../types/index.ts';
 
@@ -102,7 +102,15 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     if (!profile) return;
     setLoading(true);
     try {
-      const allTxns = await getTransactions(profile.uid, 'income_wallet');
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Authentication required');
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/member-income-history', {
+        headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload.transactions)) throw new Error(payload.error || 'Unable to load income ledger');
+      const allTxns = payload.transactions as TransactionLedger[];
       setAllIncomeRecords(allTxns);
       setRecords(allTxns.filter((t) => String(t.type) === String(config.txnType)));
     } catch (err) {
@@ -119,7 +127,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
         loadIncomeRecords();
         refreshWallet();
       }
-    }, 10000);
+    }, 60000);
     return () => window.clearInterval(timer);
   }, [profile?.uid, page]);
 
@@ -173,7 +181,7 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       header: 'Status',
       render: () => (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          CREDITED
+          {String(item.status || 'completed').toUpperCase()}
         </span>
       )
     }
