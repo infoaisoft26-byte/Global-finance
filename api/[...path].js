@@ -4,6 +4,7 @@ const handlers = {
   "auth-sync": () => import("../server/api-handlers/auth-sync.js"),
   "internal-wallet-transfer": () => import("../server/api-handlers/internal-wallet-transfer.js"),
   "member-profile": () => import("../server/api-handlers/member-profile.js"),
+  "member-income-history": () => import("../server/api-handlers/member-income-history.js"),
   "member-wallet": () => import("../server/api-handlers/member-wallet.js"),
   "offer-poster": () => import("../server/api-handlers/offer-poster.js"),
   "p2p-transfer": () => import("../server/api-handlers/p2p-transfer.js"),
