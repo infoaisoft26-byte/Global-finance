@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   Wallet, 
   TrendingUp, 
@@ -23,6 +23,7 @@ import {
   Table as TableIcon
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
+import { auth } from '../../lib/firebase.ts';
 import { getTransactions, getDownlineMembers } from '../../services/financeService.ts';
 import { getActiveOfferPoster, type OfferPoster } from '../../services/offerPosterService.ts';
 import type { ActivePage } from '../../types/index.ts';
@@ -33,7 +34,9 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile }) => {
-  const { user, profile, wallet } = useAuth();
+  const { user, profile, wallet, refreshWallet } = useAuth();
+  const [incomeLedger, setIncomeLedger] = useState<any[]>([]);
+  const [incomeLastSync, setIncomeLastSync] = useState<Date | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [teamMembers, setTeamMembers] = useState<Awaited<ReturnType<typeof getDownlineMembers>> | null>(null);
@@ -42,6 +45,52 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const [showOffer, setShowOffer] = useState(false);
 
   const referralCode = profile?.referralCode || '';
+
+  const loadIncomeLedger = useCallback(async () => {
+    if (!user) return;
+    try {
+      const token = await (auth.currentUser || user).getIdToken();
+      const response = await fetch('/api/member-income-history', {
+        headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload.transactions)) throw new Error(payload.error || 'Income ledger unavailable');
+      setIncomeLedger(payload.transactions);
+      setIncomeLastSync(new Date());
+    } catch (error) { console.error('Dashboard income ledger refresh failed:', error); }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    let cancelled = false; let inFlight = false;
+    const refresh = async () => {
+      if (cancelled || inFlight || document.visibilityState !== 'visible') return;
+      inFlight = true;
+      try { await loadIncomeLedger(); await refreshWallet(); } finally { inFlight = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(() => { void refresh(); }, 60000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [loadIncomeLedger, refreshWallet]);
+
+  const actualIncomeTotals = useMemo(() => {
+    const result = { total: 0, referral: 0, level: 0, roi: 0, salary: 0, bonus: 0, other: 0 };
+    for (const t of incomeLedger) {
+      if (t.flow !== 'credit' || !['completed','approved','credited'].includes(String(t.status || '').toLowerCase())) continue;
+      const amount = Number(t.netAmount ?? t.amount ?? 0);
+      if (!Number.isFinite(amount)) continue;
+      result.total += amount;
+      const type = String(t.type || '').toLowerCase();
+      if (type.includes('referral') || type === 'direct_referral') result.referral += amount;
+      else if (type.includes('level')) result.level += amount;
+      else if (type.includes('roi') || type === 'roi_daily') result.roi += amount;
+      else if (type === 'salary') result.salary += amount;
+      else if (['joining_bonus','registration_bonus','signup_bonus'].includes(type)) result.bonus += amount;
+      else result.other += amount;
+    }
+    return result;
+  }, [incomeLedger]);
 
   // Read team counts from the authenticated, server-calculated downline instead
   // of stale wallet counters, which may not have been updated for legacy members.
@@ -499,7 +548,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-indigo-300 font-mono tracking-tight tabular-nums">
-              {formatUsdt(wallet?.totalIncome)}
+              {formatUsdt(incomeLedger.length ? actualIncomeTotals.total : wallet?.totalIncome)}
             </div>
             <div className="mt-3 text-[11px] text-slate-400">
               Cumulative earnings
@@ -651,7 +700,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Referral Income</span>
               <div className="text-base sm:text-lg font-bold text-emerald-400 font-mono mt-1 tabular-nums">
-                {formatUsdt(wallet?.referralIncome)}
+                {formatUsdt(incomeLedger.length ? actualIncomeTotals.referral : wallet?.referralIncome)}
               </div>
             </div>
 
@@ -679,7 +728,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Total Level Income</span>
               <div className="text-base sm:text-lg font-bold text-white font-mono mt-1 tabular-nums">
-                {formatUsdt(wallet?.totalLevelIncome)}
+                {formatUsdt(incomeLedger.length ? actualIncomeTotals.level : wallet?.totalLevelIncome)}
               </div>
             </div>
           </div>
@@ -733,7 +782,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Referral Income</span>
               <div className="text-base sm:text-lg font-bold text-emerald-400 font-mono mt-1 tabular-nums">
-                {formatUsdt(wallet?.fdReferralIncome)}
+                {formatUsdt(incomeLedger.length ? actualIncomeTotals.referral : wallet?.fdReferralIncome)}
               </div>
             </div>
 
