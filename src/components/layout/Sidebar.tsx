@@ -323,7 +323,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>Income History (All)</span>
                 </button>
                 <button
-                  onClick={() => handleNav('basic-roi')
+                  onClick={() => handleNav('basic-roi')}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors ${
                     activePage === 'basic-roi'
                       ? 'bg-blue-600/30 text-cyan-300 font-semibold border-l-2 border-cyan-400'
