@@ -35,7 +35,7 @@ export const DailyIncomeReport: React.FC = () => {
         if (Number.isNaN(date.getTime())) continue;
         const key = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
         if (!groups[key]) groups[key] = { id: key, date: new Date(`${key}T00:00:00+05:30`).toLocaleDateString('en-IN', { dateStyle: 'medium', timeZone: 'Asia/Kolkata' }), roiIncome: 0, referralIncome: 0, levelIncome: 0, salaryIncome: 0, registrationBonus: 0, otherIncome: 0, totalIncome: 0 };
-        const amount = Number(t.netAmount ?? t.amount ?? 0);
+        const amount = Number(t.netAmount || t.amount || 0);
         if (!Number.isFinite(amount)) continue;
         if (isRoi(t)) groups[key].roiIncome += amount;
         else if (isReferral(t)) groups[key].referralIncome += amount;
