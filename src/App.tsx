@@ -74,10 +74,11 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
 
 const adminPathForPage = (page: ActivePage): string | null => {
   if (page === 'admin-dashboard') return '/admin';
-  if (page === 'admin-user-detail') return '/admin?section=user-detail';
+  if (page === 'admin-user-detail') return '/admin/user-detail';
   if (!page.startsWith('admin-')) return null;
   const slug = page === 'admin-p2p-report' ? 'p2p-report' : page.slice('admin-'.length);
-  return `/admin?section=${encodeURIComponent(slug)}`;
+  // Stable path routes survive refreshes and direct links consistently.
+  return `/admin/${encodeURIComponent(slug)}`;
 };
 
 const MainLayout: React.FC = () => {
@@ -97,18 +98,17 @@ const MainLayout: React.FC = () => {
     const nextPath = adminPathForPage(page);
     if (typeof window !== 'undefined' && nextPath) {
       const url = new URL(nextPath, window.location.origin);
-      window.history.replaceState({}, '', url.pathname + url.search);
+      const nextUrl = url.pathname + url.search;
+      if (window.location.pathname + window.location.search !== nextUrl) {
+        window.history.pushState({ adminPage: page }, '', nextUrl);
+      }
     }
     setIsSidebarOpenMobile(false);
   };
 
   useEffect(() => {
     const syncPageFromUrl = () => {
-      if ((window.location.pathname === '/admin' || window.location.pathname === '/admin/') && !new URLSearchParams(window.location.search).has('section')) {
-        setActivePage('admin-dashboard');
-      } else if (window.location.pathname.startsWith('/admin/') || new URLSearchParams(window.location.search).has('section')) {
-        setActivePage(adminPageFromPath(window.location.pathname, window.location.search));
-      }
+      setActivePage(adminPageFromPath(window.location.pathname, window.location.search));
     };
     window.addEventListener('popstate', syncPageFromUrl);
     return () => window.removeEventListener('popstate', syncPageFromUrl);
