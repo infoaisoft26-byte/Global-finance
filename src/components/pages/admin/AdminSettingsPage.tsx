@@ -53,7 +53,7 @@ export const AdminSettingsPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
-        <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center"><Settings className="w-5 h-5 text-white" /></div><div><h2 className="text-xl font-bold text-white">System Settings</h2><p className="text-xs text-slate-400">Manage the USDT BEP20 wallet details shown to every user on Recharge.</p></div></div>
+        <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center"><Settings className="w-5 h-5 text-white" /></div><div><h2 className="text-xl font-bold text-white">System Settings</h2><p className="text-xs text-slate-400">Manage USDT BEP20 deposit details and all 15 level commission percentages.</p></div></div>
         <button onClick={() => loadSettings(true)} disabled={refreshing} className="p-2 rounded-xl bg-[#0e173a] border border-blue-500/30 text-cyan-400 disabled:opacity-50" title="Refresh settings"><RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /></button>
       </div>
 
@@ -126,7 +126,7 @@ export const AdminSettingsPage: React.FC = () => {
           </div>
         </section>
 
-        <div className="flex justify-end"><button type="submit" disabled={saving} className="px-7 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-xs flex items-center gap-2 disabled:opacity-50">{saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{saving ? 'Saving…' : 'Save USDT BEP20 Settings'}</button></div>
+        <div className="flex justify-end"><button type="submit" disabled={saving} className="px-7 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-xs flex items-center gap-2 disabled:opacity-50">{saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{saving ? 'Saving…' : 'Save All Settings'}</button></div>
       </form>
     </div>
   );
