@@ -92,11 +92,11 @@ const MainLayout: React.FC = () => {
 
   const navigateToPage = (page: ActivePage) => {
     const nextPath = adminPathForPage(page);
-    // Force a real navigation for admin sections so the selected report is
-    // resolved from the URL on a fresh app mount, not stale in-memory state.
-    if (typeof window !== 'undefined' && nextPath && window.location.pathname !== nextPath) {
-      window.location.assign(nextPath);
-      return;
+    // Update the URL and the rendered section together. A full-page reload can
+    // race auth hydration and fall back to the Admin Dashboard after a sidebar click.
+    if (typeof window !== 'undefined' && nextPath) {
+      const currentUrl = window.location.pathname + window.location.search;
+      if (currentUrl !== nextPath) window.history.pushState({}, '', nextPath);
     }
     setActivePage(page);
   };
