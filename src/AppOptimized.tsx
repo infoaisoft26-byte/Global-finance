@@ -199,7 +199,8 @@ const MainLayout: React.FC = () => {
       case 'daily-income-report': return <DailyIncomeReport />;
       case 'monthly-income-report': return <MonthlyIncomeReport />;
       case 'fund-wallet-summary': return <FundWalletSummary />;
-      case 'income-wallet-summary': return <IncomeWalletSummary />;
+      case 'income-wallet-summary':
+      case 'income-history': return <IncomeWalletSummary />;
       case 'support-tickets': return <SupportTickets />;
       case 'admin-dashboard': return <AdminDashboardFast onNavigate={setActivePage} />;
       case 'admin-transactions': return <AdminTransactions />;
