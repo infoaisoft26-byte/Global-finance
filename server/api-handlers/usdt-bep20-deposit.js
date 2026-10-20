@@ -251,6 +251,7 @@ async function handlePackagePurchase(member, body, res) {
     const pkg = await resolvePackage(client, packageId);
     if (!pkg || !pkg.active) throw new Error('PACKAGE_NOT_AVAILABLE');
     const amount = Number(pkg.min_amount);
+    if (!Number.isFinite(amount) || amount < 2) throw new Error('MINIMUM_PLAN_PURCHASE');
     await client.query('INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [member.uid]);
     const walletResult = await client.query('SELECT * FROM wallets WHERE user_id=$1 LIMIT 1 FOR UPDATE', [member.uid]);
     const available = Number(walletResult.rows[0]?.fund_wallet || 0);
@@ -309,6 +310,7 @@ export default async function handler(req,res) {
     if (message==='ADMIN_REQUIRED') return json(res,403,{error:'Admin access required'});
     if (message==='ACTIVE_MEMBER_REQUIRED') return json(res,403,{error:'Active member account required'});
     if (message==='PACKAGE_NOT_AVAILABLE') return json(res,404,{error:'Package is not available'});
+    if (message==='MINIMUM_PLAN_PURCHASE') return json(res,400,{error:'Minimum plan purchase is 2.00 USDT.'});
     if (message==='INSUFFICIENT_USDT') return json(res,409,{error:'Insufficient Available USDT',available:Number(error.available||0),required:Number(error.required||0)});
     console.error('usdt-bep20-deposit failed:', error instanceof Error?error.message:error);
     return json(res,500,{error:'Unable to complete this USDT operation right now'});
