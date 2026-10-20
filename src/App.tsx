@@ -91,14 +91,15 @@ const MainLayout: React.FC = () => {
   const [publicMaintenance, setPublicMaintenance] = useState<{maintenanceMode:boolean;message?:string}>({ maintenanceMode: false });
 
   const navigateToPage = (page: ActivePage) => {
-    const nextPath = adminPathForPage(page);
-    // Update the URL and the rendered section together. A full-page reload can
-    // race auth hydration and fall back to the Admin Dashboard after a sidebar click.
-    if (typeof window !== 'undefined' && nextPath) {
-      const currentUrl = window.location.pathname + window.location.search;
-      if (currentUrl !== nextPath) window.history.pushState({}, '', nextPath);
-    }
+    // Keep sidebar navigation entirely client-side so auth hydration cannot
+    // replace the selected section with the dashboard after a page reload.
     setActivePage(page);
+    const nextPath = adminPathForPage(page);
+    if (typeof window !== 'undefined' && nextPath) {
+      const url = new URL(nextPath, window.location.origin);
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+    setIsSidebarOpenMobile(false);
   };
 
   useEffect(() => {
