@@ -36,7 +36,6 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile }) => {
   const { user, profile, wallet, refreshWallet } = useAuth();
   const [incomeLedger, setIncomeLedger] = useState<any[]>([]);
-  const [incomeLastSync, setIncomeLastSync] = useState<Date | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [teamMembers, setTeamMembers] = useState<Awaited<ReturnType<typeof getDownlineMembers>> | null>(null);
@@ -56,7 +55,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(payload.transactions)) throw new Error(payload.error || 'Income ledger unavailable');
       setIncomeLedger(payload.transactions);
-      setIncomeLastSync(new Date());
     } catch (error) { console.error('Dashboard income ledger refresh failed:', error); }
   }, [user?.uid]);
 
@@ -75,14 +73,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   }, [loadIncomeLedger, refreshWallet]);
 
   const actualIncomeTotals = useMemo(() => {
-    const result = { total: 0, referral: 0, level: 0, roi: 0, salary: 0, bonus: 0, other: 0 };
+    const result = { total: 0, referral: 0, basicReferral: 0, fdReferral: 0, level: 0, roi: 0, salary: 0, bonus: 0, other: 0 };
     for (const t of incomeLedger) {
       if (t.flow !== 'credit' || !['completed','approved','credited'].includes(String(t.status || '').toLowerCase())) continue;
       const amount = Number(t.netAmount ?? t.amount ?? 0);
       if (!Number.isFinite(amount)) continue;
       result.total += amount;
       const type = String(t.type || '').toLowerCase();
-      if (type.includes('referral') || type === 'direct_referral') result.referral += amount;
+      if (type.includes('referral') || type === 'direct_referral') { result.referral += amount; if (type.startsWith('fd_')) result.fdReferral += amount; else if (type.startsWith('basic_')) result.basicReferral += amount; }
       else if (type.includes('level')) result.level += amount;
       else if (type.includes('roi') || type === 'roi_daily') result.roi += amount;
       else if (type === 'salary') result.salary += amount;
@@ -700,7 +698,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Referral Income</span>
               <div className="text-base sm:text-lg font-bold text-emerald-400 font-mono mt-1 tabular-nums">
-                {formatUsdt(incomeLedger.length ? actualIncomeTotals.referral : wallet?.referralIncome)}
+                {formatUsdt(incomeLedger.length ? actualIncomeTotals.basicReferral : wallet?.referralIncome)}
               </div>
             </div>
 
@@ -782,7 +780,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <div className="p-3.5 rounded-lg bg-[#0e173a]/70 border border-blue-500/15">
               <span className="text-[11px] text-slate-400">Referral Income</span>
               <div className="text-base sm:text-lg font-bold text-emerald-400 font-mono mt-1 tabular-nums">
-                {formatUsdt(incomeLedger.length ? actualIncomeTotals.referral : wallet?.fdReferralIncome)}
+                {formatUsdt(incomeLedger.length ? actualIncomeTotals.fdReferral : wallet?.fdReferralIncome)}
               </div>
             </div>
 
