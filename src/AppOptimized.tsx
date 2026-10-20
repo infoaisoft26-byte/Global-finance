@@ -80,7 +80,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster'
   };
   if (requested && routes[requested]) return routes[requested];
-  const normalized = pathname.replace(/\\/+$/, '') || '/admin';
+  const normalized = pathname.replace(/\/+$/, '') || '/admin';
   const slug = normalized.startsWith('/admin/') ? normalized.slice('/admin/'.length).split('/')[0] : '';
   return routes[slug] || 'admin-dashboard';
 };
