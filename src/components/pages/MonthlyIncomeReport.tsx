@@ -36,7 +36,7 @@ export const MonthlyIncomeReport: React.FC = () => {
         const key = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata', month: '2-digit', year: 'numeric' });
         const label = date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'long', year: 'numeric' });
         if (!groups[key]) groups[key] = { id: key, monthYear: label, roiIncome: 0, referralIncome: 0, levelIncome: 0, salaryIncome: 0, registrationBonus: 0, otherIncome: 0, grossEarnings: 0 };
-        const amount = Number(t.netAmount ?? t.amount ?? 0);
+        const amount = Number(t.netAmount || t.amount || 0);
         if (!Number.isFinite(amount)) continue;
         if (isRoi(t)) groups[key].roiIncome += amount;
         else if (isReferral(t)) groups[key].referralIncome += amount;
