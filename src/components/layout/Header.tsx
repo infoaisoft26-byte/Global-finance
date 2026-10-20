@@ -46,6 +46,9 @@ const pageTitles: Partial<Record<ActivePage, { title: string; category: string }
   'admin-packages': { title: 'Database Package Definitions', category: 'Staff Administration' },
   'admin-package-activations': { title: 'Package Activations Queue', category: 'Staff Administration' },
   'admin-transactions': { title: 'Transaction Requests Queue', category: 'Staff Administration' },
+  'admin-p2p-report': { title: 'P2P & GF ID Accounting', category: 'Staff Administration' },
+  'admin-usdt-recharge': { title: 'USDT Recharge', category: 'Staff Administration' },
+  'admin-offer-poster': { title: 'Offer Poster', category: 'Staff Administration' },
   'admin-audit': { title: 'Audit Trail', category: 'Staff Administration' },
   'admin-settings': { title: 'Platform Safety Parameters', category: 'Staff Administration' }
 };
