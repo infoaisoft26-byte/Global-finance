@@ -75,7 +75,7 @@ export type TransactionType =
   | 'package_activation' 
   | 'admin_adjustment'
   | 'basic_roi' | 'fd_roi' | 'basic_level' | 'fd_level' | 'rd_level'
-  | 'basic_referral' | 'fd_referral' | 'salary';
+  | 'basic_referral' | 'fd_referral' | 'salary' | 'joining_bonus' | 'other_income';
 
 export interface TransactionLedger {
   id: string;
@@ -371,6 +371,7 @@ export type ActivePage =
   | 'monthly-income-report'
   | 'fund-wallet-summary'
   | 'income-wallet-summary'
+  | 'income-history'
   | 'support-tickets'
   | 'kyc'
   | 'notifications'
