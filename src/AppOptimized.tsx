@@ -171,7 +171,7 @@ const MainLayout: React.FC = () => {
   }
 
   const renderContent = () => {
-    if (activePage.startsWith('admin-') && (!isAdmin || (isSubAdmin && !['admin-dashboard', 'admin-kyc', 'admin-tickets'].includes(activePage)))) return <div className="p-8 text-center text-rose-300">Access denied. This staff account does not have permission for this section.</div>;
+    if (activePage.startsWith('admin-') && (!isAdmin || (isSubAdmin && !['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports'].includes(activePage)))) return <div className="p-8 text-center text-rose-300">Access denied. This staff account does not have permission for this section.</div>;
 
     switch (activePage) {
       case 'dashboard': return <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
