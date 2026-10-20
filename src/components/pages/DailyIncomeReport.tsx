@@ -16,7 +16,7 @@ const isLevel = (t: any) => /level/.test(typeOf(t)) || typeOf(t) === 'rd_level';
 const isSalary = (t: any) => typeOf(t) === 'salary';
 const isBonus = (t: any) => ['joining_bonus','registration_bonus','signup_bonus'].includes(typeOf(t));
 export const DailyIncomeReport: React.FC = () => {
-  const { profile, user, refreshWallet } = useAuth();
+  const { profile, user } = useAuth();
   const [dailyData, setDailyData] = useState<DailyAggregate[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -50,19 +50,10 @@ export const DailyIncomeReport: React.FC = () => {
     } catch (err) { console.error('Daily income report load failed:', err); }
     finally { if (showSpinner) setLoading(false); }
   }, [profile?.uid, user?.uid]);
+  // Load when this report opens; updates happen only through the manual Refresh control.
   useEffect(() => {
-    let cancelled = false; let inFlight = false;
-    const refresh = async (spinner = false) => {
-      if (cancelled || inFlight || document.visibilityState !== 'visible') return;
-      inFlight = true;
-      try { await loadDailyReport(spinner); await refreshWallet(); } finally { inFlight = false; }
-    };
-    void refresh(true);
-    const timer = window.setInterval(() => { void refresh(false); }, 60000);
-    const visible = () => { if (document.visibilityState === 'visible') void refresh(false); };
-    document.addEventListener('visibilitychange', visible);
-    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [loadDailyReport, refreshWallet]);
+    void loadDailyReport(true);
+  }, [loadDailyReport]);
   const columns: Column<DailyAggregate>[] = [
     { key:'date', header:'Report Date' },
     { key:'roiIncome', header:'ROI Income (USDT)', render:item => money(item.roiIncome) },

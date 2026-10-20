@@ -37,29 +37,10 @@ export const IncomeWalletSummary: React.FC = () => {
     }
   }, [profile?.uid]);
 
+  // Load when opened; the table's manual Refresh control refreshes wallet and ledger data.
   useEffect(() => {
-    let cancelled = false;
-    let inFlight = false;
-    const refresh = async (showSpinner = false) => {
-      if (cancelled || inFlight || document.visibilityState !== 'visible') return;
-      inFlight = true;
-      try {
-        await loadData(showSpinner);
-        await refreshWallet();
-      } finally {
-        inFlight = false;
-      }
-    };
-    void refresh(true);
-    const timer = window.setInterval(() => { void refresh(false); }, 60000);
-    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(false); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [loadData, refreshWallet]);
+    void loadData(true);
+  }, [loadData]);
 
   const handleRefresh = async () => {
     await refreshWallet();

@@ -58,19 +58,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     } catch (error) { console.error('Dashboard income ledger refresh failed:', error); }
   }, [user?.uid]);
 
+  // Initial dashboard load only. Use the Total Income card's Refresh control for updates.
   useEffect(() => {
-    let cancelled = false; let inFlight = false;
-    const refresh = async () => {
-      if (cancelled || inFlight || document.visibilityState !== 'visible') return;
-      inFlight = true;
-      try { await loadIncomeLedger(); await refreshWallet(); } finally { inFlight = false; }
-    };
-    void refresh();
-    const timer = window.setInterval(() => { void refresh(); }, 60000);
-    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
-  }, [loadIncomeLedger, refreshWallet]);
+    void loadIncomeLedger();
+  }, [loadIncomeLedger]);
+
+  const [incomeRefreshing, setIncomeRefreshing] = useState(false);
+  const handleIncomeRefresh = async () => {
+    if (incomeRefreshing) return;
+    setIncomeRefreshing(true);
+    try {
+      await loadIncomeLedger();
+      await refreshWallet();
+    } finally {
+      setIncomeRefreshing(false);
+    }
+  };
 
   const actualIncomeTotals = useMemo(() => {
     const result = { total: 0, referral: 0, basicReferral: 0, fdReferral: 0, level: 0, roi: 0, salary: 0, bonus: 0, other: 0 };
@@ -541,9 +544,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-slate-400">Total Income</span>
-              <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-                <TrendingUp className="w-4 h-4" />
-              </div>
+              <button type="button" onClick={handleIncomeRefresh} disabled={incomeRefreshing} aria-label="Refresh income totals" title="Refresh income totals" className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 disabled:opacity-50">
+                <RefreshCw className={`w-4 h-4 ${incomeRefreshing ? 'animate-spin' : ''}`} />
+              </button>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-indigo-300 font-mono tracking-tight tabular-nums">
               {formatUsdt(incomeLedger.length ? actualIncomeTotals.total : wallet?.totalIncome)}
