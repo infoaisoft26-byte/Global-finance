@@ -118,32 +118,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="text-sm">Recharge Fund</span>
           </button>
 
-          {/* KYC Verification Page */}
-          <button
-            onClick={() => handleNav('kyc')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
-              activePage === 'kyc'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold shadow-lg shadow-blue-900/40'
-                : 'hover:bg-[#0e1635] text-slate-300 hover:text-white'
-            }`}
-          >
-            <FileCheck className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm">KYC Verification</span>
-          </button>
-
-          {/* Notifications Center */}
-          <button
-            onClick={() => handleNav('notifications')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
-              activePage === 'notifications'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold shadow-lg shadow-blue-900/40'
-                : 'hover:bg-[#0e1635] text-slate-300 hover:text-white'
-            }`}
-          >
-            <Bell className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm">Notifications</span>
-          </button>
-
           {/* Section: Transactional */}
           <div className="pt-2">
             <button
