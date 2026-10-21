@@ -65,23 +65,6 @@ export const AdminSettingsPage: React.FC = () => {
       <form onSubmit={handleSave} className="space-y-6">
         <section className="p-5 rounded-2xl bg-[#091129] border border-amber-500/30 space-y-4">
           <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3">
-            <ShieldCheck className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300">Withdrawal Time Control</h3>
-          </div>
-          <div className="p-3 rounded-xl bg-blue-950/30 border border-blue-500/20 text-xs text-blue-100">
-            Normal withdrawal hours are 10:30 AM–3:30 PM IST. Admin can disable this restriction for urgent cases. Email OTP, balance validation and admin approval remain required.
-          </div>
-          <label className="flex items-start gap-3 text-sm text-slate-200">
-            <input type="checkbox" className="mt-1" checked={settings.withdrawalTimeRestrictionDisabled === true}
-              onChange={(e) => setSettings({ ...settings, withdrawalTimeRestrictionDisabled: e.target.checked })} />
-            <span><strong>Disable withdrawal timing restriction</strong><span className="block text-xs text-slate-400 mt-1">Allow requests outside normal hours while enabled.</span></span>
-          </label>
-          <div className={settings.withdrawalTimeRestrictionDisabled === true ? 'text-amber-300 text-xs font-bold' : 'text-emerald-300 text-xs font-bold'}>
-            {settings.withdrawalTimeRestrictionDisabled === true ? 'URGENT MODE ON — time restriction disabled' : 'NORMAL MODE — 10:30 AM to 3:30 PM IST'}
-          </div>
-        </section>
-        <section className="p-5 rounded-2xl bg-[#091129] border border-amber-500/30 space-y-4">
-          <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3">
             <ShieldCheck className="w-4 h-4 text-amber-300" />
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300">Withdrawal Time Control</h3>
