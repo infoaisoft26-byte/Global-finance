@@ -272,7 +272,19 @@ export default async function handler(req,res){
       }
     }
     if(result.isNewRegistration&&registrationEmail){
-      try{await sendWelcomeEmail(registrationEmail);}
+      try {
+        const emailResult = await sendWelcomeEmail({
+          to: registrationEmail.email,
+          name: registrationEmail.name,
+          memberId: registrationEmail.memberId,
+          transactionPassword: registrationEmail.transactionPassword,
+        });
+        if (emailResult?.sent) {
+          console.info('Welcome email sent:', { uid, emailId: emailResult.id || null });
+        } else {
+          console.warn('Welcome email not sent:', { uid, reason: emailResult?.reason || 'provider_skipped' });
+        }
+      }
       catch(error){console.error('Welcome email failed:',error instanceof Error?error.message:error);}
     }
 
