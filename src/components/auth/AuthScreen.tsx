@@ -342,13 +342,16 @@ const COUNTRIES = [
       } else {
         if (!name.trim()) throw new Error('Please enter your full name');
         const normalizedSponsorCode = sponsorCode.trim().toUpperCase();
-        if (normalizedSponsorCode && !/^GF\d{6}$/.test(normalizedSponsorCode)) {
+        if (!normalizedSponsorCode) {
+          throw new Error('Sponsor Referral ID is required. Registration is only allowed with a valid sponsor ID.');
+        }
+        if (!/^GF\d{6}$/.test(normalizedSponsorCode)) {
           throw new Error('Enter a valid sponsor Referral ID (GF followed by 6 digits).');
         }
-        if (normalizedSponsorCode && sponsorLookupLoading) {
+        if (sponsorLookupLoading) {
           throw new Error('Please wait while we verify the sponsor Referral ID.');
         }
-        if (normalizedSponsorCode && (verifiedSponsorCode !== normalizedSponsorCode || !sponsorName.trim())) {
+        if (verifiedSponsorCode !== normalizedSponsorCode || !sponsorName.trim()) {
           throw new Error('Sponsor Referral ID was not found or is inactive. Please verify the ID before registering.');
         }
         await registerWithEmail(name.trim(), email.trim(), password, normalizedSponsorCode, phone.trim());
@@ -413,8 +416,8 @@ const COUNTRIES = [
             {mode === 'register' && <>
               <div><label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label><div className="relative"><User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="Enter your name" value={name} onChange={(e)=>setName(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Referral ID (Sponsor)</label>
-                <div className="relative"><Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="GF123456" value={sponsorCode} readOnly={Boolean(sponsorReferralParam)} onChange={(e)=>setSponsorCode(e.target.value.toUpperCase())} className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-cyan-300 font-mono text-xs uppercase transition-shadow ${sponsorReferralParam ? 'bg-cyan-950/30 border-cyan-400/40 cursor-not-allowed' : 'bg-[#081632]/90 border-blue-400/25 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10'}`}/></div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Referral ID (Sponsor) <span className="text-rose-400">*</span></label>
+                <div className="relative"><Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="text" placeholder="GF123456" required value={sponsorCode} readOnly={Boolean(sponsorReferralParam)} onChange={(e)=>setSponsorCode(e.target.value.toUpperCase())} className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-cyan-300 font-mono text-xs uppercase transition-shadow ${sponsorReferralParam ? 'bg-cyan-950/30 border-cyan-400/40 cursor-not-allowed' : 'bg-[#081632]/90 border-blue-400/25 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10'}`}/></div>
                 {sponsorReferralParam && <p className="mt-1 text-[10px] text-cyan-300">Referral sponsor locked from the referral link.</p>}
                 {/^GF\d{6}$/.test(sponsorCode.trim().toUpperCase()) && (
                   <div className="mt-2 rounded-lg bg-cyan-500/10 border border-cyan-400/20 px-3 py-2 text-[10px] space-y-1.5">
