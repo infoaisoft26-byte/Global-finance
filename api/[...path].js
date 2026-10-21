@@ -12,6 +12,7 @@ const handlers = {
   "referral-lookup": () => import("../server/api-handlers/referral-lookup.js"),
   "session": () => import("../server/api-handlers/session.js"),
   "system-settings": () => import("../server/api-handlers/system-settings.js"),
+  "telegram-link-token": () => import("../server/api-handlers/telegram-link-token.js"),
   "transaction-otp": () => import("../server/api-handlers/transaction-otp.js"),
   "usdt-auto-credit-cron": () => import("../server/api-handlers/usdt-auto-credit-cron.js"),
   "usdt-bep20-deposit": () => import("../server/api-handlers/usdt-bep20-deposit.js"),
