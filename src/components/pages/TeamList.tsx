@@ -71,9 +71,9 @@ export const TeamList: React.FC = () => {
       render: item => <span className="inline-flex items-center gap-1 text-xs font-semibold text-white"><Package className="w-3 h-3 text-cyan-400" />{item.packageName || 'No Package'}</span>
     },
     {
-      key: 'packageAmount',
-      header: 'Package Amount',
-      render: item => <span className="text-xs font-bold text-cyan-300">USDT {Number(item.packageAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      key: 'activePackage',
+      header: 'Total Active Package (USDT)',
+      render: item => <span className="text-xs font-bold text-cyan-300">USDT {Number(item.activePackage || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
     },
     {
       key: 'packageStatus',
@@ -91,7 +91,7 @@ export const TeamList: React.FC = () => {
     { header: 'DOA', accessor: item => formatDate(item.joinDate) },
     { header: 'Activation', accessor: item => item.status === 'active' ? 'Active' : 'Inactive' },
     { header: 'Package', accessor: item => item.packageName || 'No Package' },
-    { header: 'Package Amount', accessor: item => 'USDT ' + Number(item.packageAmount || 0).toFixed(2) },
+    { header: 'Total Active Package (USDT)', accessor: item => 'USDT ' + Number(item.activePackage || 0).toFixed(2) },
     { header: 'Package Status', accessor: item => item.packageStatus || 'No Purchase' }
   ];
 
