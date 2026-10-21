@@ -21,10 +21,10 @@ import {
   Send, 
   History, 
   ShieldAlert, 
-  FileCheck, 
+
   Settings, 
   X,
-  Bell,
+
   CheckCircle2,
   Lock
 } from 'lucide-react';
