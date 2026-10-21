@@ -418,12 +418,19 @@ async function loadDownline(pool, actor) {
       CASE WHEN n.status='active' AND n.referral_status='inactive' THEN 'inactive' ELSE n.status END AS status,
       n.status AS account_status,n.referral_status,n.created_at,n.level,
       COALESCE(pkg.active_package, 0)::numeric AS active_package,
+      COALESCE(pkg.package_name, '')::text AS package_name,
+      COALESCE(pkg.package_amount, 0)::numeric AS package_amount,
+      COALESCE(pkg.package_status, '')::text AS package_status,
       COALESCE(comm.total_commission, 0)::numeric AS total_commission
     FROM network n
     LEFT JOIN LATERAL (
-      SELECT SUM(p.amount) AS active_package
+      SELECT
+        COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'active'), 0) AS active_package,
+        (ARRAY_AGG(p.package_name ORDER BY p.activated_at DESC NULLS LAST))[1] AS package_name,
+        (ARRAY_AGG(p.amount ORDER BY p.activated_at DESC NULLS LAST))[1] AS package_amount,
+        (ARRAY_AGG(p.status ORDER BY p.activated_at DESC NULLS LAST))[1] AS package_status
       FROM package_activations p
-      WHERE p.user_id::text = n.id AND p.status = 'active'
+      WHERE p.user_id::text = n.id
     ) pkg ON TRUE
     LEFT JOIN LATERAL (
       SELECT SUM(l.net_amount) AS total_commission
@@ -451,6 +458,9 @@ async function loadDownline(pool, actor) {
       level: Number(u.level || 1),
       joinDate: createdAt,
       activePackage,
+      packageName: String(u.package_name || ''),
+      packageAmount: Number(u.package_amount || 0),
+      packageStatus: String(u.package_status || ''),
       status: String(u.status || '').toLowerCase() === 'active' ? 'active' : 'inactive',
       commissionFromMember: totalCommission,
       totalCommissionFromMember: totalCommission,
