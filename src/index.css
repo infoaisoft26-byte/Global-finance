@@ -110,12 +110,6 @@ aside[class*="border-rose-500/20"] > div:first-of-type > div:first-child > div:n
   border-color: #e2e8f0 !important;
 }
 
-/* Remove KYC + Notification navigation from member portal only. */
-#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div.flex-1 > button:nth-of-type(3),
-#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div.flex-1 > button:nth-of-type(4) {
-  display: none !important;
-}
-
 /* White member header and remove notification + KYC controls. */
 #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) header {
   background: rgba(255, 255, 255, 0.98) !important;
@@ -442,4 +436,34 @@ html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:ha
 /* Fund Withdrawal-specific surfaces */
 html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) :is(.shadow-sm,.shadow-lg) {
   --tw-shadow-color: rgba(0,0,0,.35) !important;
+}
+
+
+/* Theme visibility patch: preserve navigation and contrast on colored dashboard surfaces. */
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div.flex-1 > button:nth-of-type(3),
+#root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) > aside > div.flex-1 > button:nth-of-type(4) {
+  display: flex !important;
+}
+
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main [class*="bg-gradient"] :is(.text-white, .text-slate-100, .text-slate-200, .text-slate-300, .text-cyan-300, .text-cyan-400, .text-blue-300, .text-blue-400, .text-emerald-300, .text-emerald-400, .text-amber-300, .text-amber-400, .text-rose-300, .text-rose-400, h1, h2, h3, h4, h5, h6, p, span, label) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-blue-600"],
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-cyan-600"],
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-emerald-600"],
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-rose-600"],
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-indigo-600"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-blue-600"] *,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-cyan-600"] *,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-emerald-600"] *,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-rose-600"] *,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button, a)[class*="bg-indigo-600"] * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
