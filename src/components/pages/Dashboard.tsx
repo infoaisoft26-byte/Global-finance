@@ -596,30 +596,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             </div>
           </div>
 
-          {/* Compact retopup level summary; only levels present in the downline or with credited income are shown. */}
-          <div className="p-3 sm:p-4 rounded-xl bg-[#091129]/90 border border-violet-500/25 shadow-lg backdrop-blur-md sm:col-span-2 lg:col-span-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-violet-300">Retopup Income</span>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-400">Total</span>
-                <span className="font-bold text-violet-200 font-mono">{formatUsdt(totalRetopupLevelIncome)}</span>
-              </div>
+          {/* Compact retopup and level-income summaries, styled like the package cards. */}
+          <div className="p-4 rounded-xl bg-[#091129]/90 border border-violet-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">Retopup Income</span>
+              <span className="text-[10px] text-slate-400">Total</span>
             </div>
+            <div className="text-base font-extrabold text-violet-200 font-mono tracking-tight tabular-nums">{formatUsdt(totalRetopupLevelIncome)}</div>
             {eligibleRetopupLevels.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
+              <div className="mt-3 flex flex-wrap gap-1.5">
                 {eligibleRetopupLevels.map((item) => (
-                  <div key={item.level} className="flex items-center justify-between gap-2 rounded-md border border-violet-500/15 bg-[#0b1430] px-2.5 py-2">
-                    <div className="min-w-0">
-                      <div className="text-[11px] font-semibold text-slate-300">Level {item.level}</div>
-                      <div className="text-[10px] text-cyan-300">{item.rate}%</div>
-                    </div>
-                    <div className="text-xs font-bold text-white font-mono text-right">{formatUsdt(item.amount)}</div>
+                  <div key={item.level} className="flex items-center gap-1.5 rounded-md border border-violet-500/20 bg-[#0b1430] px-2 py-1">
+                    <span className="text-[10px] font-semibold text-slate-300">L{item.level}</span>
+                    <span className="text-[10px] text-cyan-300">{item.rate}%</span>
+                    <span className="text-[10px] font-bold text-white font-mono">{formatUsdt(item.amount)}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-[11px] text-slate-400">Retopup levels will appear automatically when your team qualifies or income is credited.</p>
+              <p className="mt-2 text-[10px] text-slate-400">Eligible levels appear automatically when your team qualifies.</p>
             )}
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#091129]/90 border border-teal-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-300">Total Level Income</span>
+              <ListOrdered className="w-4 h-4 text-teal-300" />
+            </div>
+            <div className="text-base font-extrabold text-teal-200 font-mono tracking-tight tabular-nums">{formatUsdt(incomeLedger.length ? actualIncomeTotals.level : wallet?.totalLevelIncome)}</div>
+            <p className="mt-2 text-[10px] text-slate-400">Credited level commissions</p>
           </div>
         </div>
       </div>
