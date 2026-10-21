@@ -25,6 +25,7 @@ import { ProfileKycModal } from './components/modals/ProfileKycModal.tsx';
 import { TransactionsPage } from './components/pages/TransactionsPage.tsx';
 import { NotificationsPage } from './components/pages/NotificationsPage.tsx';
 import { PackageActivationsPage } from './components/pages/PackageActivationsPage.tsx';
+import { TelegramSupportButton } from './components/TelegramSupportButton.tsx';
 
 // Admin Pages
 import { AdminDashboard } from './components/pages/admin/AdminDashboard.tsx';
@@ -384,6 +385,7 @@ export default function App() {
   return (
     <AuthProvider>
       <MainLayout />
+      <TelegramSupportButton />
     </AuthProvider>
   );
 }
