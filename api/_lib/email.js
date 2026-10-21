@@ -136,6 +136,7 @@ export async function sendTransactionOtp({ to, name, code, purpose }) {
   const brand = process.env.EMAIL_BRAND_NAME || DEFAULT_BRAND;
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
+    signal: AbortSignal.timeout(12000),
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from, to: [to], subject: `${brand}: OTP for ${label}`,
