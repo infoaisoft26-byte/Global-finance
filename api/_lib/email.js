@@ -31,6 +31,28 @@ function welcomeHtml({ name, memberId, email, transactionPassword }) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Welcome to ${brand}</title>
+  <style>
+    @keyframes gf-confetti-fall {
+      0% { transform: translateY(-18px) rotate(0deg); opacity: 0; }
+      12% { opacity: 1; }
+      100% { transform: translateY(100px) rotate(260deg); opacity: 0; }
+    }
+    @keyframes gf-firework-pop {
+      0% { transform: scale(.15); opacity: 0; }
+      25% { opacity: 1; }
+      100% { transform: scale(1.15); opacity: 0; }
+    }
+    .gf-confetti { animation: gf-confetti-fall 2.8s ease-in infinite; }
+    .gf-confetti.c2 { animation-delay: .35s; }
+    .gf-confetti.c3 { animation-delay: .7s; }
+    .gf-confetti.c4 { animation-delay: 1.05s; }
+    .gf-confetti.c5 { animation-delay: 1.4s; }
+    .gf-firework { animation: gf-firework-pop 2.2s ease-out infinite; transform-origin: center; }
+    .gf-firework.f2 { animation-delay: .6s; }
+    @media (prefers-reduced-motion: reduce) {
+      .gf-confetti, .gf-firework { animation: none !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#0b1428;font-family:Arial,Helvetica,sans-serif;color:#e7edf7;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#0b1428;padding:30px 12px;">
@@ -38,7 +60,23 @@ function welcomeHtml({ name, memberId, email, transactionPassword }) {
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;background:#1b2940;border:1px solid #314158;border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.25);">
           <tr>
-            <td align="center" style="padding:34px 24px;background:linear-gradient(135deg,#12b886,#139bc2);">
+            <td align="center" style="padding:28px 24px 34px;background:linear-gradient(135deg,#12b886,#139bc2);">
+              <!-- CSS confetti/fireworks animate in supporting email clients; the emoji/header remain as a static fallback. -->
+              <div style="position:relative;max-width:360px;height:72px;margin:0 auto 8px;overflow:hidden;" aria-label="Celebration confetti and fireworks">
+                <span class="gf-confetti" style="position:absolute;left:8%;top:4px;width:7px;height:13px;background:#ffe66d;display:block;border-radius:2px;"></span>
+                <span class="gf-confetti c2" style="position:absolute;left:22%;top:0;width:6px;height:10px;background:#fff;display:block;border-radius:2px;"></span>
+                <span class="gf-confetti c3" style="position:absolute;left:39%;top:8px;width:7px;height:12px;background:#ff8ac7;display:block;border-radius:2px;"></span>
+                <span class="gf-confetti c4" style="position:absolute;left:64%;top:2px;width:6px;height:12px;background:#ffe66d;display:block;border-radius:2px;"></span>
+                <span class="gf-confetti c5" style="position:absolute;left:84%;top:7px;width:7px;height:11px;background:#fff;display:block;border-radius:2px;"></span>
+                <svg class="gf-firework" width="54" height="54" viewBox="0 0 54 54" role="presentation" style="position:absolute;left:23%;top:8px;">
+                  <g stroke="#fff4a8" stroke-width="2.5" stroke-linecap="round"><path d="M27 3v8M27 43v8M3 27h8M43 27h8M10 10l6 6M38 38l6 6M44 10l-6 6M16 38l-6 6"/></g>
+                  <circle cx="27" cy="27" r="4" fill="#fff"/>
+                </svg>
+                <svg class="gf-firework f2" width="48" height="48" viewBox="0 0 48 48" role="presentation" style="position:absolute;left:62%;top:14px;">
+                  <g stroke="#ffd4ec" stroke-width="2.5" stroke-linecap="round"><path d="M24 2v7M24 39v7M2 24h7M39 24h7M8 8l5 5M35 35l5 5M40 8l-5 5M13 35l-5 5"/></g>
+                  <circle cx="24" cy="24" r="3.5" fill="#fff"/>
+                </svg>
+              </div>
               <div style="width:48px;height:48px;line-height:48px;border-radius:50%;background:rgba(255,255,255,.16);font-size:24px;margin-bottom:12px;">🎉</div>
               <div style="font-size:25px;line-height:32px;font-weight:800;color:#fff;">Welcome to ${brand}!</div>
               <div style="font-size:13px;color:#e9ffff;margin-top:6px;">Your Account Has Been Created Successfully</div>
