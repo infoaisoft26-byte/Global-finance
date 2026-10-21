@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getPool } from '../../api/_lib/db.js';
-import { verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
+import { verifyFirebaseIdToken, getFirestoreAdmin, deleteFirebaseAuthUser } from '../../api/_lib/firebaseAdmin.js';
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -161,6 +161,56 @@ export default async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const action = String(req.body?.action || '');
+
+      if (action === 'delete') {
+        if (String(userId) === String(admin.id)) return json(res, 400, { error: 'You cannot delete your own admin account.' });
+        const targetResult = await pool.query('SELECT id,email,role,status FROM users WHERE id=$1 LIMIT 1', [userId]);
+        const target = targetResult.rows[0];
+        if (!target) return json(res, 404, { error: 'User not found' });
+        if (target.role === 'admin' || target.role === 'sub_admin') return json(res, 403, { error: 'Admin accounts cannot be deleted from member management.' });
+        if (target.status === 'deleted') return json(res, 409, { error: 'This account is already deleted.' });
+
+        const financial = await pool.query(`
+          SELECT COALESCE(w.fund_wallet,0)::numeric AS fund_wallet,
+                 COALESCE(w.income_wallet,0)::numeric AS income_wallet,
+                 COALESCE(w.basic_package_active,0)::numeric AS basic_package_active,
+                 COALESCE(w.fd_package_active,0)::numeric AS fd_package_active,
+                 EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id AND p.status='active') AS has_active_package
+          FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=$1 LIMIT 1
+        `, [userId]);
+        const f = financial.rows[0] || {};
+        if (Number(f.fund_wallet || 0) !== 0 || Number(f.income_wallet || 0) !== 0 ||
+            Number(f.basic_package_active || 0) !== 0 || Number(f.fd_package_active || 0) !== 0 || f.has_active_package) {
+          return json(res, 409, { error: 'This user has funds or an active package. Transfer/settle these first; account deletion is blocked to protect financial records.' });
+        }
+
+        const db = getFirestoreAdmin();
+        const firestoreRef = db.collection('users').doc(userId);
+        const firestoreSnap = await firestoreRef.get();
+        const firestoreProfile = firestoreSnap.exists ? (firestoreSnap.data() || {}) : null;
+        const originalEmail = String(target.email || '').trim().toLowerCase();
+        const maskedEmail = `deleted+${String(userId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100)}@deleted.invalid`;
+        const now = new Date();
+        try {
+          await pool.query("UPDATE users SET email=$1,status='deleted',updated_at=NOW() WHERE id=$2", [maskedEmail, userId]);
+          if (firestoreSnap.exists) {
+            await firestoreRef.set({ email: maskedEmail, status: 'deleted', deletedAt: now, updatedAt: now }, { merge: true });
+          }
+          await deleteFirebaseAuthUser(userId);
+          await pool.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata,timestamp)
+            VALUES($1,$2,$3,'USER_DELETED_EMAIL_RELEASED','user',$4,$5::jsonb,NOW())`,
+            [randomUUID(), admin.id, admin.email, userId, JSON.stringify({ email: originalEmail, emailReleased: true, financialHistoryPreserved: true })]);
+          return json(res, 200, { ok: true, message: 'User login deleted. Financial history preserved and email released for registration.' });
+        } catch (deleteError) {
+          try {
+            await pool.query("UPDATE users SET email=$1,status=$2,updated_at=NOW() WHERE id=$3", [originalEmail, target.status, userId]);
+            if (firestoreSnap.exists && firestoreProfile) await firestoreRef.set(firestoreProfile, { merge: true });
+          } catch (rollbackError) {
+            console.error('User deletion rollback failed:', rollbackError instanceof Error ? rollbackError.message : rollbackError);
+          }
+          throw deleteError;
+        }
+      }
       if (action === 'kyc') {
         const status = String(req.body?.status || '');
         if (!['verified','pending','unverified','rejected'].includes(status)) {
