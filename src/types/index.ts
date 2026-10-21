@@ -221,6 +221,9 @@ export interface DownlineMember {
   level: number;
   joinDate: string;
   activePackage: number;
+  packageName?: string;
+  packageAmount?: number;
+  packageStatus?: string;
   status: 'active' | 'inactive' | 'suspended';
   accountStatus?: string;
   referralStatus?: 'active' | 'inactive';
