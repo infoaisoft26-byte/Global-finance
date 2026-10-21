@@ -37,6 +37,11 @@ export default async function handler(req,res){
     dailyIncome={ok:false,failed:true,reason:'DAILY_INCOME_SETTLEMENT_FAILED'};
   }
 
+  // Recovery mode runs only the idempotent daily-income settlement, without deposit scanning or recharge auto-credit.
+  if(String(req.query?.dailyIncomeOnly||'')==='1'){
+    return json(res,dailyIncome.failed?500:200,{ok:!dailyIncome.failed,mode:'daily-income-only',dailyIncome});
+  }
+
   let depositScan={configured:false,scannedTo:null,found:0,credited:0,reason:'DEPOSIT_NOT_CONFIGURED'};
   try{
     depositScan=await scanAndCreditDeposits();
