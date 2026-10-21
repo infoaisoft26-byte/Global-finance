@@ -22,7 +22,6 @@ import { FundWalletSummary } from './components/pages/FundWalletSummary.tsx';
 import { IncomeWalletSummary } from './components/pages/IncomeWalletSummary.tsx';
 import { SupportTickets } from './components/pages/SupportTickets.tsx';
 import { ProfileKycModal } from './components/modals/ProfileKycModal.tsx';
-import { KycPage } from './components/pages/KycPage.tsx';
 import { TransactionsPage } from './components/pages/TransactionsPage.tsx';
 import { NotificationsPage } from './components/pages/NotificationsPage.tsx';
 import { PackageActivationsPage } from './components/pages/PackageActivationsPage.tsx';
@@ -249,8 +248,6 @@ const MainLayout: React.FC = () => {
         return <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
       case 'recharge':
         return <Recharge />;
-      case 'kyc':
-        return <KycPage />;
       case 'transactions':
         return <TransactionsPage />;
       case 'notifications':
@@ -377,10 +374,6 @@ const MainLayout: React.FC = () => {
         <ProfileKycModal
           isOpen={showProfileModal}
           onClose={() => setShowProfileModal(false)}
-          onNavigateToKyc={() => {
-            setShowProfileModal(false);
-            setActivePage('kyc');
-          }}
         />
       )}
     </div>
