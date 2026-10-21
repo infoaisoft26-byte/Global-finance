@@ -142,10 +142,8 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
       return;
     }
 
-    if ((wallet.incomeWallet || 0) < amount) {
-      setErrorMsg(`Insufficient Available Balance. Available: ${(wallet.incomeWallet || 0).toFixed(6)} USDT`);
-      return;
-    }
+    // Balance validation is performed by the server against the authoritative wallet
+    // at submission time; avoid blocking a valid request with a stale client snapshot.
 
     setWithdrawing(true);
     setErrorMsg('');
