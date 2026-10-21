@@ -75,6 +75,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     }
   };
 
+  const retopupLevelSummary = useMemo(() => {
+    const levels = Array.from({ length: 15 }, (_, index) => ({
+      level: index + 1,
+      rate: index === 0 ? 5 : 0.25,
+      amount: 0,
+    }));
+    for (const t of incomeLedger) {
+      if (t.flow !== 'credit' || !['completed', 'approved', 'credited'].includes(String(t.status || '').toLowerCase())) continue;
+      const type = String(t.type || '').toLowerCase();
+      const metadata = (t.metadata && typeof t.metadata === 'object' ? t.metadata : {}) as Record<string, unknown>;
+      if (!type.includes('retopup')) continue;
+      const levelMatch = type.match(/level[_-]?(\\d{1,2})|(?:^|[_-])l(\\d{1,2})(?:$|[_-])/);
+      const rawLevel = Number(metadata.level ?? metadata.levelNumber ?? levelMatch?.[1] ?? levelMatch?.[2]);
+      if (!Number.isInteger(rawLevel) || rawLevel < 1 || rawLevel > 15) continue;
+      const amount = Number(t.netAmount || t.amount || 0);
+      if (Number.isFinite(amount)) levels[rawLevel - 1].amount += amount;
+    }
+    return levels;
+  }, [incomeLedger]);
+  const totalRetopupLevelIncome = retopupLevelSummary.reduce((sum, item) => sum + item.amount, 0);
+
   const actualIncomeTotals = useMemo(() => {
     const result = { total: 0, referral: 0, basicReferral: 0, fdReferral: 0, level: 0, roi: 0, salary: 0, bonus: 0, other: 0 };
     for (const t of incomeLedger) {
@@ -572,23 +593,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             </div>
           </div>
 
-          {/* Signup maturity points remain separate from cash balances. */}
-          <div className="p-5 rounded-xl bg-[#091129]/90 border border-violet-500/25 shadow-lg backdrop-blur-md">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">Maturity Points</span>
-              <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-300">
-                <Award className="w-4 h-4" />
+          {/* Retopup income by level replaces the former maturity-points card. */}
+          <div className="p-5 rounded-xl bg-[#091129]/90 border border-violet-500/25 shadow-lg backdrop-blur-md sm:col-span-2 lg:col-span-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-violet-300">Retopup Income · Levels 1–15</span>
+                <p className="mt-1 text-[11px] text-slate-400">Credited retopup commissions grouped by level from your income ledger.</p>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Total retopup income</div>
+                <div className="text-lg font-extrabold text-violet-200 font-mono">{formatUsdt(totalRetopupLevelIncome)}</div>
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-violet-200 font-mono tracking-tight tabular-nums">
-              {Number(wallet?.lockedMaturityPoints || 0) + Number(wallet?.releasedMaturityPoints || 0)}
-            </div>
-            <div className="mt-3 text-[11px] text-slate-400">
-              {wallet?.maturityPointsStatus === 'released'
-                ? '150 points released after all packages matured'
-                : wallet?.maturityPointsStatus === 'locked'
-                  ? `${Number(wallet?.lockedMaturityPoints || 0)} points locked until all packages mature`
-                  : 'Signup points status'}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {retopupLevelSummary.map((item) => (
+                <div key={item.level} className="rounded-lg border border-violet-500/15 bg-[#0b1430] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-slate-300">Level {item.level}</span>
+                    <span className="text-[10px] text-cyan-300">{item.rate}%</span>
+                  </div>
+                  <div className="mt-2 text-sm font-bold text-white font-mono break-words">{formatUsdt(item.amount)}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
