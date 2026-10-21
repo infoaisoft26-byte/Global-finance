@@ -43,7 +43,7 @@ async function ensureTelegramTables(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS telegram_link_tokens (
       token_hash TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       expires_at TIMESTAMPTZ NOT NULL,
       used_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -52,7 +52,7 @@ async function ensureTelegramTables(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS telegram_account_links (
       telegram_chat_id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      user_id VARCHAR(64) NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
       linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
@@ -173,8 +173,7 @@ async function answerAccountOption(chatId, member, text) {
       `SELECT COALESCE(w.total_income,0) AS total_income,
               COALESCE(w.total_roi_income,0) + COALESCE(w.fd_total_roi_income,0) AS roi_income,
               COALESCE(w.total_level_income,0) + COALESCE(w.fd_total_level_income,0) AS level_income,
-              COALESCE(w.referral_income,0) + COALESCE(w.fd_referral_income,0) AS referral_income,
-              COALESCE(w.joining_bonus,0) AS joining_bonus
+              COALESCE(w.referral_income,0) + COALESCE(w.fd_referral_income,0) AS referral_income
          FROM users u LEFT JOIN wallets w ON w.user_id=u.id
         WHERE u.id=$1 AND u.status='active' LIMIT 1`,
       [uid],
@@ -183,7 +182,7 @@ async function answerAccountOption(chatId, member, text) {
     const row = result.rows[0];
     return sendMessage(
       chatId,
-      `📊 Your Total Income\n\nTotal Income: ${Number(row.total_income || 0).toFixed(2)} USDT\nROI Income: ${Number(row.roi_income || 0).toFixed(2)} USDT\nLevel Income: ${Number(row.level_income || 0).toFixed(2)} USDT\nReferral Income: ${Number(row.referral_income || 0).toFixed(2)} USDT\nJoining Bonus: ${Number(row.joining_bonus || 0).toFixed(2)} USDT\n\nThese values are read from your current account ledger summary.`,
+      `📊 Your Total Income\n\nTotal Income: ${Number(row.total_income || 0).toFixed(2)} USDT\nROI Income: ${Number(row.roi_income || 0).toFixed(2)} USDT\nLevel Income: ${Number(row.level_income || 0).toFixed(2)} USDT\nReferral Income: ${Number(row.referral_income || 0).toFixed(2)} USDT\n\nThese values are read from your current account ledger summary.`,
       MENU,
     );
   }
