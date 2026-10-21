@@ -427,7 +427,47 @@ export async function adminUpdateTransactionRequestStatus(
     if (providerReference) updates.providerReference = providerReference;
   }
 
-  await updateDoc(reqDocRef, updates);
+  // Refund a rejected withdrawal exactly once, in the same Firestore transaction as the status change.
+  if (current.requestType === 'withdrawal' && targetStatus === 'rejected' && current.metadata?.walletDebited === true) {
+    const refundReference = String(current.reference || requestId) + '-WITHDRAWAL-REFUND';
+    const refundEntryRef = doc(db, 'transactions', refundReference);
+    const liabilityEntryRef = doc(db, 'transactions', refundReference + '-LIABILITY');
+    const walletRef = doc(db, 'wallets', current.userId);
+    await runTransaction(db, async (txn) => {
+      const requestSnap = await txn.get(reqDocRef);
+      const walletSnap = await txn.get(walletRef);
+      const refundSnap = await txn.get(refundEntryRef);
+      if (!requestSnap.exists()) throw new Error('Transaction request not found.');
+      const fresh = requestSnap.data() as TransactionRequest;
+      if (fresh.status !== currentStatus) throw new Error('Request status changed. Refresh and try again.');
+      if (fresh.metadata?.refundIssued === true || refundSnap.exists()) throw new Error('Withdrawal refund has already been issued.');
+      if (!walletSnap.exists()) throw new Error('Member wallet not found; refund was not processed.');
+      const wallet = walletSnap.data() as any;
+      const amount = Number(fresh.amountRupees || 0);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error('Invalid withdrawal refund amount.');
+      const now = new Date().toISOString();
+      txn.update(walletRef, { incomeWallet: Number((Number(wallet.incomeWallet || 0) + amount).toFixed(8)), updatedAt: now });
+      txn.set(refundEntryRef, {
+        id: refundReference, userId: fresh.userId, type: 'withdrawal', category: 'income_wallet',
+        flow: 'credit', amount, fee: 0, netAmount: amount,
+        description: 'Refund for rejected withdrawal (' + fresh.reference + ')',
+        referenceId: refundReference, status: 'completed',
+        metadata: { amountUsdt: amount, amountPaise: Math.round(amount * 100), requestId, refund: true },
+        createdAt: now
+      });
+      txn.set(liabilityEntryRef, {
+        id: refundReference + '-LIABILITY', userId: 'GLOBAL_FINANCE_LIABILITIES', type: 'withdrawal',
+        category: 'income_wallet', flow: 'debit', amount, fee: 0, netAmount: amount,
+        description: 'Release withdrawal reserve for rejected request (' + fresh.reference + ')',
+        referenceId: refundReference, status: 'completed',
+        metadata: { amountUsdt: amount, amountPaise: Math.round(amount * 100), requestId, refund: true },
+        createdAt: now
+      });
+      txn.update(reqDocRef, { ...updates, metadata: { ...(fresh.metadata || {}), refundIssued: true, refundedAt: now }, adminNote: adminNote || fresh.adminNote || '', updatedAt: now });
+    });
+  } else {
+    await updateDoc(reqDocRef, updates);
+  }
 
   // Notify user
   await createNotification(
