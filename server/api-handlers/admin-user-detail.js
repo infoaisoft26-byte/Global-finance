@@ -170,19 +170,9 @@ export default async function handler(req, res) {
         if (target.role === 'admin' || target.role === 'sub_admin') return json(res, 403, { error: 'Admin accounts cannot be deleted from member management.' });
         if (target.status === 'deleted') return json(res, 409, { error: 'This account is already deleted.' });
 
-        const financial = await pool.query(`
-          SELECT COALESCE(w.fund_wallet,0)::numeric AS fund_wallet,
-                 COALESCE(w.income_wallet,0)::numeric AS income_wallet,
-                 COALESCE(w.basic_package_active,0)::numeric AS basic_package_active,
-                 COALESCE(w.fd_package_active,0)::numeric AS fd_package_active,
-                 EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id AND p.status='active') AS has_active_package
-          FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=$1 LIMIT 1
-        `, [userId]);
-        const f = financial.rows[0] || {};
-        if (Number(f.fund_wallet || 0) !== 0 || Number(f.income_wallet || 0) !== 0 ||
-            Number(f.basic_package_active || 0) !== 0 || Number(f.fd_package_active || 0) !== 0 || f.has_active_package) {
-          return json(res, 409, { error: 'This user has funds or an active package. Transfer/settle these first; account deletion is blocked to protect financial records.' });
-        }
+        // Keep the old account row, wallet, packages and ledger as a locked audit history.
+        // Only the login is removed and the email is released; a new registration gets a new UID
+        // and does not inherit this account's balances or active packages.
 
         const db = getFirestoreAdmin();
         const firestoreRef = db.collection('users').doc(userId);
@@ -199,8 +189,8 @@ export default async function handler(req, res) {
           await deleteFirebaseAuthUser(userId);
           await pool.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata,timestamp)
             VALUES($1,$2,$3,'USER_DELETED_EMAIL_RELEASED','user',$4,$5::jsonb,NOW())`,
-            [randomUUID(), admin.id, admin.email, userId, JSON.stringify({ email: originalEmail, emailReleased: true, financialHistoryPreserved: true })]);
-          return json(res, 200, { ok: true, message: 'User login deleted. Financial history preserved and email released for registration.' });
+            [randomUUID(), admin.id, admin.email, userId, JSON.stringify({ email: originalEmail, emailReleased: true, financialHistoryPreserved: true, oldAccountBalancesLocked: true })]);
+          return json(res, 200, { ok: true, message: 'User login deleted. Old financial history remains locked on the old account; the email is available for a new registration.' });
         } catch (deleteError) {
           try {
             await pool.query("UPDATE users SET email=$1,status=$2,updated_at=NOW() WHERE id=$3", [originalEmail, target.status, userId]);
@@ -243,6 +233,6 @@ export default async function handler(req, res) {
   } catch (error) {
     if (String(error?.message) === 'ADMIN_REQUIRED') return json(res, 403, { error: 'Admin access required' });
     console.error('admin-user-detail failed:', error instanceof Error ? error.message : error);
-    return json(res, 500, { error: 'Unable to load or update member details' });
+    return json(res, 500, { error: String(error?.message || 'Unable to load or update member details').slice(0, 240) });
   }
 }
