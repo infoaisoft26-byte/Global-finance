@@ -136,6 +136,13 @@ export default async function handler(req,res){
         return {profile:{...current,...next},wallet:walletSnap.exists?(walletSnap.data()||{}):emptyWallet(uid,now),isNewRegistration:false};
       }
 
+      // Existing users may sign in without a sponsor code. Every newly-created
+      // member must have a valid, active sponsor; never silently create an orphan.
+      if(!sponsorCode){
+        const error=new Error('Sponsor Referral ID is required. Registration is only allowed with a valid sponsor ID.');
+        error.statusCode=400;
+        throw error;
+      }
       let sponsorId=null,sponsorName=null,sponsorRef=null;
       if(sponsorCode){
         // Resolve old and canonical codes via Neon if Firestore still has a legacy ID.
@@ -171,6 +178,12 @@ export default async function handler(req,res){
             sponsorRef=sponsorDoc.ref;
           }
         }
+      }
+
+      if(!sponsorRef || !sponsorId || !sponsorName){
+        const error=new Error('Sponsor Referral ID was not found or is inactive. Please verify the ID before registering.');
+        error.statusCode=400;
+        throw error;
       }
 
       const sequenceRef=db.collection('_system').doc('referralSequence');
@@ -259,6 +272,7 @@ export default async function handler(req,res){
     return json(res,200,{ok:true,profile:mapProfile(result.profile,uid),wallet:mapWallet(result.wallet,uid),isNewRegistration:result.isNewRegistration});
   }catch(error){
     console.error('auth-sync failed:',error instanceof Error?error.message:error);
-    return json(res,500,{error:'Unable to complete secure account synchronization.'});
+    const status=Number(error?.statusCode)===400?400:500;
+    return json(res,status,{error:status===400?error.message:'Unable to complete secure account synchronization.'});
   }
 }
