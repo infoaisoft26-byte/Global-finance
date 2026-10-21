@@ -18,7 +18,25 @@ const hashPattern=/^0x[0-9a-fA-F]{64}$/;
 const amountPattern=/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/;
 
 function bodyOf(req){return typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});}
-function iso(v){return v?.toDate?.()?.toISOString?.() || (v ? String(v) : new Date().toISOString());}
+function iso(v){return dateValue(v)?.toISOString?.() || new Date().toISOString();}
+function dateValue(v){
+  if(!v) return null;
+  if(v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  if(typeof v?.toDate === 'function'){
+    const d=v.toDate();
+    return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
+  }
+  if(typeof v === 'object'){
+    const seconds=Number(v._seconds ?? v.seconds);
+    const nanos=Number(v._nanoseconds ?? v.nanoseconds ?? 0);
+    if(Number.isFinite(seconds)) {
+      const d=new Date(seconds*1000+(Number.isFinite(nanos)?nanos/1e6:0));
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+  }
+  const d=new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 function num(v){return Number(v||0);}
 function adminEmailAllowed(email){
   const configured=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
@@ -173,6 +191,7 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
   const client=await pool.connect();
   const normalizedHash=String(txHash||'').toLowerCase();
   const credit=Number(Number(amount).toFixed(8));
+  const rechargeCreatedAt=dateValue(createdAt);
   if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
   try{
     await client.query('BEGIN');
@@ -212,7 +231,7 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
          VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb,$7)`,
         [ledgerId,userId,credit,`Verified USDT BEP20 recharge ${id}`,normalizedHash,
           JSON.stringify({asset:'USDT',rechargeId:id,txHash:normalizedHash,depositAddress,adminId:actor.id,reviewNote:note,chainProof:proof}),
-          createdAt || new Date()]
+          rechargeCreatedAt || new Date()]
       );
       await client.query(
         'UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',
@@ -220,7 +239,6 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
       );
     }
 
-    const rechargeCreatedAt = createdAt?.toDate?.() || (createdAt ? new Date(createdAt) : null);
     const existingRecharge=await client.query(
       'SELECT id,user_id FROM usdt_bep20_recharges WHERE tx_hash=$1 FOR UPDATE',
       [normalizedHash]
