@@ -1,5 +1,6 @@
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 function readServiceAccountJson() {
@@ -51,6 +52,12 @@ function adminApp() {
 
 export function getFirestoreAdmin() {
   return getFirestore(adminApp());
+}
+
+export async function deleteFirebaseAuthUser(uid) {
+  const id = String(uid || '').trim();
+  if (!id) throw new Error('Firebase user ID is required');
+  await getAuth(adminApp()).deleteUser(id);
 }
 
 export async function getMaintenanceState() {
