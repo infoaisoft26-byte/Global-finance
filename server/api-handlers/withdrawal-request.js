@@ -19,7 +19,7 @@ export default async function handler(req,res){
    const istHour=Number(istParts.find(p=>p.type==='hour')?.value||0);
    const istMinute=Number(istParts.find(p=>p.type==='minute')?.value||0);
    const istMinutes=istHour*60+istMinute;
-   if(istMinutes<630||istMinutes>930)return json(res,403,{error:'Withdrawals are available daily from 10:30 AM to 3:30 PM IST. Please try during the withdrawal window.'});
+   if(settings.withdrawalTimeRestrictionDisabled!==true&&(istMinutes<630||istMinutes>930))return json(res,403,{error:'Withdrawals are available daily from 10:30 AM to 3:30 PM IST. Please try during the withdrawal window.'});
   }
   // KYC is intentionally not required for withdrawal. Registered-email OTP and admin approval remain required.
   const min=Number(settings.minWithdrawal||2);const max=Number(settings.maxWithdrawal||1000000);if(amount<min||amount>max)return json(res,400,{error:'Withdrawal amount must be between '+min+' and '+max+' USDT.'});
