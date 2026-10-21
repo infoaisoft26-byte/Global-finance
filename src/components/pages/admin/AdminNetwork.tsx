@@ -71,7 +71,7 @@ export const AdminNetwork: React.FC = () => {
     <div className="rounded-2xl bg-[#091129] border border-blue-500/25 overflow-hidden shadow-xl">
       {loading ? <div className="py-16 text-center text-slate-400 text-xs"><RefreshCw className="w-6 h-6 animate-spin mx-auto text-cyan-400 mb-2"/>Loading real network data...</div> :
       <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-[#060b1c] text-[10px] uppercase text-slate-400"><tr>
-        <th className="px-4 py-3 text-left">Member / Sponsor</th><th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Package</th><th className="px-4 py-3 text-left">Referral Income</th><th className="px-4 py-3 text-left">Level Income</th><th className="px-4 py-3 text-left">Wallet</th><th className="px-4 py-3 text-left">Status</th>
+        <th className="px-4 py-3 text-left">Member / Sponsor</th><th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Package</th><th className="px-4 py-3 text-left">Referral Income</th><th className="px-4 py-3 text-left">Wallet</th><th className="px-4 py-3 text-left">Status</th>
       </tr></thead><tbody className="divide-y divide-blue-500/10">
         {filtered.map(m => { const sponsor=sponsorByCode.get(m.sponsorId); const open=expanded===m.id; return <React.Fragment key={m.id}>
           <tr className="hover:bg-[#0e173a]/50 cursor-pointer" onClick={()=>setExpanded(open?'':m.id)}>
@@ -79,15 +79,14 @@ export const AdminNetwork: React.FC = () => {
             <td className="px-4 py-3"><div className="text-white font-semibold">Direct: {m.directCount}</div><div className="text-cyan-400">Total: {m.totalDownline}</div></td>
             <td className="px-4 py-3"><div className="text-white font-semibold">{m.latestPackageName||'No active package'}</div><div className="text-slate-400">{m.activePackageCount} active • {money(m.activePackageAmount)}</div></td>
             <td className="px-4 py-3 font-mono text-emerald-400 font-bold">{money(m.referralIncome)}</td>
-            <td className="px-4 py-3 font-mono text-cyan-400 font-bold">{money(m.levelIncome)}</td>
             <td className="px-4 py-3"><div className="text-slate-300">Fund {money(m.fundWallet)}</div><div className="text-slate-300">Income {money(m.incomeWallet)}</div></td>
             <td className="px-4 py-3"><div className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${m.status==='active'?'bg-emerald-500/15 text-emerald-400':'bg-rose-500/15 text-rose-400'}`}>{m.status}</div><div className="text-[10px] text-slate-500 mt-1">KYC: {m.kycStatus}</div></td>
           </tr>
-          {open && <tr><td colSpan={7} className="px-8 py-3 bg-[#060b1c]/70"><div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]"><div><span className="text-slate-500">Phone</span><div className="text-white">{m.phone||'—'}</div></div><div><span className="text-slate-500">Joined</span><div className="text-white">{new Date(m.createdAt).toLocaleString('en-IN')}</div></div><div><span className="text-slate-500">Total credited</span><div className="text-emerald-400 font-mono">{money(m.totalCredited)}</div></div><div><span className="text-slate-500">Member ID</span><div className="text-white font-mono break-all">{m.id}</div></div></div></td></tr>}
+          {open && <tr><td colSpan={6} className="px-8 py-3 bg-[#060b1c]/70"><div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-[11px]"><div><span className="text-slate-500">Phone</span><div className="text-white">{m.phone||'—'}</div></div><div><span className="text-slate-500">Joined</span><div className="text-white">{new Date(m.createdAt).toLocaleString('en-IN')}</div></div><div><span className="text-slate-500">Member ID</span><div className="text-white font-mono break-all">{m.id}</div></div></div></td></tr>}
         </React.Fragment>})}
       </tbody></table></div>}
     </div>
 
-    <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 text-[11px] text-amber-200/80">Referral and level income shown here is calculated only from actual completed ledger entries. No percentage or commission is assumed by the dashboard.</div>
+    <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 text-[11px] text-amber-200/80">Referral income shown here is based only on actual completed ledger entries. No percentage or commission is assumed by the dashboard.</div>
   </div>;
 };
