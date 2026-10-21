@@ -94,11 +94,8 @@ export default async function handler(req, res) {
       const history = await getPool().query(
         `SELECT id,user_id,reference_id,amount,metadata,created_at,status,flow
          FROM ledger_transactions
-         WHERE type='p2p_transfer' AND category='fund_wallet' AND status='completed'
-           AND (
-             (user_id=$1 AND flow='debit')
-             OR (flow='credit' AND metadata->>'counterpartyUserId'=$1)
-           )
+         WHERE user_id=$1 AND type='p2p_transfer' AND category='fund_wallet'
+           AND flow IN ('debit','credit') AND status='completed'
          ORDER BY created_at DESC LIMIT 100`,
         [actor.id]
       );
