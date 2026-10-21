@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { getPool } from "../../api/_lib/db.js";
 
 const API = "https://api.telegram.org";
-const BOT_URL = "https://t.me/GlobalFinanceHelp2026Bot";
+const BOT_URL = "https://t.me/GlobalFinanceHelp2026Bot"; // Public support bot; account data requires a verified one-time website link.
 const MENU = {
   keyboard: [
     [{ text: "💰 Wallet Balance" }, { text: "📥 Deposit" }],
