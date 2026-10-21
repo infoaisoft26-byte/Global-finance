@@ -156,9 +156,10 @@ export const P2PTransfer: React.FC = () => {
     },
     {
       key: 'beneficiaryReferralCode',
-      header: 'Recipient',
+      header: 'Member / Counterparty',
       render: (item) => (
         <div>
+          <span className="text-[10px] uppercase font-semibold text-slate-400 block">{item.metadata?.direction === 'received' ? 'Received from' : 'Sent to'}</span>
           <span className="text-xs font-semibold text-white block">{item.beneficiaryName || 'Member'}</span>
           <span className="text-[11px] font-mono text-cyan-400">{item.beneficiaryReferralCode}</span>
         </div>
@@ -167,7 +168,10 @@ export const P2PTransfer: React.FC = () => {
     {
       key: 'amountRupees',
       header: 'Amount',
-      render: (item) => <span className="font-mono text-xs font-bold text-rose-400">-{Number(item.amountRupees || 0).toFixed(2)} USDT</span>,
+      render: (item) => {
+        const received = item.metadata?.direction === 'received';
+        return <span className={`font-mono text-xs font-bold ${received ? 'text-emerald-400' : 'text-rose-400'}`}>{received ? '+' : '-'}{Number(item.amountRupees || 0).toFixed(2)} USDT</span>;
+      },
     },
     {
       key: 'status',
@@ -275,7 +279,7 @@ export const P2PTransfer: React.FC = () => {
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Your P2P Transfers</h3>
           <button onClick={loadData} disabled={loadingRequests} className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"><RefreshCw className={`w-3.5 h-3.5 ${loadingRequests ? 'animate-spin' : ''}`} /><span>Refresh</span></button>
         </div>
-        <DataTable columns={columns} data={requests} emptyMessage="No P2P transfers sent yet." />
+        <DataTable columns={columns} data={requests} emptyMessage="No P2P transfers sent or received yet." />
       </div>
     </div>
   );
