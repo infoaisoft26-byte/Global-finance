@@ -13,6 +13,12 @@ export default async function handler(req,res){
   if(!user||user.status!=='active'||user.role!=='user')return json(res,403,{error:'Active member account required.'});
   const settingsQ=await pool.query('SELECT data FROM app_settings WHERE id=$1 LIMIT 1',['global_finance_system_settings']).catch(()=>({rows:[]}));const settings=settingsQ.rows[0]?.data||{};
   if(settings.withdrawalEnabled===false)return json(res,403,{error:'Withdrawals are currently disabled.'});
+  // Enforce the withdrawal window on the server using India Standard Time.
+  const istParts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const istHour=Number(istParts.find(p=>p.type==='hour')?.value||0);
+  const istMinute=Number(istParts.find(p=>p.type==='minute')?.value||0);
+  const istMinutes=istHour*60+istMinute;
+  if(istMinutes<630||istMinutes>930)return json(res,403,{error:'Withdrawals are available daily from 10:30 AM to 3:30 PM IST. Please try during the withdrawal window.'});
   // KYC is intentionally not required for withdrawal. Registered-email OTP and admin approval remain required.
   const min=Number(settings.minWithdrawal||2);const max=Number(settings.maxWithdrawal||1000000);if(amount<min||amount>max)return json(res,400,{error:'Withdrawal amount must be between '+min+' and '+max+' USDT.'});
   const secret=String(process.env.OTP_HASH_SECRET||process.env.RESEND_API_KEY||'').trim();if(!secret)return json(res,503,{error:'OTP security secret is not configured.'});
