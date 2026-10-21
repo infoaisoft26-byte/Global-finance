@@ -51,13 +51,13 @@ export const AdminOfferPoster: React.FC = () => {
     setUploadingImage(true);
     try {
       const url = await uploadOfferPosterImage(file);
-      if (typeof url !== 'string' || !/^https?:\\/\\//i.test(url)) {
+      if (typeof url !== 'string' || !url.startsWith('https://')) {
         throw new Error('Image upload finished, but Firebase did not return a valid image URL. Please check Firebase Storage configuration and permissions.');
       }
 
       // Show the generated URL immediately so it remains visible even if publishing fails.
       setImageUrl(url);
-      const nextTitle = title.trim() || file.name.replace(/\\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Offer Poster';
+      const nextTitle = title.trim() || file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Offer Poster';
       setTitle(nextTitle);
 
       const saved = await saveOfferPoster({
