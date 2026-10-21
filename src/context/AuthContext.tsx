@@ -257,8 +257,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const registerWithEmail = async (name: string, email: string, pass: string, sponsorCode?: string, phone?: string, country?: string) => {
+    const sponsor = String(sponsorCode || sponsorReferralParam || '').trim().toUpperCase();
+    if (!/^GF\d{6}$/.test(sponsor)) {
+      throw new Error('Sponsor Referral ID is required. Open a valid sponsor referral link or enter the sponsor ID.');
+    }
     setLoading(true);
-    const sponsor = sponsorCode || sponsorReferralParam;
     pendingSponsorRef.current = sponsor;
     try {
       await setPersistence(auth, browserLocalPersistence);
