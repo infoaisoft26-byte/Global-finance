@@ -11,6 +11,7 @@ type ExtendedSettings = SystemSettings & {
   depositWalletLink?: string;
   depositQrImageUrl?: string;
   depositDisplayEnabled?: boolean;
+  withdrawalTimeRestrictionEnabled?: boolean;
 };
 
 export const AdminSettingsPage: React.FC = () => {
@@ -62,6 +63,23 @@ export const AdminSettingsPage: React.FC = () => {
       {errorMsg && <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex gap-2"><AlertTriangle className="w-4 h-4" />{errorMsg}</div>}
 
       <form onSubmit={handleSave} className="space-y-6">
+        <section className="p-5 rounded-2xl bg-[#091129] border border-amber-500/30 space-y-4">
+          <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3">
+            <ShieldCheck className="w-4 h-4 text-amber-300" />
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300">Withdrawal Time Control</h3>
+              <p className="text-xs text-slate-400 mt-1">Normal withdrawal window: 10:30 AM–3:30 PM IST. Admin can temporarily disable this time restriction for urgent requests.</p>
+            </div>
+          </div>
+          <label className="flex items-start gap-3 text-sm text-slate-200">
+            <input type="checkbox" className="mt-1" checked={settings.withdrawalTimeRestrictionEnabled !== false}
+              onChange={(e) => setSettings({ ...settings, withdrawalTimeRestrictionEnabled: e.target.checked })} />
+            <span><strong>Enforce withdrawal timing</strong><span className="block text-xs text-slate-400 mt-1">ON = users can submit only from 10:30 AM to 3:30 PM IST. OFF = allow withdrawal requests at any time, while registered-email OTP and admin approval remain required.</span></span>
+          </label>
+          <div className={settings.withdrawalTimeRestrictionEnabled === false ? "text-xs text-amber-200" : "text-xs text-emerald-300"}>
+            Current mode: {settings.withdrawalTimeRestrictionEnabled === false ? "TIME RESTRICTION OFF — withdrawals allowed any time" : "TIME RESTRICTION ON — 10:30 AM to 3:30 PM IST"}
+          </div>
+        </section>
         <section className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-4">
           <div className="flex items-center justify-between gap-3 border-b border-blue-500/20 pb-3">
             <div className="flex items-center gap-2"><WalletCards className="w-4 h-4 text-cyan-400" /><h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">USDT BEP20 Deposit Wallet</h3></div>
