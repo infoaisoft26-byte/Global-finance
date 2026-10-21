@@ -10,6 +10,15 @@ function json(res,status,body){res.statusCode=status;res.setHeader('Content-Type
 const SIGNUP_BONUS_USDT = 0.50;
 async function creditSignupBonus(uid, email) {
   return await withTransaction(async (client) => {
+    // Re-registering a previously deleted account may reuse the email, but must not
+    // mint a second registration bonus for the same address.
+    const priorDeletedAccount = await client.query(
+      `SELECT 1 FROM audit_logs
+       WHERE action='USER_DELETED_EMAIL_RELEASED' AND metadata->>'email'=$1
+       LIMIT 1`,
+      [String(email || '').trim().toLowerCase()],
+    );
+    if (priorDeletedAccount.rowCount) return { credited:false, amount:0, reason:'email previously registered' };
     const inserted = await client.query(
       `INSERT INTO ledger_transactions
         (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
