@@ -156,7 +156,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
       const res = await submitWithdrawalWithOtp(user, { amount, walletAddress: walletAddress.trim(), note: userNote.trim(), otpId });
 
       if (res.success) {
-        setSuccessMsg(`USDT withdrawal request submitted. Reference: ${res.request.reference}`);
+        setSuccessMsg(`Withdrawal request submitted successfully. USDT ${amount.toFixed(6)} has been deducted from your available balance and reserved. Admin approval and processing target: within 24 hours. Reference: ${res.request.reference}`);
         setUserNote('');
         setOtpId(''); setOtpCode(''); setOtpVerified(false);
         await refreshWallet();
@@ -236,7 +236,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
 
       <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-3 text-xs">
         <Clock className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-        <div><strong className="font-semibold block">Daily withdrawal window</strong><span>10:30 AM – 3:30 PM IST • Minimum 2 USDT</span></div>
+        <div><strong className="font-semibold block">Daily withdrawal window</strong><span>10:30 AM – 3:30 PM IST • Minimum 2 USDT</span><span className="block mt-1">After submission, the amount is reserved immediately. Admin approval and processing target: within 24 hours. If rejected, the reserved amount is refunded to your available balance.</span></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
