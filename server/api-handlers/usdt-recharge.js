@@ -228,10 +228,9 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
       await client.query(
         `INSERT INTO ledger_transactions
           (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at)
-         VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb,$7)`,
+         VALUES($1,$2,'usdt_bep20_recharge','fund_wallet','credit',$3,0,$3,$4,$5,'completed',$6::jsonb,NOW())`,
         [ledgerId,userId,credit,`Verified USDT BEP20 recharge ${id}`,normalizedHash,
-          JSON.stringify({asset:'USDT',rechargeId:id,txHash:normalizedHash,depositAddress,adminId:actor.id,reviewNote:note,chainProof:proof}),
-          rechargeCreatedAt || new Date()]
+          JSON.stringify({asset:'USDT',rechargeId:id,txHash:normalizedHash,depositAddress,adminId:actor.id,reviewNote:note,chainProof:proof})]
       );
       await client.query(
         'UPDATE wallets SET fund_wallet=fund_wallet+$1,updated_at=NOW() WHERE user_id=$2',
@@ -249,13 +248,13 @@ async function creditNeonRecharge({id,userId,txHash,amount,depositAddress,actor,
     const rechargeWrite=await client.query(
       `INSERT INTO usdt_bep20_recharges
         (id,user_id,tx_hash,deposit_address,amount_usdt,status,ledger_id,review_note,reviewed_by,reviewed_at,created_at,proof_url)
-       VALUES($1,$2,$3,$4,$5,'approved',$6,$7,$8,NOW(),COALESCE($9,NOW()),$10)
+       VALUES($1,$2,$3,$4,$5,'approved',$6,$7,$8,NOW(),COALESCE($9::timestamptz,NOW()),$10)
        ON CONFLICT(tx_hash) DO UPDATE SET
          status='approved',ledger_id=EXCLUDED.ledger_id,review_note=EXCLUDED.review_note,
          reviewed_by=EXCLUDED.reviewed_by,reviewed_at=EXCLUDED.reviewed_at
        WHERE usdt_bep20_recharges.user_id=EXCLUDED.user_id
        RETURNING id`,
-      [id,userId,normalizedHash,String(depositAddress||BEP20_WALLET).toLowerCase(),credit,ledgerId,note||'Approved after on-chain verification',actor.id,rechargeCreatedAt,null]
+      [id,userId,normalizedHash,String(depositAddress||BEP20_WALLET).toLowerCase(),credit,ledgerId,note||'Approved after on-chain verification',actor.id,rechargeCreatedAt ? rechargeCreatedAt.toISOString() : null,null]
     );
     if(!rechargeWrite.rowCount) throw new Error('TXID_ALREADY_CREDITED');
     await client.query('COMMIT');
