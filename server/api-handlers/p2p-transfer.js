@@ -40,16 +40,17 @@ async function p2pSettings(client = getPool()) {
   };
 }
 
-function historyRow(row) {
+function historyRow(row, actor) {
   const meta = row.metadata || {};
+  const direction = row.flow === 'credit' || meta.direction === 'received' ? 'received' : 'sent';
   return {
     id: row.id,
     reference: row.reference_id,
     requestType: 'p2p_transfer',
     sourceWalletType: 'fund_wallet',
     destinationWalletType: 'peer_user',
-    userId: row.user_id,
-    userReferralCode: meta.senderReferralCode || '',
+    userId: actor.id,
+    userReferralCode: actor.referral_code || '',
     beneficiaryUserId: meta.counterpartyUserId || '',
     beneficiaryReferralCode: meta.counterpartyCode || '',
     beneficiaryName: meta.counterpartyName || 'Member',
@@ -59,8 +60,9 @@ function historyRow(row) {
     feePaise: 0,
     netAmountRupees: Number(row.amount || 0),
     netAmountPaise: Math.round(Number(row.amount || 0) * 100),
-    status: 'completed',
+    status: row.status || 'completed',
     userNote: meta.note || '',
+    metadata: { ...meta, direction },
     createdAt: row.created_at,
     updatedAt: row.created_at,
     completedAt: row.created_at,
@@ -90,13 +92,17 @@ export default async function handler(req, res) {
       }
 
       const history = await getPool().query(
-        `SELECT id,user_id,reference_id,amount,metadata,created_at
+        `SELECT id,user_id,reference_id,amount,metadata,created_at,status,flow
          FROM ledger_transactions
-         WHERE user_id=$1 AND type='p2p_transfer' AND category='fund_wallet' AND flow='debit' AND status='completed'
+         WHERE type='p2p_transfer' AND category='fund_wallet' AND status='completed'
+           AND (
+             (user_id=$1 AND flow='debit')
+             OR (flow='credit' AND metadata->>'counterpartyUserId'=$1)
+           )
          ORDER BY created_at DESC LIMIT 100`,
         [actor.id]
       );
-      return json(res, 200, { history: history.rows.map(historyRow), settings });
+      return json(res, 200, { history: history.rows.map(row => historyRow(row, actor)), settings });
     }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
