@@ -83,8 +83,27 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
     return () => window.clearInterval(timer);
   }, [settings?.withdrawalWindowStart, settings?.withdrawalWindowEnd, settings?.withdrawalTimezone]);
 
+  const withdrawalWindowLabel = () => {
+    const start = settings?.withdrawalWindowStart || '10:30';
+    const end = settings?.withdrawalWindowEnd || '15:30';
+    const format = (value: string) => {
+      const [h, m] = value.split(':').map(Number);
+      const suffix = h >= 12 ? 'PM' : 'AM';
+      const hour = h % 12 || 12;
+      return `${hour}:${String(m).padStart(2, '0')} ${suffix}`;
+    };
+    return `${format(start)} – ${format(end)} ${settings?.withdrawalTimezone === 'Asia/Kolkata' || !settings?.withdrawalTimezone ? 'IST' : settings.withdrawalTimezone}`;
+  };
+  const showWithdrawalWindowPopup = () => {
+    const message = `Email OTP is available only during the permitted withdrawal hours: ${withdrawalWindowLabel()}.`;
+    setErrorMsg(message);
+    setSuccessMsg('');
+    if (typeof window !== 'undefined') window.alert(message);
+  };
+
   const otpPayload = () => ({ purpose: 'withdrawal' as const, amount: Number(amount), walletAddress: walletAddress.trim(), note: userNote.trim() });
   const handleSendOtp = async () => {
+    if (!isWithdrawalEnabled || !isWithinWithdrawalWindow()) { showWithdrawalWindowPopup(); return; }
     if (!user) { setErrorMsg('Please sign in again.'); return; }
     if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress.trim()) || !Number.isFinite(amount) || amount < 2) { setErrorMsg('Enter a valid amount and BEP20 address first.'); return; }
     setSendingOtp(true); setErrorMsg(''); setSuccessMsg('');
@@ -92,6 +111,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
     catch (err: any) { setErrorMsg(err?.message || 'Unable to send email OTP.'); } finally { setSendingOtp(false); }
   };
   const handleVerifyOtp = async () => {
+    if (!isWithdrawalEnabled || !isWithinWithdrawalWindow()) { showWithdrawalWindowPopup(); return; }
     if (!user || !otpId) { setErrorMsg('Request an email OTP first.'); return; }
     setVerifyingOtp(true); setErrorMsg('');
     try { await verifyTransactionOtp(user, { ...otpPayload(), otpId, code: otpCode }); setOtpVerified(true); setSuccessMsg('Email OTP verified. You can submit this withdrawal request.'); }
@@ -255,7 +275,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
             <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 space-y-3">
               <div className="text-xs font-bold text-cyan-800">Email OTP Security Verification</div>
               <p className="text-[11px] text-slate-600">OTP goes to your registered email. If amount or wallet address changes, request a new OTP.</p>
-              <button type="button" onClick={handleSendOtp} disabled={sendingOtp || !walletAddress.trim() || otpVerified} className="w-full rounded-lg border border-cyan-300 px-3 py-2 text-xs font-bold text-cyan-800 disabled:opacity-50">{sendingOtp ? 'Sending OTP…' : 'Send OTP to Registered Email'}</button>
+              <button type="button" onClick={handleSendOtp} disabled={sendingOtp || !walletAddress.trim() || otpVerified} className="w-full rounded-lg border border-cyan-300 px-3 py-2 text-xs font-bold text-cyan-800 disabled:opacity-50">{sendingOtp ? 'Sending OTP…' : !isWithdrawalEnabled || !withdrawalWindowOpen ? `OTP available ${withdrawalWindowLabel()}` : 'Send OTP to Registered Email'}</button>
               <div className="flex gap-2">
                 <input aria-label="Email OTP" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otpCode} onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0,6)); setOtpVerified(false); }} placeholder="Enter 6-digit OTP" className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tracking-[0.25em]" />
                 <button type="button" onClick={handleVerifyOtp} disabled={verifyingOtp || otpCode.length!==6 || !otpId || otpVerified} className="rounded-lg bg-cyan-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{otpVerified ? 'Verified ✓' : verifyingOtp ? 'Checking…' : 'Verify OTP'}</button>
