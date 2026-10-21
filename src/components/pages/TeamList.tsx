@@ -25,12 +25,10 @@ export const TeamList: React.FC = () => {
     }
   };
 
+  // Load once when the Team List opens. Further updates happen only when
+  // the member clicks the table's manual Refresh control.
   useEffect(() => {
     loadTeamList();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') loadTeamList();
-    }, 10000);
-    return () => window.clearInterval(timer);
   }, [profile?.uid, profile?.referralCode]);
 
 
