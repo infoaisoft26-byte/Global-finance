@@ -25,21 +25,24 @@ export default async function handler(req,res){
    const feePercent=Number(settings.withdrawalFeePercent||5);const fee=Number((amount*feePercent/100).toFixed(6));const net=Number((amount-fee).toFixed(6));
    const reference='WTH_'+randomUUID().replaceAll('-','').slice(0,20);const id=randomUUID();const now=new Date().toISOString();
    const request={id,reference,userId:uid,userEmail:email,userName:user.name||'',userReferralCode:user.referral_code||'',requestType:'withdrawal',sourceWalletType:'income_wallet',destinationWalletType:'external_bank',amountRupees:amount,amountPaise:Math.round(amount*100),feeRupees:fee,feePaise:Math.round(fee*100),netAmountRupees:net,netAmountPaise:Math.round(net*100),status:'pending',userNote:'USDT BEP20: '+walletAddress+(note?'. '+note:''),metadata:{asset:'USDT',network:'BEP20 / BNB Smart Chain',withdrawalType:'usdt_bep20',destinationWalletAddress:walletAddress,destination:'USDT BEP20: '+walletAddress,feeAmountUsdt:fee,netPayoutUsdt:net,walletDebited:true,reservedAmountUsdt:amount,processingTargetHours:24},createdAt:now,updatedAt:now};
-   await client.query('UPDATE transaction_email_otps SET consumed_at=NOW() WHERE id=$1',[otpId]);return request;
-  });
-  const firestore=getFirestoreAdmin();const requestRef=firestore.collection('transaction_requests').doc(result.id);const walletRef=firestore.collection('wallets').doc(uid);
-  const debitRef=firestore.collection('transactions').doc(result.reference+'-WITHDRAWAL-DEBIT');
-  const reserveRef=firestore.collection('transactions').doc(result.reference+'-WITHDRAWAL-RESERVE');
-  await firestore.runTransaction(async tx=>{
-   const requestSnap=await tx.get(requestRef);const walletSnap=await tx.get(walletRef);
-   if(requestSnap.exists)throw new Error('WITHDRAWAL_ALREADY_CREATED');
-   if(!walletSnap.exists)throw new Error('WALLET_NOT_FOUND');
-   const wallet=walletSnap.data()||{};const available=Number(wallet.incomeWallet||0);
+   // Neon is the canonical wallet source used by the member dashboard.
+   const walletQ=await client.query('SELECT income_wallet FROM wallets WHERE user_id=$1 FOR UPDATE',[uid]);
+   if(!walletQ.rows[0])throw new Error('WALLET_NOT_FOUND');
+   const available=Number(walletQ.rows[0].income_wallet||0);
    if(available+1e-8<amount)throw new Error('INSUFFICIENT_FUNDS');
-   const now=new Date().toISOString();
-   tx.update(walletRef,{incomeWallet:Number((available-amount).toFixed(8)),updatedAt:now});
-   tx.create(debitRef,{id:debitRef.id,userId:uid,type:'withdrawal',category:'income_wallet',flow:'debit',amount,fee:0,netAmount:amount,description:'Withdrawal amount reserved pending admin approval ('+result.reference+')',referenceId:result.reference,status:'completed',metadata:{amountUsdt:amount,amountPaise:Math.round(amount*100),requestId:result.id,reservation:true},createdAt:now});
-   tx.create(reserveRef,{id:reserveRef.id,userId:'GLOBAL_FINANCE_LIABILITIES',type:'withdrawal',category:'income_wallet',flow:'credit',amount,fee:0,netAmount:amount,description:'Withdrawal reserve for member '+uid+' ('+result.reference+')',referenceId:result.reference,status:'completed',metadata:{amountUsdt:amount,amountPaise:Math.round(amount*100),requestId:result.id,reservation:true},createdAt:now});
+   const nextBalance=Number((available-amount).toFixed(8));
+   await client.query('UPDATE wallets SET income_wallet=$2,total_withdrawal=total_withdrawal+$3,updated_at=NOW() WHERE user_id=$1',[uid,nextBalance,amount]);
+   await client.query('INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)',
+    [reference+'-WITHDRAWAL-DEBIT',uid,'withdrawal','income_wallet','debit',amount,0,amount,'Withdrawal amount reserved pending admin approval ('+reference+')',reference,'completed',JSON.stringify({requestId:id,reservation:true,asset:'USDT',walletAddress}),now]);
+   await client.query('INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)',
+    [reference+'-WITHDRAWAL-RESERVE',uid,'withdrawal_reserve','income_wallet','credit',amount,0,amount,'Withdrawal reserve liability ('+reference+')',reference,'completed',JSON.stringify({requestId:id,reservation:true,asset:'USDT'}),now]);
+   await client.query('UPDATE transaction_email_otps SET consumed_at=NOW() WHERE id=$1',[otpId]);
+   return {...request,canonicalBalanceAfter:nextBalance};
+  });
+  const firestore=getFirestoreAdmin();const requestRef=firestore.collection('transaction_requests').doc(result.id);
+  await firestore.runTransaction(async tx=>{
+   const requestSnap=await tx.get(requestRef);
+   if(requestSnap.exists)throw new Error('WITHDRAWAL_ALREADY_CREATED');
    tx.create(requestRef,result);
   });
   return json(res,200,{success:true,request:{reference:result.reference,status:result.status},message:'Withdrawal request submitted. Amount reserved from available wallet. Processing target: within 24 hours.'});
