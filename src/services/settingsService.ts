@@ -35,7 +35,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   basicPackageEnabled: true,
   fdPackageEnabled: true,
   packageActivationApprovalRequired: true,
-  requireKycForWithdrawal: true,
+  requireKycForWithdrawal: false,
   requireKycForP2p: false,
   requireKycForPackageActivation: false,
   supportTicketsEnabled: true,
@@ -70,7 +70,9 @@ const normalizeSettings = (stored: Partial<SystemSettings> & Record<string, any>
   basicPackageEnabled: true,
   fdPackageEnabled: true,
   rechargeEnabled: false,
-  withdrawalEnabled: true
+  withdrawalEnabled: true,
+  // Withdrawals use registered-email OTP plus admin approval; KYC is not required for this flow.
+  requireKycForWithdrawal: false
 } as SystemSettings);
 
 async function authHeaders(): Promise<Record<string, string>> {
