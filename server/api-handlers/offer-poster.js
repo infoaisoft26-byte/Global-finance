@@ -45,14 +45,25 @@ function normalize(body = {}) {
   const startAt = body.startAt ? new Date(body.startAt) : null;
   const endAt = body.endAt ? new Date(body.endAt) : null;
   if (!title || !imageUrl) throw new Error('Poster title and image URL are required.');
-  try { new URL(imageUrl); } catch { throw new Error('Please enter a valid poster image URL.'); }
+  let normalizedImageUrl = imageUrl;
+  if (normalizedImageUrl && !/^https?:\/\//i.test(normalizedImageUrl)) {
+    normalizedImageUrl = `https://${normalizedImageUrl.replace(/^\/+/, '')}`;
+  }
+  try {
+    const parsedImageUrl = new URL(normalizedImageUrl);
+    if (!['http:', 'https:'].includes(parsedImageUrl.protocol) || !parsedImageUrl.hostname.includes('.')) {
+      throw new Error('invalid image URL');
+    }
+  } catch {
+    throw new Error('Upload the poster image using the file picker, or enter a full image link starting with https://.');
+  }
   if (ctaUrl) {
     try { new URL(ctaUrl, 'https://globalfinance1.online'); } catch { throw new Error('Please enter a valid offer link.'); }
   }
   if (startAt && Number.isNaN(startAt.getTime())) throw new Error('Invalid start date.');
   if (endAt && Number.isNaN(endAt.getTime())) throw new Error('Invalid end date.');
   if (startAt && endAt && startAt >= endAt) throw new Error('End date must be after start date.');
-  return { title, imageUrl, description, ctaLabel, ctaUrl, active: body.active !== false, startAt, endAt };
+  return { title, imageUrl: normalizedImageUrl, description, ctaLabel, ctaUrl, active: body.active !== false, startAt, endAt };
 }
 
 function serialize(row) {
