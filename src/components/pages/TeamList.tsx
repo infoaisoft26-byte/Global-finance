@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, WalletCards } from 'lucide-react';
+import { Users, Package } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getDownlineMembers } from '../../services/financeService.ts';
 import { DataTable, type Column, type PdfColumn } from '../common/DataTable.tsx';
@@ -68,21 +68,19 @@ export const TeamList: React.FC = () => {
       render: item => <span className="inline-flex w-fit items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{item.status.toUpperCase()}</span>
     },
     {
-      key: 'commissionFromMember',
-      header: 'Commission',
-      render: item => {
-        const rate = item.level === 1 ? 5 : item.level <= 12 ? 1 : 0.5;
-        const commission = Number(item.commissionFromMember || 0);
-        return (
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-1 text-xs font-bold text-cyan-300">
-              <WalletCards className="w-3 h-3" />
-              <span>USDT {commission.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-            <span className="text-[10px] text-slate-500">Auto rate: {rate}% • Level {item.level}</span>
-          </div>
-        );
-      }
+      key: 'packageName',
+      header: 'Package',
+      render: item => <span className="inline-flex items-center gap-1 text-xs font-semibold text-white"><Package className="w-3 h-3 text-cyan-400" />{item.packageName || 'No Package'}</span>
+    },
+    {
+      key: 'packageAmount',
+      header: 'Package Amount',
+      render: item => <span className="text-xs font-bold text-cyan-300">USDT {Number(item.packageAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+    },
+    {
+      key: 'packageStatus',
+      header: 'Package Status',
+      render: item => <span className="text-xs text-slate-300">{item.packageStatus || 'No Purchase'}</span>
     }
   ];
 
@@ -94,10 +92,9 @@ export const TeamList: React.FC = () => {
     { header: 'Level', accessor: item => item.level },
     { header: 'DOA', accessor: item => formatDate(item.joinDate) },
     { header: 'Activation', accessor: item => item.status === 'active' ? 'Active' : 'Inactive' },
-    { header: 'Commission', accessor: item => {
-        const rate = item.level === 1 ? 5 : item.level <= 12 ? 1 : 0.5;
-        return 'USDT ' + Number(item.commissionFromMember || 0).toFixed(2) + ' (' + rate + '% • L' + item.level + ')';
-      } }
+    { header: 'Package', accessor: item => item.packageName || 'No Package' },
+    { header: 'Package Amount', accessor: item => 'USDT ' + Number(item.packageAmount || 0).toFixed(2) },
+    { header: 'Package Status', accessor: item => item.packageStatus || 'No Purchase' }
   ];
 
   return (
