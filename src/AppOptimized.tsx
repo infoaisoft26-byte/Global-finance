@@ -13,6 +13,7 @@ import { getSystemSettings } from './services/settingsService.ts';
 import type { ActivePage, SystemSettings } from './types/index.ts';
 import { ShieldCheck, RefreshCw, ShieldAlert, LogOut, AlertTriangle, Wrench } from 'lucide-react';
 import { SupportAiChat } from './components/support/SupportAiChat.tsx';
+import { TelegramSupportButton } from './components/TelegramSupportButton.tsx';
 
 const Dashboard = lazy(() => import('./components/pages/Dashboard.tsx').then(m => ({ default: m.Dashboard })));
 const Recharge = lazy(() => import('./components/pages/Recharge.tsx').then(m => ({ default: m.Recharge })));
@@ -292,5 +293,5 @@ const MainLayout: React.FC = () => {
 };
 
 export default function AppOptimized() {
-  return <AuthProvider><MainLayout /></AuthProvider>;
+  return <AuthProvider><MainLayout /><TelegramSupportButton /></AuthProvider>;
 }
