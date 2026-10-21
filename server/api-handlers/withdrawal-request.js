@@ -25,10 +25,24 @@ export default async function handler(req,res){
    const walletQ=await client.query('SELECT income_wallet FROM wallets WHERE user_id=$1 FOR UPDATE',[uid]);const balance=Number(walletQ.rows[0]?.income_wallet||0);if(balance<amount)throw new Error('INSUFFICIENT_FUNDS');
    const feePercent=Number(settings.withdrawalFeePercent||5);const fee=Number((amount*feePercent/100).toFixed(6));const net=Number((amount-fee).toFixed(6));
    const reference='WTH_'+randomUUID().replaceAll('-','').slice(0,20);const id=randomUUID();const now=new Date().toISOString();
-   const request={id,reference,userId:uid,userEmail:email,userName:user.name||'',userReferralCode:user.referral_code||'',requestType:'withdrawal',sourceWalletType:'income_wallet',destinationWalletType:'external_bank',amountRupees:amount,amountPaise:Math.round(amount*100),feeRupees:fee,feePaise:Math.round(fee*100),netAmountRupees:net,netAmountPaise:Math.round(net*100),status:'pending',userNote:'USDT BEP20: '+walletAddress+(note?'. '+note:''),metadata:{asset:'USDT',network:'BEP20 / BNB Smart Chain',withdrawalType:'usdt_bep20',destinationWalletAddress:walletAddress,destination:'USDT BEP20: '+walletAddress,feeAmountUsdt:fee,netPayoutUsdt:net},createdAt:now,updatedAt:now};
+   const request={id,reference,userId:uid,userEmail:email,userName:user.name||'',userReferralCode:user.referral_code||'',requestType:'withdrawal',sourceWalletType:'income_wallet',destinationWalletType:'external_bank',amountRupees:amount,amountPaise:Math.round(amount*100),feeRupees:fee,feePaise:Math.round(fee*100),netAmountRupees:net,netAmountPaise:Math.round(net*100),status:'pending',userNote:'USDT BEP20: '+walletAddress+(note?'. '+note:''),metadata:{asset:'USDT',network:'BEP20 / BNB Smart Chain',withdrawalType:'usdt_bep20',destinationWalletAddress:walletAddress,destination:'USDT BEP20: '+walletAddress,feeAmountUsdt:fee,netPayoutUsdt:net,walletDebited:true,reservedAmountUsdt:amount,processingTargetHours:24},createdAt:now,updatedAt:now};
    await client.query('UPDATE transaction_email_otps SET consumed_at=NOW() WHERE id=$1',[otpId]);return request;
   });
-  await getFirestoreAdmin().collection('transaction_requests').doc(result.id).create(result);
-  return json(res,200,{success:true,request:{reference:result.reference,status:result.status},message:'Withdrawal request submitted successfully.'});
+  const firestore=getFirestoreAdmin();const requestRef=firestore.collection('transaction_requests').doc(result.id);const walletRef=firestore.collection('wallets').doc(uid);
+  const debitRef=firestore.collection('transactions').doc(result.reference+'-WITHDRAWAL-DEBIT');
+  const reserveRef=firestore.collection('transactions').doc(result.reference+'-WITHDRAWAL-RESERVE');
+  await firestore.runTransaction(async tx=>{
+   const requestSnap=await tx.get(requestRef);const walletSnap=await tx.get(walletRef);
+   if(requestSnap.exists)throw new Error('WITHDRAWAL_ALREADY_CREATED');
+   if(!walletSnap.exists)throw new Error('WALLET_NOT_FOUND');
+   const wallet=walletSnap.data()||{};const available=Number(wallet.incomeWallet||0);
+   if(available+1e-8<amount)throw new Error('INSUFFICIENT_FUNDS');
+   const now=new Date().toISOString();
+   tx.update(walletRef,{incomeWallet:Number((available-amount).toFixed(8)),updatedAt:now});
+   tx.create(debitRef,{id:debitRef.id,userId:uid,type:'withdrawal',category:'income_wallet',flow:'debit',amount,fee:0,netAmount:amount,description:'Withdrawal amount reserved pending admin approval ('+result.reference+')',referenceId:result.reference,status:'completed',metadata:{amountUsdt:amount,amountPaise:Math.round(amount*100),requestId:result.id,reservation:true},createdAt:now});
+   tx.create(reserveRef,{id:reserveRef.id,userId:'GLOBAL_FINANCE_LIABILITIES',type:'withdrawal',category:'income_wallet',flow:'credit',amount,fee:0,netAmount:amount,description:'Withdrawal reserve for member '+uid+' ('+result.reference+')',referenceId:result.reference,status:'completed',metadata:{amountUsdt:amount,amountPaise:Math.round(amount*100),requestId:result.id,reservation:true},createdAt:now});
+   tx.create(requestRef,result);
+  });
+  return json(res,200,{success:true,request:{reference:result.reference,status:result.status},message:'Withdrawal request submitted. Amount reserved from available wallet. Processing target: within 24 hours.'});
  }catch(error){const m=String(error?.message||'');if(m==='OTP_REQUIRED_OR_INVALID')return json(res,403,{error:'Email OTP is missing, expired, already used, or does not match this withdrawal.'});if(m==='INSUFFICIENT_FUNDS')return json(res,409,{error:'Insufficient available USDT balance.'});console.error('withdrawal request failed:',m);return json(res,500,{error:'Withdrawal request could not be submitted. Please try again.'});}
 }
