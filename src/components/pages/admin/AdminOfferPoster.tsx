@@ -8,6 +8,7 @@ export const AdminOfferPoster: React.FC = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [copiedImageLink, setCopiedImageLink] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
   const [description, setDescription] = useState('');
   const [ctaLabel, setCtaLabel] = useState('');
   const [ctaUrl, setCtaUrl] = useState('');
@@ -38,6 +39,54 @@ export const AdminOfferPoster: React.FC = () => {
   };
 
   useEffect(() => { void load(); }, []);
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    setError('');
+    setMessage('');
+    setPreviewError(false);
+    setUploadingImage(true);
+    try {
+      const url = await uploadOfferPosterImage(file);
+      if (typeof url !== 'string' || !/^https?:\\/\\//i.test(url)) {
+        throw new Error('Image upload finished, but Firebase did not return a valid image URL. Please check Firebase Storage configuration and permissions.');
+      }
+
+      // Show the generated URL immediately so it remains visible even if publishing fails.
+      setImageUrl(url);
+      const nextTitle = title.trim() || file.name.replace(/\\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Offer Poster';
+      setTitle(nextTitle);
+
+      const saved = await saveOfferPoster({
+        id: poster?.id || '',
+        title: nextTitle,
+        imageUrl: url,
+        description,
+        ctaLabel,
+        ctaUrl,
+        startAt: startAt ? new Date(startAt).toISOString() : '',
+        endAt: endAt ? new Date(endAt).toISOString() : '',
+        active: true,
+      });
+
+      if (!saved?.imageUrl) {
+        throw new Error('The image URL was generated, but the server did not return the saved image link. The URL is still available in the Image URL field; press Publish Offer Poster to retry.');
+      }
+      setPoster(saved);
+      setImageUrl(saved.imageUrl);
+      setActive(true);
+      setMessage('Poster image link generated and saved. The poster is published to members.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to upload poster image.');
+    } finally {
+      setUploadingImage(false);
+      // Capture the input before awaiting; React may clear currentTarget after the event handler yields.
+      input.value = '';
+    }
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setMessage(''); setError('');
@@ -82,7 +131,7 @@ export const AdminOfferPoster: React.FC = () => {
         <section className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-4">
           <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-cyan-300">Poster Content</h3><label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Publish now</label></div>
           <label className="block text-xs text-slate-300">Offer title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={160} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="e.g. New Member Offer" /></label>
-          <label className="block text-xs text-slate-300">Upload poster image<input type="file" accept="image/*" disabled={uploadingImage || saving} onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setError(""); setMessage(""); setUploadingImage(true); try { const url = await uploadOfferPosterImage(file); setImageUrl(url); const nextTitle = title.trim() || file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Offer Poster'; setTitle(nextTitle); const saved = await saveOfferPoster({ id: poster?.id || '', title: nextTitle, imageUrl: url, description, ctaLabel, ctaUrl, startAt: startAt ? new Date(startAt).toISOString() : '', endAt: endAt ? new Date(endAt).toISOString() : '', active: true }); setPoster(saved); setActive(true); setMessage("Poster uploaded, image link generated, and published to members."); } catch (err: any) { setError(err?.message || "Unable to upload poster image."); } finally { setUploadingImage(false); e.currentTarget.value = ""; } }} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Uploading image…" : "PNG, JPG, WEBP or GIF • Max 10 MB"}</p></label><label className="block text-xs text-slate-300">Image URL (auto-generated after upload)<input value={imageUrl} onChange={e => setImageUrl(e.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="https://..." /></label>
+          <label className="block text-xs text-slate-300">Upload poster image<input type="file" accept="image/*" disabled={uploadingImage || saving} onChange={handleImageUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Uploading image…" : "PNG, JPG, WEBP or GIF • Max 10 MB"}</p></label><label className="block text-xs text-slate-300">Image URL (auto-generated after upload)<input value={imageUrl} onChange={e => setImageUrl(e.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="https://..." /></label>
           {imageUrl && <div className="flex flex-col sm:flex-row gap-2">
             <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(imageUrl); setCopiedImageLink(true); window.setTimeout(() => setCopiedImageLink(false), 1800); } catch { setError('Could not copy automatically. Select and copy the image URL above.'); } }} className="flex-1 px-3 py-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-200 text-xs font-bold flex items-center justify-center gap-2"><Copy className="w-4 h-4" />{copiedImageLink ? <><Check className="w-4 h-4" />Image link copied</> : 'Copy Image Link'}</button>
             <a href={imageUrl} target="_blank" rel="noreferrer" className="px-3 py-2.5 rounded-xl bg-[#0e173a] border border-blue-500/30 text-slate-200 text-xs font-bold flex items-center justify-center gap-2"><ExternalLink className="w-4 h-4" />Open Image Link</a>
@@ -104,7 +153,7 @@ export const AdminOfferPoster: React.FC = () => {
 
         <section className="p-5 rounded-2xl bg-[#091129] border border-cyan-500/20 space-y-4">
           <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-cyan-300">Live Preview</h3>{poster?.active && <span className="text-[10px] text-emerald-300 flex items-center gap-1"><Eye className="w-3.5 h-3.5" />LIVE</span>}</div>
-          {imageUrl ? <div className="rounded-2xl overflow-hidden border border-blue-500/20 bg-black/20"><img src={imageUrl} alt="Offer poster preview" className="w-full max-h-[520px] object-contain" onError={e => { e.currentTarget.style.display = 'none'; }} /></div> : <div className="aspect-[4/5] rounded-2xl border border-dashed border-blue-500/20 flex items-center justify-center text-xs text-slate-500">Poster preview will appear here</div>}
+          {imageUrl ? <div className="rounded-2xl overflow-hidden border border-blue-500/20 bg-black/20"><img src={imageUrl} alt="Offer poster preview" className="w-full max-h-[520px] object-contain" onLoad={() => setPreviewError(false)} onError={() => setPreviewError(true)} /></div> : <div className="aspect-[4/5] rounded-2xl border border-dashed border-blue-500/20 flex items-center justify-center text-xs text-slate-500">Poster preview will appear here</div>}{previewError && imageUrl && <p className="text-xs text-rose-300">Image URL exists, but the browser could not load the image. Check the link and Firebase Storage access.</p>}
           {description && <p className="text-xs text-slate-300 leading-relaxed">{description}</p>}
           {ctaLabel && <div className="inline-flex items-center gap-2 text-xs text-cyan-300"><ExternalLink className="w-3.5 h-3.5" />{ctaLabel}</div>}
         </section>
