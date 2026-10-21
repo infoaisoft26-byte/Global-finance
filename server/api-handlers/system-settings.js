@@ -20,6 +20,7 @@ function normalizePayload(input={}){
   data.withdrawalWindowStart='10:30';
   data.withdrawalWindowEnd='15:30';
   data.withdrawalTimezone='Asia/Kolkata';
+  data.requireKycForWithdrawal=false;
   delete data.updatedBy;
   delete data.updatedAt;
   return data;
