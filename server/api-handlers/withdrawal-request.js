@@ -9,11 +9,11 @@ export default async function handler(req,res){
   const decoded=await verifyFirebaseIdToken(auth.slice(7));const uid=decoded.uid;const email=String(decoded.email||'').trim().toLowerCase();
   const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});const amount=Number(body.amount);const walletAddress=String(body.walletAddress||'').trim();const note=String(body.note||'').trim().slice(0,500);const otpId=String(body.otpId||'');
   if(!Number.isFinite(amount)||amount<2||!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)||!otpId)return json(res,400,{error:'Valid amount, BEP20 address and verified email OTP are required.'});
-  const pool=getPool();const userQ=await pool.query('SELECT id,email,name,referral_code,status,role,kyc_status FROM users WHERE id=$1 AND email=$2 LIMIT 1',[uid,email]);const user=userQ.rows[0];
+  const pool=getPool();const userQ=await pool.query('SELECT id,email,name,referral_code,status,role FROM users WHERE id=$1 AND email=$2 LIMIT 1',[uid,email]);const user=userQ.rows[0];
   if(!user||user.status!=='active'||user.role!=='user')return json(res,403,{error:'Active member account required.'});
   const settingsQ=await pool.query('SELECT data FROM app_settings WHERE id=$1 LIMIT 1',['global_finance_system_settings']).catch(()=>({rows:[]}));const settings=settingsQ.rows[0]?.data||{};
   if(settings.withdrawalEnabled===false)return json(res,403,{error:'Withdrawals are currently disabled.'});
-  if(settings.requireKycForWithdrawal===true&&user.kyc_status!=='verified')return json(res,403,{error:'KYC verification is required before withdrawal.'});
+  // KYC is intentionally not required for withdrawal. Registered-email OTP and admin approval remain required.
   const min=Number(settings.minWithdrawal||2);const max=Number(settings.maxWithdrawal||1000000);if(amount<min||amount>max)return json(res,400,{error:'Withdrawal amount must be between '+min+' and '+max+' USDT.'});
   const secret=String(process.env.OTP_HASH_SECRET||process.env.RESEND_API_KEY||'').trim();if(!secret)return json(res,503,{error:'OTP security secret is not configured.'});
   const {createHash}=await import('node:crypto');const hash=(v)=>createHash('sha256').update(secret+':'+v).digest('hex');
