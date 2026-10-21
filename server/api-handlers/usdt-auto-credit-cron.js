@@ -20,24 +20,27 @@ export default async function handler(req,res){
   if(!configured) return json(res,503,{error:'CRON_SECRET is not configured'});
   if(auth!==`Bearer ${configured}`) return json(res,401,{error:'Unauthorized'});
 
-  let dailyIncome={ok:false,failed:true,reason:'NOT_RUN'};
-  try{
-    dailyIncome=await withTransaction(async(client)=>{
-      const daily=await runDailyIncome(client);
-      await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
-        VALUES($1,'SYSTEM',NULL,'AUTOMATIC_DAILY_INCOME_RUN','ledger',$2,$3::jsonb)`,[
-        crypto.randomUUID(),
-        daily.businessDate,
-        JSON.stringify({packages:daily.packages,packagesProcessed:daily.packagesProcessed,roiCredits:daily.roiCredits,levelCredits:daily.levelCredits,maturityPointsReleased:daily.maturityPointsReleased,timezone:'Asia/Kolkata'})
-      ]);
-      return {ok:true,...daily};
-    });
-  }catch(error){
-    console.error('Automatic daily income settlement failed:',error instanceof Error?error.stack||error.message:error);
-    dailyIncome={ok:false,failed:true,reason:'DAILY_INCOME_SETTLEMENT_FAILED'};
+  const depositsOnly=String(req.query?.depositsOnly||'')==='1';
+  let dailyIncome={ok:true,skipped:depositsOnly,reason:depositsOnly?'DEPOSITS_ONLY':'NOT_RUN'};
+  if(!depositsOnly){
+    try{
+      dailyIncome=await withTransaction(async(client)=>{
+        const daily=await runDailyIncome(client);
+        await client.query(`INSERT INTO audit_logs(id,actor_user_id,actor_email,action,entity_type,entity_id,metadata)
+          VALUES($1,'SYSTEM',NULL,'AUTOMATIC_DAILY_INCOME_RUN','ledger',$2,$3::jsonb)`,[
+          crypto.randomUUID(),
+          daily.businessDate,
+          JSON.stringify({packages:daily.packages,packagesProcessed:daily.packagesProcessed,roiCredits:daily.roiCredits,levelCredits:daily.levelCredits,maturityPointsReleased:daily.maturityPointsReleased,timezone:'Asia/Kolkata'})
+        ]);
+        return {ok:true,...daily};
+      });
+    }catch(error){
+      console.error('Automatic daily income settlement failed:',error instanceof Error?error.stack||error.message:error);
+      dailyIncome={ok:false,failed:true,reason:'DAILY_INCOME_SETTLEMENT_FAILED'};
+    }
   }
 
-  // Recovery mode runs only the idempotent daily-income settlement, without deposit scanning or recharge auto-credit.
+  // Daily income recovery mode does not scan deposits or process recharge requests.
   if(String(req.query?.dailyIncomeOnly||'')==='1'){
     return json(res,dailyIncome.failed?500:200,{ok:!dailyIncome.failed,mode:'daily-income-only',dailyIncome});
   }
