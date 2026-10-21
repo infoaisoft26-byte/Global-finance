@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Menu, Copy, Check, ChevronRight, ShieldAlert, Sun, Moon, Type, Clock3 } from 'lucide-react';
+import { Menu, Copy, Check, ChevronRight, ShieldAlert, Sun, Moon, Type, Clock3, Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import type { ActivePage } from '../../types/index.ts';
 import '../../styles/memberPreferences.css';
@@ -56,7 +56,7 @@ const pageTitles: Partial<Record<ActivePage, { title: string; category: string }
 type ThemeMode = 'light' | 'dark';
 type FontMode = 'small' | 'normal' | 'large';
 
-export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onOpenProfile }) => {
+export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onOpenProfile, onNavigate }) => {
   const { profile, isAdmin } = useAuth();
   const [copied, setCopied] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(() => (localStorage.getItem('gf-theme') as ThemeMode) || 'light');
@@ -121,6 +121,17 @@ export const Header: React.FC<HeaderProps> = ({ activePage, onToggleSidebar, onO
 
         <div className="flex items-center gap-2">
           {isAdmin && <div className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-bold"><ShieldAlert className="w-3.5 h-3.5" />Admin Mode</div>}
+
+          {!isAdmin && onNavigate && (
+            <button
+              onClick={() => onNavigate('notifications')}
+              title="Open notifications"
+              aria-label="Open notifications"
+              className={`relative p-2 rounded-lg border transition-colors ${activePage === 'notifications' ? 'border-cyan-400 bg-cyan-500/20 text-cyan-300' : 'border-blue-500/25 bg-white/10 text-cyan-400 hover:border-cyan-400'}`}
+            >
+              <Bell className="w-4 h-4" />
+            </button>
+          )}
 
           {!isAdmin && <>
             <button onClick={() => setTheme(v => v === 'light' ? 'dark' : 'light')} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} className="p-2 rounded-lg border border-blue-500/25 bg-white/10 text-cyan-400 hover:border-cyan-400 transition-colors">
