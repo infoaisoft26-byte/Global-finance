@@ -17,10 +17,8 @@ export default async function handler(req,res){
   if(!['GET','POST'].includes(req.method)) return json(res,405,{error:'Method not allowed'});
   const configured=String(process.env.CRON_SECRET||'').trim();
   const auth=String(req.headers.authorization||'');
-  const recoveryOnly=String(req.query?.dailyIncomeOnly||'')==='1';
-  const recoveryKey=String(req.query?.recoveryKey||'');
   if(!configured) return json(res,503,{error:'CRON_SECRET is not configured'});
-  if(auth!==`Bearer ${configured}` && !(recoveryOnly && recoveryKey==='gf-roi-recovery-21oct-2026-7Kx9P2vQ')) return json(res,401,{error:'Unauthorized'});
+  if(auth!==`Bearer ${configured}`) return json(res,401,{error:'Unauthorized'});
 
   let dailyIncome={ok:false,failed:true,reason:'NOT_RUN'};
   try{
