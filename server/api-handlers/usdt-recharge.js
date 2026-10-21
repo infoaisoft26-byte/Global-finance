@@ -425,7 +425,7 @@ async function loadDownline(pool, actor) {
     FROM network n
     LEFT JOIN LATERAL (
       SELECT
-        COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'active'), 0) AS active_package,
+        COALESCE(SUM(p.amount) FILTER (WHERE p.status IN ('active', 'matured', 'completed')), 0) AS active_package,
         (ARRAY_AGG(p.package_name ORDER BY p.activated_at DESC NULLS LAST))[1] AS package_name,
         (ARRAY_AGG(p.amount ORDER BY p.activated_at DESC NULLS LAST))[1] AS package_amount,
         (ARRAY_AGG(p.status ORDER BY p.activated_at DESC NULLS LAST))[1] AS package_status
