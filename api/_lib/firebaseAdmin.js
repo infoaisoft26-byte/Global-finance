@@ -57,7 +57,13 @@ export function getFirestoreAdmin() {
 export async function deleteFirebaseAuthUser(uid) {
   const id = String(uid || '').trim();
   if (!id) throw new Error('Firebase user ID is required');
-  await getAuth(adminApp()).deleteUser(id);
+  try {
+    await getAuth(adminApp()).deleteUser(id);
+  } catch (error) {
+    // Firebase may already be missing the Auth record; treat that as deleted.
+    if (String(error?.code || '') === 'auth/user-not-found') return;
+    throw error;
+  }
 }
 
 export async function getMaintenanceState() {
