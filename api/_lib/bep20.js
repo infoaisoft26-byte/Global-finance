@@ -1,3 +1,5 @@
+import { verifyMessage } from 'ethers';
+
 // Configure this to the Binance USDT deposit address on BNB Smart Chain (BEP20).\n// Never fall back to an old hard-coded wallet.\nexport const BEP20_WALLET = String(process.env.USDT_DEPOSIT_WALLET_ADDRESS || '').trim();
 // BNB Smart Chain USDT / BEP20 contract (18 decimals).
 export const DEFAULT_USDT_BEP20_CONTRACT = '0x55d398326f99059fF775485246999027B3197955';
@@ -25,6 +27,69 @@ export function rechargeConfigured() {
 
 export function autoCreditConfigured() {
   return rechargeConfigured() && process.env.PAYMENT_AUTO_CREDIT_ENABLED === 'true';
+}
+
+
+export function createDepositClaimMessage({ userId, txHash, amountUsdt, walletAddress }) {
+  return [
+    'Global Finance USDT Deposit Claim',
+    'Domain: globalfinance1.online',
+    `User ID: ${String(userId || '').trim()}`,
+    `TXID: ${String(txHash || '').trim().toLowerCase()}`,
+    `Amount: ${String(amountUsdt || '').trim()}`,
+    `Wallet: ${String(walletAddress || '').trim().toLowerCase()}`,
+  ].join('\n');
+}
+
+// A shared address has no on-chain user memo. Automatic credit is therefore
+// allowed only when the authenticated member proves control of the transaction
+// sender wallet by signing a claim bound to this member, TXID, amount and domain.
+export async function verifyDepositClaim({ userId, txHash, amountUsdt, walletAddress, walletSignature }) {
+  const uid = String(userId || '').trim();
+  const hash = String(txHash || '').trim().toLowerCase();
+  const wallet = String(walletAddress || '').trim();
+  const signature = String(walletSignature || '').trim();
+  if (!uid || !/^0x[0-9a-f]{64}$/.test(hash) ||
+      !/^0x[0-9a-fA-F]{40}$/.test(wallet) || !/^0x[0-9a-fA-F]{130}$/.test(signature)) {
+    throw new Error('WALLET_SIGNATURE_REQUIRED');
+  }
+
+  let recovered;
+  try {
+    recovered = verifyMessage(createDepositClaimMessage({ userId: uid, txHash: hash, amountUsdt, walletAddress: wallet }), signature);
+  } catch {
+    throw new Error('WALLET_SIGNATURE_INVALID');
+  }
+  if (recovered.toLowerCase() !== wallet.toLowerCase()) throw new Error('WALLET_SIGNATURE_INVALID');
+
+  const rpc = String(process.env.BSC_RPC_URL || '').trim();
+  if (!/^https?:\/\//i.test(rpc)) throw new Error('BSC_RPC_NOT_CONFIGURED');
+  const rpcCall = async (method, params) => {
+    let response;
+    try {
+      response = await fetch(rpc, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      throw new Error('BSC_RPC_FAILED');
+    }
+    if (!response.ok) throw new Error('BSC_RPC_FAILED');
+    const body = await response.json().catch(() => null);
+    if (!body || body.error || body.result === undefined) throw new Error('BSC_RPC_FAILED');
+    return body.result;
+  };
+  if (await rpcCall('eth_chainId', []) !== '0x38') throw new Error('WRONG_NETWORK');
+  const transaction = await rpcCall('eth_getTransactionByHash', [hash]);
+  if (!transaction || !/^0x[0-9a-fA-F]{40}$/.test(String(transaction.from || ''))) {
+    throw new Error('TRANSACTION_NOT_FOUND');
+  }
+  if (String(transaction.from).toLowerCase() !== wallet.toLowerCase()) {
+    throw new Error('WALLET_SENDER_MISMATCH');
+  }
+  return { walletAddress: wallet.toLowerCase(), senderVerified: true };
 }
 
 export function getAutoCreditRate() {
