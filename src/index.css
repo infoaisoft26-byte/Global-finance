@@ -602,3 +602,52 @@ html[data-gf-theme="dark"] .gf-member-dashboard :is(button, a)[class*="bg-cyan-6
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
+
+
+/* Member dashboard structural redesign: prioritize balances, plans, and team at a glance. */
+.gf-member-dashboard {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "hero hero"
+    "balance balance"
+    "packages packages"
+    "referral referral"
+    "account team"
+    "income income";
+  gap: 1.25rem !important;
+  align-items: start;
+}
+.gf-member-dashboard > * { min-width: 0; margin-top: 0 !important; }
+.gf-member-dashboard .gf-dashboard-hero { grid-area: hero; }
+.gf-member-dashboard .gf-dashboard-balance { grid-area: balance; min-width: 0; }
+.gf-member-dashboard .gf-dashboard-packages { grid-area: packages; min-width: 0; }
+.gf-member-dashboard .gf-dashboard-referral { grid-area: referral; min-width: 0; }
+.gf-member-dashboard .gf-dashboard-account { grid-area: account; align-content: start; min-width: 0; }
+.gf-member-dashboard .gf-dashboard-team { grid-area: team; min-width: 0; }
+.gf-member-dashboard .gf-dashboard-income { grid-area: income; min-width: 0; }
+.gf-member-dashboard .gf-dashboard-account { grid-template-columns: minmax(0, 1fr) !important; }
+.gf-member-dashboard .gf-dashboard-team > div:nth-child(2) { grid-template-columns: minmax(0, 1fr) !important; }
+.gf-member-dashboard .gf-dashboard-team .text-2xl,
+.gf-member-dashboard .gf-dashboard-team .text-3xl { overflow-wrap: anywhere; }
+@media (max-width: 1023px) {
+  .gf-member-dashboard {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "hero"
+      "balance"
+      "packages"
+      "referral"
+      "account"
+      "team"
+      "income";
+  }
+  .gf-member-dashboard .gf-dashboard-account { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .gf-member-dashboard .gf-dashboard-team > div:nth-child(2) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 560px) {
+  .gf-member-dashboard { gap: 0.9rem !important; }
+  .gf-member-dashboard .gf-dashboard-account,
+  .gf-member-dashboard .gf-dashboard-team > div:nth-child(2) { grid-template-columns: minmax(0, 1fr) !important; }
+  .gf-member-dashboard .gf-dashboard-hero { padding: 1rem !important; }
+}
