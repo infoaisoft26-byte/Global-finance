@@ -27,4 +27,4 @@ jobs:
             -X POST \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
-            https://globalfin-aijobs.vercel.app/api/usdt-auto-credit-cron
+            https://globalfinance1.online/api/usdt-auto-credit-cron

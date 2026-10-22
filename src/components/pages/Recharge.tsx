@@ -4,6 +4,7 @@ import {
   CheckCircle2, Clock3, ExternalLink
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { BrowserProvider, Contract, parseUnits } from 'ethers';
 import { useAuth } from '../../context/AuthContext.tsx';
 import {
   getAutomaticDepositInfo,
@@ -37,6 +38,10 @@ export const Recharge: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [connectedWallet, setConnectedWallet] = useState('');
+  const [connectingWallet, setConnectingWallet] = useState(false);
+  const [walletSending, setWalletSending] = useState(false);
+  const [walletMessage, setWalletMessage] = useState('');
   const [setupMessage, setSetupMessage] = useState('');
   const [amountUsdt, setAmountUsdt] = useState('');
   const [txHash, setTxHash] = useState('');
@@ -98,6 +103,91 @@ export const Recharge: React.FC = () => {
   }, [user?.uid]);
 
   const address = info?.depositAddress || '';
+
+  const connectTrustWallet = async () => {
+    setWalletMessage('');
+    setError('');
+    setConnectingWallet(true);
+    try {
+      const ethereum = (window as any).ethereum;
+      if (!ethereum) {
+        throw new Error('Trust Wallet was not detected. Open this website in the Trust Wallet DApp browser or install the Trust Wallet browser extension.');
+      }
+      const provider = new BrowserProvider(ethereum);
+      await provider.send('eth_requestAccounts', []);
+      const network = await provider.getNetwork();
+      if (network.chainId !== 56n) {
+        try {
+          await provider.send('wallet_switchEthereumChain', [{ chainId: '0x38' }]);
+        } catch (switchError: any) {
+          if (switchError?.code === 4902) {
+            await provider.send('wallet_addEthereumChain', [{
+              chainId: '0x38',
+              chainName: 'BNB Smart Chain',
+              nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+              rpcUrls: ['https://bsc-dataseed.binance.org/'],
+              blockExplorerUrls: ['https://bscscan.com/']
+            }]);
+          } else {
+            throw switchError;
+          }
+        }
+      }
+      const signer = await provider.getSigner();
+      setConnectedWallet(await signer.getAddress());
+      setWalletMessage('Trust Wallet connected to BNB Smart Chain.');
+    } catch (err: any) {
+      setError(String(err?.shortMessage || err?.message || 'Could not connect Trust Wallet.'));
+    } finally {
+      setConnectingWallet(false);
+    }
+  };
+
+  const sendUsdtFromWallet = async () => {
+    if (!user || !info?.depositAddress || !info?.contractAddress || !connectedWallet) {
+      setError('Connect Trust Wallet and wait for the verified deposit address and USDT contract to load.');
+      return;
+    }
+    const amount = Number(amountUsdt);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Enter a valid USDT amount before sending.');
+      return;
+    }
+    setWalletSending(true);
+    setError('');
+    setWalletMessage('');
+    try {
+      const ethereum = (window as any).ethereum;
+      if (!ethereum) throw new Error('Trust Wallet connection is no longer available. Reconnect your wallet.');
+      const provider = new BrowserProvider(ethereum);
+      const network = await provider.getNetwork();
+      if (network.chainId !== 56n) throw new Error('Switch Trust Wallet to BNB Smart Chain (BEP20) and reconnect.');
+      const signer = await provider.getSigner();
+      const signerAddress = await signer.getAddress();
+      if (signerAddress.toLowerCase() !== connectedWallet.toLowerCase()) {
+        setConnectedWallet(signerAddress);
+      }
+      const token = new Contract(info.contractAddress, [
+        'function transfer(address to, uint256 amount) returns (bool)'
+      ], signer);
+      const tx = await token.transfer(info.depositAddress, parseUnits(amountUsdt.trim(), 18));
+      setTxHash(tx.hash);
+      setWalletMessage('Transaction submitted. Waiting for blockchain confirmation…');
+      await tx.wait(1);
+      if (info.mode === 'shared') {
+        await submitUsdtRecharge(user, amountUsdt.trim(), tx.hash);
+        const history = await listUsdtRecharges(user);
+        setRequests(history.requests || []);
+      }
+      setSubmitMessage('Transaction confirmed. Deposit monitoring will verify the token, destination, and amount before any wallet credit.');
+      setWalletMessage('USDT transfer confirmed on BNB Smart Chain.');
+      await manualRefresh();
+    } catch (err: any) {
+      setError(String(err?.shortMessage || err?.message || 'USDT transfer failed. Check wallet funds, BNB gas, and the network.'));
+    } finally {
+      setWalletSending(false);
+    }
+  };
 
   const submitTxid = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -173,6 +263,29 @@ export const Recharge: React.FC = () => {
             <div className="font-mono text-sm font-bold text-cyan-300">{formatUsdt(wallet?.fundWallet || 0)} USDT</div>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-cyan-400/25 bg-[#091129] p-4 sm:p-6 space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-white">Trust Wallet</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-400">Connect on BNB Smart Chain, then send USDT directly to the deposit address shown below.</p>
+          </div>
+          <button type="button" onClick={connectTrustWallet} disabled={connectingWallet} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-50">
+            {connectingWallet ? 'Connecting…' : connectedWallet ? 'Reconnect Trust Wallet' : 'Connect Trust Wallet'}
+          </button>
+        </div>
+        {connectedWallet && <p className="break-all font-mono text-xs text-cyan-200">Connected: {connectedWallet}</p>}
+        {walletMessage && <p className="text-xs text-emerald-300">{walletMessage}</p>}
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="block text-xs text-slate-300">USDT amount
+            <input inputMode="decimal" value={amountUsdt} onChange={e => setAmountUsdt(e.target.value)} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#040a19] px-3 py-3 text-sm text-white" placeholder="e.g. 10" />
+          </label>
+          <button type="button" onClick={sendUsdtFromWallet} disabled={!connectedWallet || walletSending || !info?.depositAddress || !info?.contractAddress} className="self-end rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+            {walletSending ? 'Sending…' : 'Send USDT'}
+          </button>
+        </div>
+        <p className="text-[10px] leading-5 text-slate-500">Your wallet will ask you to approve the transaction. BNB is required for network gas. Never share your recovery phrase or private key. Credit is not granted merely because a wallet is connected or a transaction is submitted.</p>
       </div>
 
       <div className="rounded-2xl border border-blue-500/25 bg-[#091129] p-4 sm:p-6">
