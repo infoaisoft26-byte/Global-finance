@@ -9,8 +9,11 @@ import {
   Smartphone,
   ArrowRight,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+import { auth, sendPasswordResetEmail } from '../../lib/firebase.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { FinanceAnimatedBackground } from './FinanceAnimatedBackground.tsx';
 
@@ -278,6 +281,7 @@ const COUNTRIES = [
   const [memberId, setMemberId] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [country, setCountry] = useState('IN');
@@ -330,6 +334,44 @@ const COUNTRIES = [
       window.clearTimeout(timer);
     };
   }, [sponsorCode]);
+
+  const handleForgotPassword = async () => {
+    setErrorMsg('');
+    setSuccessMsg('');
+    const identifier = memberId.trim();
+    if (!identifier) {
+      setErrorMsg('Enter your registered email address or GF Member ID first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let resetEmail = identifier.toLowerCase();
+      if (!identifier.includes('@')) {
+        const response = await fetch('/api/auth-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          body: JSON.stringify({ action: 'member-login-lookup', memberId: identifier.toUpperCase() }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.email) {
+          throw new Error('Unable to process password reset request.');
+        }
+        resetEmail = String(data.email).trim().toLowerCase();
+      }
+      await sendPasswordResetEmail(auth, resetEmail, {
+        url: window.location.origin + '/',
+        handleCodeInApp: false,
+      });
+      setSuccessMsg('If an account exists for those details, password reset instructions have been sent to its registered email.');
+    } catch (err: any) {
+      console.error('Password reset request failed:', err);
+      setSuccessMsg('If an account exists for those details, password reset instructions have been sent to its registered email.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -445,9 +487,11 @@ const COUNTRIES = [
             ) : (
               <div><label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label><div className="relative"><Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="email" placeholder="name@example.com" value={email} onChange={(e)=>setEmail(e.target.value)} required className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow"/></div></div>
             )}
-            <div><label className="block text-xs font-semibold text-slate-300 mb-1">Password</label><div className="relative"><Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type="password" name="password" placeholder="••••••••" value={password} onChange={(e)=>setPassword(e.target.value)} required minLength={6} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} autoCapitalize="none" spellCheck={false} className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow normal-case"/></div></div>
+            <div><label className="block text-xs font-semibold text-slate-300 mb-1">Password</label><div className="relative"><Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/><input type={showPassword ? "text" : "password"} name="password" placeholder="••••••••" value={password} onChange={(e)=>setPassword(e.target.value)} required minLength={6} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} autoCapitalize="none" spellCheck={false} className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-[#081632]/90 border border-blue-400/25 text-white text-xs focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/10 transition-shadow normal-case"/><button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-300 focus:outline-none focus:text-cyan-300"><span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>{showPassword ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button></div></div>
             <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-600 hover:from-blue-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-cyan-950/45 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <><RefreshCw className="w-4 h-4 animate-spin"/><span>Authenticating with Global Finance Ledger...</span></> : <><span>{mode === 'signin' ? 'Sign In to Dashboard' : 'Create Global Finance Account'}</span><ArrowRight className="w-4 h-4"/></>}</button>
           </form>
+
+          {mode === 'signin' && <div className="mt-3 flex justify-end"><button type="button" onClick={handleForgotPassword} disabled={loading} className="text-xs font-semibold text-cyan-300 hover:text-cyan-200 underline underline-offset-4 disabled:opacity-50">Forgot Password?</button></div>}
 
           {mode === 'signin' && <p className="mt-3 text-center text-[10px] text-slate-500">Login with your GF Member ID or email address and account password. T-Password is only for withdrawal/security verification.</p>}
 
