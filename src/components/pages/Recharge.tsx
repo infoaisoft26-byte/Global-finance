@@ -217,6 +217,7 @@ export const Recharge: React.FC = () => {
       }
       const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim(), undefined, walletAddress, walletSignature);
       setSubmitMessage(String(result?.message || 'TXID submitted for verification.'));
+      if (result?.status === 'approved') await refreshWallet();
       setAmountUsdt('');
       setTxHash('');
       const history = await listUsdtRecharges(user);
