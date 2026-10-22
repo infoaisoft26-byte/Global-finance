@@ -559,3 +559,46 @@ html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:h
   .gf-member-dashboard { font-size: 15px; }
   .gf-member-dashboard .text-3xl { font-size: 1.75rem !important; }
 }
+
+
+/* Final member dashboard theme fix: override light-only readability styles in dark mode. */
+html[data-gf-theme="dark"] .gf-member-dashboard {
+  color: #f1f5f9 !important;
+  color-scheme: dark;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard [class*="bg-[#0"],
+html[data-gf-theme="dark"] .gf-member-dashboard [class*="bg-[#1"] {
+  background-color: #0b1426 !important;
+  background-image: none !important;
+  border-color: #334155 !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2) !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard .text-white {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard :is(.text-slate-100, .text-slate-200, .text-slate-300) {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard :is(.text-slate-400, .text-slate-500) {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard :is(input, select, textarea) {
+  background: #111c30 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard :is(input, select, textarea)::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard :is(button, a)[class*="bg-gradient"],
+html[data-gf-theme="dark"] .gf-member-dashboard :is(button, a)[class*="bg-blue-6"],
+html[data-gf-theme="dark"] .gf-member-dashboard :is(button, a)[class*="bg-emerald-6"],
+html[data-gf-theme="dark"] .gf-member-dashboard :is(button, a)[class*="bg-cyan-6"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
