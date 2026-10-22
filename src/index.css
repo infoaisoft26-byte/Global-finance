@@ -467,3 +467,41 @@ html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:h
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
+
+
+/* Dashboard readability polish: keep the member workspace bright, legible, and responsive. */
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 {
+  color: #0f172a !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 [class*="text-xs"],
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 [class*="text-xs"] {
+  font-size: 0.875rem !important;
+  line-height: 1.45 !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 [class*="text-[10px]"],
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 [class*="text-[10px]"] {
+  font-size: 0.75rem !important;
+  line-height: 1.4 !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 h2,
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 h2 {
+  font-size: clamp(1.5rem, 2.4vw, 2rem) !important;
+  line-height: 1.25 !important;
+}
+
+html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 > div:not(.fixed):is([class*="rounded-xl"], [class*="rounded-2xl"]),
+html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main > div.space-y-6 > div:not(.fixed):is([class*="rounded-xl"], [class*="rounded-2xl"]) {
+  border-color: #dbe4f0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+@media (max-width: 640px) {
+  html:not([data-gf-theme="dark"]) #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main,
+  html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main {
+    padding: 0.875rem !important;
+  }
+}
