@@ -535,7 +535,7 @@ export default async function handler(req,res){
       return json(res,200,{
         requests:await listRequests(actor,scope==='admin'),
         enabled:rechargeConfigured(),
-        automaticDepositConfigured:addressGenerationConfigured(),
+        automaticDepositConfigured:(String(process.env.USDT_DEPOSIT_MODE||'').trim().toLowerCase()==='shared'?rechargeConfigured():addressGenerationConfigured()),
         autoCreditEnabled:autoCreditConfigured(),
         depositAddress:''
       });
