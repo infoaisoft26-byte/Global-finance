@@ -70,6 +70,13 @@ export const Recharge: React.FC = () => {
         if (next.mode === 'shared') {
           const history = await listUsdtRecharges(user);
           if (!cancelled) setRequests(history.requests || []);
+          const newlyApproved = (history.requests || []).some((item: UsdtRechargeRequest) => {
+            const key = `shared:${item.id}`;
+            if (item.status !== 'approved' || creditedSeen.current.has(key)) return false;
+            creditedSeen.current.add(key);
+            return true;
+          });
+          if (newlyApproved) await refreshWallet();
         }
         const newlyCredited = (next.deposits || []).some((item: AutomaticUsdtDepositEvent) => {
           if (item.status !== 'credited') return false;
@@ -240,6 +247,10 @@ export const Recharge: React.FC = () => {
       setInfo(next);
       setSetupMessage('');
       setError('');
+      if (next.mode === 'shared') {
+        const history = await listUsdtRecharges(user);
+        setRequests(history.requests || []);
+      }
       const newlyCredited = (next.deposits || []).some((item) => {
         if (item.status !== 'credited' || creditedSeen.current.has(item.id)) return false;
         creditedSeen.current.add(item.id);
