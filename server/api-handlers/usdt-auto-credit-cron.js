@@ -81,7 +81,9 @@ export default async function handler(req,res){
         id:d.id,
         actor:{id:r.userId,email:r.userEmail||u.email||'',name:r.userName||u.name||'',role:u.role||'user',referralCode:u.referralCode||r.referralCode||''},
         txHash:String(r.txHash).toLowerCase(),
-        amount:String(r.amountUsdt)
+        amount:String(r.amountUsdt),
+        walletAddress:String(r.walletAddress||''),
+        walletSignature:String(r.walletSignature||'')
       });
       if(result.status==='approved'){approved++;details.push({id:d.id,status:'approved'});}
       else{deferred++;details.push({id:d.id,status:'pending',reason:result.deferred||null});}
