@@ -138,6 +138,15 @@ async function autoCreditRecharge({id,actor,txHash,amount,walletAddress='',walle
   const rechargeRef=db.collection('usdtRecharges').doc(id);
   const txRef=db.collection('usdtDepositTx').doc(txHash);
   const walletRef=db.collection('wallets').doc(actor.id);
+  // Avoid sending already-reviewed requests into the Neon credit path.
+  const beforeCredit=await rechargeRef.get();
+  if(!beforeCredit.exists) throw new Error('RECHARGE_NOT_FOUND');
+  const before=beforeCredit.data()||{};
+  if(before.status==='approved') return {attempted:true,status:'approved',autoCredited:true,alreadyCredited:true,creditUsdt:Number(Number(before.creditUsdt||amount).toFixed(8)),ledgerId:before.ledgerId||null};
+  if(before.status!=='pending') throw new Error('ALREADY_REVIEWED');
+  if(String(before.txHash||'').toLowerCase()!==String(txHash).toLowerCase()||String(before.amountUsdt)!==String(amount)) throw new Error('REVIEW_CHANGED');
+  const claimedTx=await txRef.get();
+  if(claimedTx.exists&&claimedTx.data()?.status==='approved') throw new Error('ALREADY_CREDITED');
   // Neon is the source of truth for the live Fund Wallet. Credit it first with
   // a deterministic TXID ledger key; retries will reuse the same credit.
   const neonCredit=await creditNeonRecharge({
