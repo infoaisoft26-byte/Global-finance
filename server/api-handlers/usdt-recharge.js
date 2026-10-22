@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { getFirestoreAdmin, verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
-import { DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20 } from '../../api/_lib/bep20.js';
+import { DEFAULT_USDT_BEP20_CONTRACT, rechargeConfigured, autoCreditConfigured, verifyBep20, verifyDepositClaim } from '../../api/_lib/bep20.js';
 import { addressGenerationConfigured, getMemberDepositDetails } from '../../api/_lib/usdtDeposit.js';
 import { getPool } from '../../api/_lib/db.js';
 
@@ -84,7 +84,7 @@ async function actorFromToken(req){
 function requireAdmin(actor){
   if(!['admin','super_admin','administrator'].includes(actor.role) && !adminEmailAllowed(actor.email)) throw new Error('ADMIN_REQUIRED');
 }
-async function createRecharge(db,actor,amount,txHash,proofUrl){
+async function createRecharge(db,actor,amount,txHash,proofUrl,walletAddress='',walletSignature=''){
   const now=new Date();
   const id='RCH_'+crypto.randomUUID().replaceAll('-','').slice(0,24);
   const ref=db.collection('usdtRecharges').doc(id);
@@ -97,6 +97,8 @@ async function createRecharge(db,actor,amount,txHash,proofUrl){
     t.set(ref,{
       id,userId:actor.id,userName:actor.name,userEmail:actor.email,referralCode:actor.referralCode,
       txHash,depositAddress:BEP20_WALLET.toLowerCase(),amountUsdt:amount,
+      walletAddress:String(walletAddress||'').trim().toLowerCase()||null,
+      walletSignature:String(walletSignature||'').trim()||null,
       status:'pending',creditUsdt:null,reviewNote:null,proofUrl:proofUrl||null,
       createdAt:now,reviewedAt:null,reviewedBy:null,ledgerId:null,storage:'firestore',
     });
@@ -110,14 +112,19 @@ async function createRecharge(db,actor,amount,txHash,proofUrl){
   });
   return id;
 }
-async function autoCreditRecharge({id,actor,txHash,amount}){
-  // Shared-address TXID claims require admin review to prevent another member claiming a public TXID.
-  if(!autoCreditConfigured() || !addressGenerationConfigured()) return {attempted:false,status:'pending'};
+async function autoCreditRecharge({id,actor,txHash,amount,walletAddress='',walletSignature=''}){
+  // Shared addresses cannot identify a member by destination alone. Require a
+  // signed claim from the actual transaction sender before automatic credit.
+  if(!autoCreditConfigured()) return {attempted:false,status:'pending',reason:'AUTO_CREDIT_DISABLED'};
+  if(!walletAddress || !walletSignature) return {attempted:false,status:'pending',reason:'WALLET_SIGNATURE_REQUIRED'};
   let proof;
-  try{proof=await verifyBep20(txHash,amount);}
+  try{
+    await verifyDepositClaim({userId:actor.id,txHash,amountUsdt:amount,walletAddress,walletSignature});
+    proof=await verifyBep20(txHash,amount,BEP20_WALLET);
+  }
   catch(error){
     const code=String(error?.message||'');
-    if(['TRANSACTION_NOT_CONFIRMED','TRANSFER_MISMATCH','WRONG_NETWORK','INVALID_TOKEN','BSC_RPC_FAILED'].includes(code)){
+    if(['TRANSACTION_NOT_CONFIRMED','TRANSFER_MISMATCH','WRONG_NETWORK','INVALID_TOKEN','BSC_RPC_FAILED','WALLET_SIGNATURE_REQUIRED','WALLET_SIGNATURE_INVALID','WALLET_SENDER_MISMATCH','TRANSACTION_NOT_FOUND','BSC_RPC_NOT_CONFIGURED'].includes(code)){
       const db=getFirestoreAdmin();
       await db.collection('usdtRecharges').doc(id).set({
         reviewNote:`Auto-credit deferred: ${code}`,updatedAt:new Date()
@@ -131,10 +138,16 @@ async function autoCreditRecharge({id,actor,txHash,amount}){
   const rechargeRef=db.collection('usdtRecharges').doc(id);
   const txRef=db.collection('usdtDepositTx').doc(txHash);
   const walletRef=db.collection('wallets').doc(actor.id);
-  const ledgerRef=db.collection('transactions').doc('DEP_'+crypto.randomUUID().replaceAll('-','').slice(0,26));
+  // Neon is the source of truth for the live Fund Wallet. Credit it first with
+  // a deterministic TXID ledger key; retries will reuse the same credit.
+  const neonCredit=await creditNeonRecharge({
+    id,userId:actor.id,txHash,amount,depositAddress:BEP20_WALLET,actor,
+    note:'Automatic credit after signed wallet claim and on-chain verification',proof,createdAt:now,
+  });
+  const ledgerRef=db.collection('transactions').doc(neonCredit.ledgerId);
   await db.runTransaction(async t=>{
-    const [rechargeSnap,txSnap,walletSnap,userSnap]=await Promise.all([
-      t.get(rechargeRef),t.get(txRef),t.get(walletRef),t.get(db.collection('users').doc(actor.id))
+    const [rechargeSnap,txSnap,walletSnap,userSnap,ledgerSnap]=await Promise.all([
+      t.get(rechargeRef),t.get(txRef),t.get(walletRef),t.get(db.collection('users').doc(actor.id)),t.get(ledgerRef)
     ]);
     if(!rechargeSnap.exists) throw new Error('RECHARGE_NOT_FOUND');
     const r=rechargeSnap.data()||{};
@@ -148,6 +161,10 @@ async function autoCreditRecharge({id,actor,txHash,amount}){
     const wallet=walletSnap.exists()?walletSnap.data()||{}:emptyWallet(actor.id,now);
     const credit=Number(Number(amount).toFixed(8));
     if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
+    if(ledgerSnap.exists){
+      const prior=ledgerSnap.data()||{};
+      if(String(prior.userId)!==String(actor.id)||String(prior.referenceId)!==String(txHash)||Number(prior.amount)!==credit) throw new Error('TXID_ALREADY_CREDITED');
+    }
     const ledger={
       id:ledgerRef.id,userId:actor.id,type:'recharge',category:'fund_wallet',flow:'credit',
       amount:credit,fee:0,netAmount:credit,
@@ -156,8 +173,10 @@ async function autoCreditRecharge({id,actor,txHash,amount}){
       metadata:{rechargeId:id,amountUsdt:String(amount),walletCreditUsdt:credit,chainProof:proof,autoCredit:true},
       createdAt:now.toISOString()
     };
-    t.set(ledgerRef,ledger);
-    t.set(walletRef,{...wallet,userId:actor.id,fundWallet:Number((num(wallet.fundWallet)+credit).toFixed(8)),updatedAt:now},{merge:true});
+    if(!ledgerSnap.exists){
+      t.set(ledgerRef,ledger);
+      t.set(walletRef,{...wallet,userId:actor.id,fundWallet:Number((num(wallet.fundWallet)+credit).toFixed(8)),updatedAt:now},{merge:true});
+    }
     t.set(rechargeRef,{
       status:'approved',creditUsdt:String(credit),
       reviewNote:'Auto-approved after on-chain verification',
@@ -590,8 +609,19 @@ export default async function handler(req,res){
         return json(res,400,{error:'Enter the transaction hash (TXID) from BNB Smart Chain.'});
       if(proofUrl && !/^https:\/\//i.test(proofUrl))
         return json(res,400,{error:'Payment proof must be a valid HTTPS URL.'});
-      const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl||null);
-      return json(res,201,{success:true,id,status:'pending',message:'TXID submitted. Your recharge will be credited after on-chain verification and admin review.'});
+      const walletAddress=String(body.walletAddress||'').trim();
+      const walletSignature=String(body.walletSignature||'').trim();
+      const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl||null,walletAddress,walletSignature);
+      let auto={attempted:false,status:'pending',reason:'WALLET_SIGNATURE_REQUIRED'};
+      try{
+        auto=await autoCreditRecharge({id,actor,txHash,amount,walletAddress,walletSignature});
+      }catch(error){
+        // Keep the submitted request available for cron retry or emergency admin review.
+        console.error('Immediate USDT auto-credit deferred:',id,error instanceof Error?error.message:error);
+        auto={attempted:true,status:'pending',deferred:'CREDIT_PROCESSING_FAILED'};
+      }
+      const credited=auto.status==='approved';
+      return json(res,201,{success:true,id,status:auto.status||'pending',...auto,message:credited?'USDT verified and credited to your Global Wallet.':walletSignature?'TXID saved. Automatic verification is pending; emergency admin review remains available.':'TXID saved. Connect and sign with the sending wallet for automatic credit, or contact support for emergency review.'});
     }
 
     if(body.action==='retry'){
@@ -624,6 +654,7 @@ export default async function handler(req,res){
     if(message==='MANUAL_REFERENCE_USED') return json(res,409,{error:'This manual payment reference has already been credited.'});
     if(message==='MEMBER_LOOKUP_AMBIGUOUS') return json(res,409,{error:'More than one member matched. Use the exact member UID or email.'});
     if(message==='TXID_ALREADY_SUBMITTED') return json(res,409,{error:'This TXID has already been submitted'});
+    if(message==='TXID_ALREADY_CREDITED') return json(res,409,{error:'This TXID was already credited to a wallet.'});
     if(message==='ALREADY_CREDITED') return json(res,409,{error:'This TXID was already credited'});
     if(message==='ALREADY_REVIEWED') return json(res,409,{error:'Recharge has already been reviewed'});
     if(message==='REVIEW_CHANGED') return json(res,409,{error:'Recharge changed during verification'});
