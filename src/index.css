@@ -651,3 +651,146 @@ html[data-gf-theme="dark"] .gf-member-dashboard :is(button, a)[class*="bg-cyan-6
   .gf-member-dashboard .gf-dashboard-team > div:nth-child(2) { grid-template-columns: minmax(0, 1fr) !important; }
   .gf-member-dashboard .gf-dashboard-hero { padding: 1rem !important; }
 }
+
+
+/* Global Finance premium member dashboard refresh — visual-only, no financial logic changes. */
+.gf-member-dashboard {
+  gap: 1.25rem !important;
+}
+.gf-member-dashboard .gf-dashboard-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem !important;
+  border: 1px solid #c9a34a !important;
+  box-shadow: 0 14px 36px rgba(12, 23, 48, .12) !important;
+}
+.gf-member-dashboard .gf-dashboard-hero::after {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #f6df91, #b8892d);
+}
+.gf-member-dashboard .gf-dashboard-hero h2 {
+  color: #14213d !important;
+  -webkit-text-fill-color: #14213d !important;
+  letter-spacing: -.025em;
+}
+.gf-member-dashboard .gf-dashboard-hero > div:first-child > div:first-child span:first-child {
+  color: #9a7425 !important;
+  -webkit-text-fill-color: #9a7425 !important;
+}
+.gf-member-dashboard .gf-dashboard-referral,
+.gf-member-dashboard .gf-dashboard-account > div,
+.gf-member-dashboard .gf-dashboard-packages > div,
+.gf-member-dashboard .gf-dashboard-balance .grid > div,
+.gf-member-dashboard .gf-dashboard-team .grid > div,
+.gf-member-dashboard .gf-dashboard-income > div {
+  border-radius: 1rem !important;
+  border-color: #d6bd7a !important;
+  box-shadow: 0 8px 22px rgba(16, 30, 56, .075) !important;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.gf-member-dashboard .gf-dashboard-account > div,
+.gf-member-dashboard .gf-dashboard-packages > div,
+.gf-member-dashboard .gf-dashboard-balance .grid > div,
+.gf-member-dashboard .gf-dashboard-team .grid > div {
+  position: relative;
+}
+.gf-member-dashboard .gf-dashboard-account > div::before,
+.gf-member-dashboard .gf-dashboard-packages > div::before,
+.gf-member-dashboard .gf-dashboard-balance .grid > div::before,
+.gf-member-dashboard .gf-dashboard-team .grid > div::before {
+  content: "";
+  position: absolute;
+  left: 1rem; right: 1rem; top: 0;
+  height: 2px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, #b8892d, #f5df9a, #b8892d);
+  opacity: .9;
+}
+.gf-member-dashboard .gf-dashboard-account > div:hover,
+.gf-member-dashboard .gf-dashboard-packages > div:hover,
+.gf-member-dashboard .gf-dashboard-balance .grid > div:hover,
+.gf-member-dashboard .gf-dashboard-team .grid > div:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(16, 30, 56, .13) !important;
+  border-color: #b8892d !important;
+}
+.gf-member-dashboard :is(.gf-dashboard-balance, .gf-dashboard-team) > div:first-child h3 {
+  color: #a27a27 !important;
+  -webkit-text-fill-color: #a27a27 !important;
+  letter-spacing: .09em;
+}
+.gf-member-dashboard .gf-dashboard-referral {
+  border-left: 4px solid #c9a34a !important;
+}
+.gf-member-dashboard .gf-dashboard-packages {
+  align-items: stretch;
+}
+.gf-member-dashboard .gf-dashboard-packages > div {
+  min-height: 190px;
+}
+.gf-member-dashboard .gf-dashboard-balance .grid {
+  align-items: stretch;
+}
+.gf-member-dashboard .gf-dashboard-balance .grid > div {
+  min-width: 0;
+}
+.gf-member-dashboard .gf-dashboard-balance .grid > div > div:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+.gf-member-dashboard .gf-dashboard-account {
+  gap: .75rem !important;
+}
+.gf-member-dashboard .gf-dashboard-income {
+  gap: 1rem !important;
+}
+.gf-member-dashboard :is(button, a):focus-visible {
+  outline: 2px solid #c9a34a !important;
+  outline-offset: 3px;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-hero {
+  background: linear-gradient(120deg, #101d36 0%, #172746 62%, #263451 100%) !important;
+  border-color: #c9a34a !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-hero h2 {
+  color: #f8e7b0 !important;
+  -webkit-text-fill-color: #f8e7b0 !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-hero p,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-hero .text-slate-400 {
+  color: #c4cede !important;
+  -webkit-text-fill-color: #c4cede !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-referral,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-account > div,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-packages > div,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-balance .grid > div,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-team .grid > div,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-income > div {
+  background-color: #101d36 !important;
+  background-image: none;
+  border-color: #78622f !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .2) !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard :is(.gf-dashboard-balance, .gf-dashboard-team) > div:first-child h3 {
+  color: #e5c56d !important;
+  -webkit-text-fill-color: #e5c56d !important;
+}
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-account > div::before,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-packages > div::before,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-balance .grid > div::before,
+html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-team .grid > div::before {
+  background: linear-gradient(90deg, #8c6a24, #f2d982, #8c6a24);
+}
+@media (max-width: 1023px) {
+  .gf-member-dashboard { gap: 1rem !important; }
+  .gf-member-dashboard .gf-dashboard-packages { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 640px) {
+  .gf-member-dashboard .gf-dashboard-packages { grid-template-columns: minmax(0, 1fr) !important; }
+  .gf-member-dashboard .gf-dashboard-hero { border-radius: 1rem !important; }
+  .gf-member-dashboard .gf-dashboard-hero > div:last-child { width: 100%; }
+  .gf-member-dashboard .gf-dashboard-hero > div:last-child button { flex: 1 1 45%; justify-content: center; }
+}
