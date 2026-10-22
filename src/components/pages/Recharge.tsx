@@ -289,29 +289,6 @@ export const Recharge: React.FC = () => {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-cyan-400/25 bg-[#091129] p-4 sm:p-6 space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-white">Trust Wallet</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-400">Connect on BNB Smart Chain, then send USDT directly to the deposit address shown below.</p>
-          </div>
-          <button type="button" onClick={connectTrustWallet} disabled={connectingWallet} className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-50">
-            {connectingWallet ? 'Connecting…' : connectedWallet ? 'Reconnect Trust Wallet' : 'Connect Trust Wallet'}
-          </button>
-        </div>
-        {connectedWallet && <p className="break-all font-mono text-xs text-cyan-200">Connected: {connectedWallet}</p>}
-        {walletMessage && <p className="text-xs text-emerald-300">{walletMessage}</p>}
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <label className="block text-xs text-slate-300">USDT amount
-            <input inputMode="decimal" value={amountUsdt} onChange={e => setAmountUsdt(e.target.value)} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#040a19] px-3 py-3 text-sm text-white" placeholder="e.g. 10" />
-          </label>
-          <button type="button" onClick={sendUsdtFromWallet} disabled={!connectedWallet || walletSending || !info?.depositAddress || !info?.contractAddress} className="self-end rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
-            {walletSending ? 'Sending…' : 'Send USDT'}
-          </button>
-        </div>
-        <p className="text-[10px] leading-5 text-slate-500">Your wallet will ask you to approve the transaction. BNB is required for network gas. Never share your recovery phrase or private key. Credit is not granted merely because a wallet is connected or a transaction is submitted.</p>
-      </div>
-
       <div className="rounded-2xl border border-blue-500/25 bg-[#091129] p-4 sm:p-6">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
