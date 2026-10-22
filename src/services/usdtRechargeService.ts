@@ -83,17 +83,32 @@ export async function listUsdtRecharges(
   return call(user, scope, 'GET');
 }
 
+export function createUsdtDepositClaimMessage(userId: string, txHash: string, amountUsdt: string, walletAddress: string) {
+  return [
+    'Global Finance USDT Deposit Claim',
+    'Domain: globalfinance1.online',
+    `User ID: ${String(userId || '').trim()}`,
+    `TXID: ${String(txHash || '').trim().toLowerCase()}`,
+    `Amount: ${String(amountUsdt || '').trim()}`,
+    `Wallet: ${String(walletAddress || '').trim().toLowerCase()}`,
+  ].join('\n');
+}
+
 export async function submitUsdtRecharge(
   user: FirebaseUser,
   amountUsdt: string,
   txHash: string,
-  paymentProofUrl?: string
+  paymentProofUrl?: string,
+  walletAddress?: string,
+  walletSignature?: string
 ) {
   return call(user, 'member', 'POST', {
     action: 'submit',
     amountUsdt,
     txHash,
     paymentProofUrl: paymentProofUrl || '',
+    walletAddress: walletAddress || '',
+    walletSignature: walletSignature || '',
   });
 }
 

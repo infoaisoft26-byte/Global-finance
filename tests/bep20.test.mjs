@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { BEP20_WALLET, verifyBep20 } from '../api/_lib/bep20.js';
+import { Wallet } from 'ethers';
+import { BEP20_WALLET, verifyBep20, createDepositClaimMessage, verifyDepositClaim } from '../api/_lib/bep20.js';
 
 const tx = `0x${'a'.repeat(64)}`;
 const contract = `0x${'b'.repeat(40)}`;
@@ -9,11 +10,12 @@ const target = `0x${BEP20_WALLET.slice(2).toLowerCase().padStart(64,'0')}`;
 const savedFetch = globalThis.fetch;
 const saved = Object.fromEntries(['PAYMENTS_ENABLED','USDT_RECHARGE_ENABLED','USDT_BEP20_CONTRACT_ADDRESS','BSC_RPC_URL'].map(key=>[key,process.env[key]]));
 let receipt;
+let transactionFrom = '0x0000000000000000000000000000000000000001';
 before(() => {
   Object.assign(process.env,{PAYMENTS_ENABLED:'true',USDT_RECHARGE_ENABLED:'true',USDT_BEP20_CONTRACT_ADDRESS:contract,BSC_RPC_URL:'https://example.invalid/rpc'});
   globalThis.fetch = async (_url,init) => {
     const {method} = JSON.parse(init.body);
-    const result = {eth_chainId:'0x38',eth_getTransactionReceipt:receipt,eth_blockNumber:'0x76',eth_call:'0x12'}[method];
+    const result = {eth_chainId:'0x38',eth_getTransactionReceipt:receipt,eth_getTransactionByHash:{from:transactionFrom},eth_blockNumber:'0x76',eth_call:'0x12'}[method];
     return new Response(JSON.stringify({jsonrpc:'2.0',id:1,result}),{status:200});
   };
 });
@@ -27,3 +29,32 @@ test('failed or mismatched token transfer is rejected',async()=>{
   }
 });
 test('twelve confirmations are required',async()=>{receipt=valid();receipt.blockNumber='0x75';await assert.rejects(verifyBep20(tx,'10'),/TRANSACTION_NOT_CONFIRMED/);});
+
+
+test('signed shared-wallet claim requires the signer to be the on-chain sender', async () => {
+  const sender = Wallet.createRandom();
+  transactionFrom = sender.address;
+  const claim = {
+    userId: 'member-123',
+    txHash: tx,
+    amountUsdt: '10',
+    walletAddress: sender.address,
+  };
+  const signature = await sender.signMessage(createDepositClaimMessage(claim));
+  const proof = await verifyDepositClaim({ ...claim, walletSignature: signature });
+  assert.equal(proof.senderVerified, true);
+  assert.equal(proof.walletAddress, sender.address.toLowerCase());
+
+  const other = Wallet.createRandom();
+  const wrongSignature = await other.signMessage(createDepositClaimMessage(claim));
+  await assert.rejects(
+    verifyDepositClaim({ ...claim, walletSignature: wrongSignature }),
+    /WALLET_SIGNATURE_INVALID/
+  );
+
+  transactionFrom = other.address;
+  await assert.rejects(
+    verifyDepositClaim({ ...claim, walletSignature: signature }),
+    /WALLET_SENDER_MISMATCH/
+  );
+});
