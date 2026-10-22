@@ -91,7 +91,7 @@ export function createUsdtDepositClaimMessage(userId: string, txHash: string, am
     `TXID: ${String(txHash || '').trim().toLowerCase()}`,
     `Amount: ${String(amountUsdt || '').trim()}`,
     `Wallet: ${String(walletAddress || '').trim().toLowerCase()}`,
-  ].join('\\n');
+  ].join('\n');
 }
 
 export async function submitUsdtRecharge(
