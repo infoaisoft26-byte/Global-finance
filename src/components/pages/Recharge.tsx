@@ -51,6 +51,7 @@ export const Recharge: React.FC = () => {
   const [submitMessage, setSubmitMessage] = useState('');
   const [error, setError] = useState('');
   const creditedSeen = useRef<Set<string>>(new Set());
+  const walletProviderRef = useRef<any>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,9 +118,28 @@ export const Recharge: React.FC = () => {
     setError('');
     setConnectingWallet(true);
     try {
-      const ethereum = (window as any).ethereum;
+      let ethereum = (window as any).ethereum;
       if (!ethereum) {
-        throw new Error('Trust Wallet was not detected. Open this website in the Trust Wallet DApp browser or install the Trust Wallet browser extension.');
+        const projectId = import.meta.env.VITE_REOWN_PROJECT_ID;
+        if (!projectId) {
+          throw new Error('WalletConnect is not configured yet. Please try opening this page in the Trust Wallet app, or contact support.');
+        }
+        const { EthereumProvider } = await import('@walletconnect/ethereum-provider');
+        ethereum = await EthereumProvider.init({
+          projectId,
+          chains: [56],
+          showQrModal: true,
+          methods: ['eth_sendTransaction', 'personal_sign', 'eth_signTypedData', 'eth_signTypedData_v4'],
+          events: ['accountsChanged', 'chainChanged'],
+          rpcMap: { 56: 'https://bsc-dataseed.binance.org/' },
+          metadata: {
+            name: 'Global Finance',
+            description: 'Connect your wallet to Global Finance',
+            url: window.location.origin,
+            icons: []
+          }
+        });
+        walletProviderRef.current = ethereum;
       }
       const provider = new BrowserProvider(ethereum);
       await provider.send('eth_requestAccounts', []);
@@ -165,8 +185,8 @@ export const Recharge: React.FC = () => {
     setError('');
     setWalletMessage('');
     try {
-      const ethereum = (window as any).ethereum;
-      if (!ethereum) throw new Error('Trust Wallet connection is no longer available. Reconnect your wallet.');
+      const ethereum = walletProviderRef.current || (window as any).ethereum;
+      if (!ethereum) throw new Error('Wallet connection is no longer available. Reconnect your wallet.');
       const provider = new BrowserProvider(ethereum);
       const network = await provider.getNetwork();
       if (network.chainId !== 56n) throw new Error('Switch Trust Wallet to BNB Smart Chain (BEP20) and reconnect.');
@@ -208,8 +228,9 @@ export const Recharge: React.FC = () => {
     try {
       let walletAddress = '';
       let walletSignature = '';
-      if (connectedWallet && (window as any).ethereum) {
-        const provider = new BrowserProvider((window as any).ethereum);
+      const activeProvider = walletProviderRef.current || (window as any).ethereum;
+      if (connectedWallet && activeProvider) {
+        const provider = new BrowserProvider(activeProvider);
         const signer = await provider.getSigner();
         walletAddress = await signer.getAddress();
         const claimMessage = createUsdtDepositClaimMessage(user.uid, txHash.trim(), amountUsdt.trim(), walletAddress);
