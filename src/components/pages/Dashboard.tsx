@@ -308,7 +308,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       )}
       {/* Top Banner & Quick Shortcuts */}
-      <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-md flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6">
+      <div className="gf-dashboard-hero p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-md flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
@@ -364,7 +364,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       </div>
 
       {/* Referral Link & Viral Invitation Card */}
-      <div className="p-4 sm:p-5 rounded-xl bg-[#091129]/90 border border-cyan-500/25 shadow-lg backdrop-blur-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+      <div className="gf-dashboard-referral p-4 sm:p-5 rounded-xl bg-[#091129]/90 border border-cyan-500/25 shadow-lg backdrop-blur-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
             <Sparkles className="w-5 h-5" />
@@ -411,7 +411,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       </div>
 
       {/* ACCOUNT DETAILS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="gf-dashboard-account grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
           <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor ID</div>
           <div className="mt-1 font-mono text-sm font-bold text-cyan-300">{profile?.sponsorId || '—'}</div>
@@ -431,7 +431,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       </div>
 
       {/* PRIMARY STATS ROW: Basic Package & FD Package */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="gf-dashboard-packages grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* Basic Package Card */}
         <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-cyan-500/40 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
@@ -511,7 +511,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       </div>
 
       {/* BALANCE SUMMARY SECTION */}
-      <div>
+      <div className="gf-dashboard-balance">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
             Balance Summary
@@ -630,7 +630,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       </div>
 
       {/* TEAM SUMMARY SECTION */}
-      <div>
+      <div className="gf-dashboard-team">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
             Team Summary
@@ -708,7 +708,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       </div>
 
       {/* TWO COLUMN BREAKDOWN: Basic Income Breakdown & FD Income Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="gf-dashboard-income grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Basic Income Breakdown */}
         <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/25 shadow-xl backdrop-blur-md">
           <div className="flex items-center justify-between pb-4 border-b border-blue-500/20 mb-4">
