@@ -8,6 +8,7 @@ import { BrowserProvider, Contract, parseUnits } from 'ethers';
 import { useAuth } from '../../context/AuthContext.tsx';
 import {
   getAutomaticDepositInfo,
+  createUsdtDepositClaimMessage,
   submitUsdtRecharge,
   listUsdtRecharges,
   type UsdtRechargeRequest,
@@ -175,7 +176,9 @@ export const Recharge: React.FC = () => {
       setWalletMessage('Transaction submitted. Waiting for blockchain confirmation…');
       await tx.wait(1);
       if (info.mode === 'shared') {
-        await submitUsdtRecharge(user, amountUsdt.trim(), tx.hash);
+        const claimMessage = createUsdtDepositClaimMessage(user.uid, tx.hash, amountUsdt.trim(), signerAddress);
+        const walletSignature = await signer.signMessage(claimMessage);
+        await submitUsdtRecharge(user, amountUsdt.trim(), tx.hash, undefined, signerAddress, walletSignature);
         const history = await listUsdtRecharges(user);
         setRequests(history.requests || []);
       }
@@ -196,7 +199,16 @@ export const Recharge: React.FC = () => {
     setError('');
     setSubmitMessage('');
     try {
-      const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim());
+      let walletAddress = '';
+      let walletSignature = '';
+      if (connectedWallet && (window as any).ethereum) {
+        const provider = new BrowserProvider((window as any).ethereum);
+        const signer = await provider.getSigner();
+        walletAddress = await signer.getAddress();
+        const claimMessage = createUsdtDepositClaimMessage(user.uid, txHash.trim(), amountUsdt.trim(), walletAddress);
+        walletSignature = await signer.signMessage(claimMessage);
+      }
+      const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim(), undefined, walletAddress, walletSignature);
       setSubmitMessage(String(result?.message || 'TXID submitted for verification.'));
       setAmountUsdt('');
       setTxHash('');
@@ -254,7 +266,7 @@ export const Recharge: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-500/20 pb-4">
         <div>
           <h2 className="text-xl font-bold text-white">USDT Deposit — BEP20</h2>
-          <p className="mt-1 text-xs text-slate-400">Send USDT to your personal address. Blockchain verification updates your Fund Wallet automatically.</p>
+          <p className="mt-1 text-xs text-slate-400">{info?.mode === 'shared' ? 'Send USDT to the shared BEP20 address. Sign the TXID claim with the sending wallet for automatic credit; emergency admin review remains available.' : 'Send USDT to your personal address. Blockchain verification updates your Fund Wallet automatically.'}</p>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-cyan-400/25 bg-[#091129] px-4 py-3">
           <Wallet className="h-5 w-5 text-cyan-400" />
@@ -293,7 +305,7 @@ export const Recharge: React.FC = () => {
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-white">Automatic deposit verification</h3>
-            <p className="text-xs leading-5 text-slate-400">No TXID, payment screenshot, or manual form is required. Deposits are detected from BNB Smart Chain token-transfer logs and credited after {info?.confirmationsRequired || 12} confirmations, subject to scanner availability.</p>
+            <p className="text-xs leading-5 text-slate-400">{info?.mode === 'shared' ? 'For a shared address, submit the TXID and sign the claim with the same wallet that sent USDT. The system checks sender ownership, exact token, destination, amount and ' + (info?.confirmationsRequired || 12) + ' confirmations before automatic credit. Admin approve/reject remains available for emergencies.' : 'No TXID, payment screenshot, or manual form is required. Deposits are detected from BNB Smart Chain token-transfer logs and credited after ' + (info?.confirmationsRequired || 12) + ' confirmations, subject to scanner availability.'}</p>
           </div>
         </div>
       </div>
