@@ -505,3 +505,57 @@ html[data-gf-theme="light"] #root > div.min-h-screen.flex.flex-col.antialiased:h
     padding: 0.875rem !important;
   }
 }
+
+
+/* Explicit member-dashboard presentation: white cards and readable ink, independent of saved theme. */
+.gf-member-dashboard {
+  color: #0f172a !important;
+  font-size: 16px;
+}
+.gf-member-dashboard [class*="bg-[#0"],
+.gf-member-dashboard [class*="bg-[#1"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border-color: #dbe4f0 !important;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.055);
+}
+.gf-member-dashboard .text-white,
+.gf-member-dashboard .text-slate-100,
+.gf-member-dashboard .text-slate-200,
+.gf-member-dashboard .text-slate-300,
+.gf-member-dashboard .text-slate-400,
+.gf-member-dashboard .text-slate-500 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  text-shadow: none !important;
+}
+.gf-member-dashboard .text-xs { font-size: 0.875rem !important; line-height: 1.45 !important; }
+.gf-member-dashboard [class*="text-[10px]"] { font-size: 0.75rem !important; line-height: 1.4 !important; }
+.gf-member-dashboard .text-sm { font-size: 1rem !important; line-height: 1.5 !important; }
+.gf-member-dashboard .text-xl { font-size: 1.5rem !important; line-height: 1.3 !important; }
+.gf-member-dashboard .text-2xl { font-size: 1.75rem !important; line-height: 1.25 !important; }
+.gf-member-dashboard .text-3xl { font-size: 2rem !important; line-height: 1.2 !important; }
+.gf-member-dashboard :is(button, a)[class*="bg-gradient"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.gf-member-dashboard :is(button, a)[class*="bg-gradient"] :is(span, svg) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.gf-member-dashboard :is(button, a)[class*="bg-blue-6"],
+.gf-member-dashboard :is(button, a)[class*="bg-emerald-6"],
+.gf-member-dashboard :is(button, a)[class*="bg-cyan-6"] {
+  color: #ffffff !important;
+}
+.gf-member-dashboard input,
+.gf-member-dashboard select,
+.gf-member-dashboard textarea {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+@media (max-width: 640px) {
+  .gf-member-dashboard { font-size: 15px; }
+  .gf-member-dashboard .text-3xl { font-size: 1.75rem !important; }
+}
