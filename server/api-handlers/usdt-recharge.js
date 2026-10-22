@@ -506,10 +506,12 @@ export default async function handler(req,res){
       }
       if(action==='deposit-address'){
         if(admin) return json(res,403,{error:'Member account required'});
-        if(addressGenerationConfigured()){
+        const sharedMode=String(process.env.USDT_DEPOSIT_MODE||'').trim().toLowerCase()==='shared';
+        if(!sharedMode && addressGenerationConfigured()){
           const deposit=await getMemberDepositDetails(actor.id);
           return json(res,200,{...deposit,mode:'personal'});
         }
+        if(sharedMode && !rechargeConfigured()) return json(res,503,{configured:false,error:'Shared USDT deposit mode is selected but the shared wallet and BSC verification settings are incomplete.'});
         if(rechargeConfigured()){
           return json(res,200,{
             configured:true,mode:'shared',network:'BNB Smart Chain (BEP20)',token:'USDT',
