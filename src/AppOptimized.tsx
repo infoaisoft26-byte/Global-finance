@@ -175,7 +175,7 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  if (systemSettings?.maintenanceMode && !isAdmin) {
+  if (systemSettings?.maintenanceMode && !isAdmin && !isAdminEntry) {
     return (
       <div className="min-h-screen bg-[#070b19] flex items-center justify-center p-4 text-center">
         <div className="max-w-lg w-full p-8 rounded-2xl bg-[#091129] border border-amber-500/40 shadow-2xl space-y-5">
