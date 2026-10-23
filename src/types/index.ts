@@ -75,7 +75,9 @@ export type TransactionType =
   | 'package_activation' 
   | 'admin_adjustment'
   | 'basic_roi' | 'fd_roi' | 'basic_level' | 'fd_level' | 'rd_level'
-  | 'basic_referral' | 'fd_referral' | 'salary' | 'joining_bonus' | 'other_income';
+  | 'basic_referral' | 'fd_referral' | 'basic_joining_referral' | 'basic_joining_level' | 'fd_joining_referral' | 'fd_joining_level'
+  | 'basic_retopup_referral' | 'basic_retopup_level' | 'fd_retopup_referral' | 'fd_retopup_level'
+  | 'salary' | 'joining_bonus' | 'other_income';
 
 export interface TransactionLedger {
   id: string;
