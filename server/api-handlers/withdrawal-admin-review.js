@@ -50,7 +50,7 @@ export default async function handler(req, res) {
 
     const reference = String(initial.reference || '').trim();
     const userId = String(initial.userId || '').trim();
-    const amount = Number(initial.amountRupees || 0);
+    const amount = Number(initial.amountRupees ?? initial.amountUsdt ?? initial.metadata?.amountUsdt ?? (Number(initial.amountPaise ?? initial.metadata?.amountPaise ?? 0) / 100) ?? 0);
     if (!reference || !userId || !Number.isFinite(amount) || amount <= 0) {
       return json(res, 409, { error: 'Withdrawal record is missing a valid reference, user, or amount.' });
     }
