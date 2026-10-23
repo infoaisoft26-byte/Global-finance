@@ -18,6 +18,7 @@ const handlers = {
   "usdt-bep20-deposit": () => import("../server/api-handlers/usdt-bep20-deposit.js"),
   "usdt-recharge": () => import("../server/api-handlers/usdt-recharge.js"),
   "withdrawal-request": () => import("../server/api-handlers/withdrawal-request.js"),
+  "withdrawal-admin-review": () => import("../server/api-handlers/withdrawal-admin-review.js"),
 };
 
 export default async function handler(req, res) {
