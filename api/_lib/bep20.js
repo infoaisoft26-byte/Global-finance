@@ -179,24 +179,34 @@ export async function verifyBep20(txHash, claimedAmount, destinationAddress = BE
   if (!/^0x[0-9a-fA-F]{40}$/.test(String(destinationAddress || ''))) throw new Error('DEPOSIT_WALLET_NOT_CONFIGURED');
   const target = '0x' + String(destinationAddress).slice(2).toLowerCase().padStart(64, '0');
 
-  const logs = (receipt.logs || []).filter(log =>
+  // Inspect all genuine USDT Transfer events first, then classify the mismatch.
+  // Never accept a transfer to a different address or for a different amount.
+  const tokenTransfers = (receipt.logs || []).filter(log =>
     log.address?.toLowerCase() === token &&
     log.topics?.length === 3 &&
-    log.topics[0]?.toLowerCase() === TRANSFER_TOPIC &&
-    log.topics[2]?.toLowerCase() === target
+    log.topics[0]?.toLowerCase() === TRANSFER_TOPIC
   );
+  if (!tokenTransfers.length) throw new Error('NO_USDT_TRANSFER_FOUND');
 
-  if (!logs.length) throw new Error('TRANSFER_MISMATCH');
+  const destinationTransfers = tokenTransfers.filter(log => log.topics[2]?.toLowerCase() === target);
+  if (!destinationTransfers.length) {
+    const amountSentElsewhere = tokenTransfers.reduce((sum, log) => {
+      if (typeof log.data !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(log.data)) return sum;
+      return sum + BigInt(log.data);
+    }, 0n);
+    if (amountSentElsewhere === expected) throw new Error('TRANSFER_RECIPIENT_MISMATCH');
+    throw new Error('TRANSFER_RECIPIENT_MISMATCH');
+  }
 
   let received = 0n;
-  for (const log of logs) {
+  for (const log of destinationTransfers) {
     if (typeof log.data !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(log.data)) {
-      throw new Error('TRANSFER_MISMATCH');
+      throw new Error('TRANSFER_AMOUNT_MISMATCH');
     }
     received += BigInt(log.data);
   }
 
-  if (received !== expected) throw new Error('TRANSFER_MISMATCH');
+  if (received !== expected) throw new Error('TRANSFER_AMOUNT_MISMATCH');
 
   return {
     token,
