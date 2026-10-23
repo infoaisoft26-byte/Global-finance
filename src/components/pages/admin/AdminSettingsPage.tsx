@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Settings, Save, Check, RefreshCw, AlertTriangle, Layers, ShieldCheck, WalletCards, QrCode, Link2 } from 'lucide-react';
+import { Settings, Save, Check, RefreshCw, AlertTriangle, Layers, ShieldCheck, WalletCards, QrCode, Link2, Wrench } from 'lucide-react';
 import { getCachedSystemSettings, refreshSystemSettings, updateSystemSettings } from '../../../services/settingsService.ts';
 import { useAuth } from '../../../context/AuthContext.tsx';
 import type { SystemSettings } from '../../../types/index.ts';
@@ -63,6 +63,23 @@ export const AdminSettingsPage: React.FC = () => {
       {errorMsg && <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex gap-2"><AlertTriangle className="w-4 h-4" />{errorMsg}</div>}
 
       <form onSubmit={handleSave} className="space-y-6">
+        <section className="p-5 rounded-2xl bg-[#091129] border border-amber-500/40 space-y-4">
+          <div className="flex items-center gap-3 border-b border-amber-500/20 pb-3">
+            <Wrench className="w-5 h-5 text-amber-300" />
+            <div className="flex-1">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300">Website Maintenance Mode</h3>
+              <p className="text-xs text-slate-400 mt-1">When enabled, members and visitors see the maintenance screen. Admin access remains available.</p>
+            </div>
+            <span className={settings.maintenanceMode ? "rounded-full px-3 py-1 text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-400/30" : "rounded-full px-3 py-1 text-xs font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-400/30"}>
+              {settings.maintenanceMode ? "ON" : "OFF"}
+            </span>
+          </div>
+          <label className="flex items-start gap-3 text-sm text-slate-200 cursor-pointer">
+            <input type="checkbox" className="mt-1 h-4 w-4 accent-amber-400" checked={Boolean(settings.maintenanceMode)}
+              onChange={(e) => setSettings({ ...settings, maintenanceMode: e.target.checked })} />
+            <span><strong>Enable maintenance mode</strong><span className="block text-xs text-slate-400 mt-1">ON = user portal is blocked with a maintenance notice. OFF = website returns to normal. Click “Save All Settings” to apply.</span></span>
+          </label>
+        </section>
         <section className="p-5 rounded-2xl bg-[#091129] border border-amber-500/30 space-y-4">
           <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3">
             <ShieldCheck className="w-4 h-4 text-amber-300" />
