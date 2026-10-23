@@ -175,6 +175,19 @@ const MainLayout: React.FC = () => {
     );
   }
 
+  if (systemSettings?.maintenanceMode && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-[#070b19] flex items-center justify-center p-4 text-center">
+        <div className="max-w-lg w-full p-8 rounded-2xl bg-[#091129] border border-amber-500/40 shadow-2xl space-y-5">
+          <Wrench className="w-12 h-12 mx-auto text-amber-400" />
+          <h2 className="text-2xl font-bold text-white">GLOBAL FINANCE</h2>
+          <p className="text-xs text-slate-400">Scheduled maintenance in progress.</p>
+          <button onClick={logout} className="px-5 py-2.5 rounded-xl bg-[#121c44] text-white text-xs mx-auto">Log Out</button>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) return isAdminEntry ? <AdminLoginScreen /> : <AuthScreen />;
 
   if (isAdminEntry && !isAdmin) {
@@ -198,19 +211,6 @@ const MainLayout: React.FC = () => {
           <ShieldAlert className="w-12 h-12 text-rose-400 mx-auto" />
           <h2 className="text-xl font-bold text-white">Account Access Suspended</h2>
           <button onClick={logout} className="px-5 py-2.5 rounded-xl bg-[#121c44] text-white text-xs flex items-center gap-2 mx-auto"><LogOut className="w-4 h-4" />Log Out</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (systemSettings?.maintenanceMode && !isAdmin) {
-    return (
-      <div className="min-h-screen bg-[#070b19] flex items-center justify-center p-4 text-center">
-        <div className="max-w-lg w-full p-8 rounded-2xl bg-[#091129] border border-amber-500/40 shadow-2xl space-y-5">
-          <Wrench className="w-12 h-12 mx-auto text-amber-400" />
-          <h2 className="text-2xl font-bold text-white">GLOBAL FINANCE</h2>
-          <p className="text-xs text-slate-400">Scheduled maintenance in progress.</p>
-          <button onClick={logout} className="px-5 py-2.5 rounded-xl bg-[#121c44] text-white text-xs mx-auto">Log Out</button>
         </div>
       </div>
     );
