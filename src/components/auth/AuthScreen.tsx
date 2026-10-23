@@ -397,15 +397,8 @@ const COUNTRIES = [
           throw new Error('Sponsor Referral ID was not found or is inactive. Please verify the ID before registering.');
         }
         await registerWithEmail(name.trim(), email.trim(), password, normalizedSponsorCode, phone.trim());
-        setMode('signin');
-        setMemberId('');
-        setEmail('');
-        setPassword('');
-        setName('');
-        setPhone('');
-        setSponsorCode('');
-        setSuccessMsg('Registration successful. Please sign in with your GF Member ID and password.');
-        window.history.replaceState({}, '', '/');
+        // Registration now keeps the new member authenticated and opens the dashboard.
+        setSuccessMsg('Registration successful. Opening your account…');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication failed. Please verify credentials.');
