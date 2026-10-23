@@ -315,17 +315,30 @@ export const Recharge: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <style>{`
+        @keyframes gfBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes gfPopupIn { 0% { opacity: 0; transform: translateY(24px) scale(.82); } 65% { opacity: 1; transform: translateY(-4px) scale(1.025); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes gfIconIn { 0% { transform: scale(0) rotate(-25deg); } 70% { transform: scale(1.16) rotate(7deg); } 100% { transform: scale(1) rotate(0); } }
+        @keyframes gfGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,.0), 0 24px 80px rgba(0,0,0,.35); } 50% { box-shadow: 0 0 0 8px rgba(16,185,129,.07), 0 24px 80px rgba(0,0,0,.35); } }
+        @keyframes gfShine { 0% { transform: translateX(-160%) skewX(-20deg); } 65%, 100% { transform: translateX(260%) skewX(-20deg); } }
+        @media (prefers-reduced-motion: reduce) { .gf-status-backdrop, .gf-status-card, .gf-status-icon, .gf-status-shine { animation: none !important; } }
+      `}</style>
       {statusPopup && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="deposit-status-title">
-          <div className={`w-full max-w-sm rounded-2xl border bg-white p-6 text-center shadow-2xl ${statusPopup.kind === 'success' ? 'border-emerald-200' : statusPopup.kind === 'failed' ? 'border-rose-200' : 'border-amber-200'}`}>
-            <div className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ${statusPopup.kind === 'success' ? 'bg-emerald-100 text-emerald-600' : statusPopup.kind === 'failed' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
-              {statusPopup.kind === 'success' ? <CheckCircle2 className="h-8 w-8" /> : statusPopup.kind === 'failed' ? <AlertCircle className="h-8 w-8" /> : <Clock3 className="h-8 w-8" />}
+        <div className="gf-status-backdrop fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-md" style={{animation:'gfBackdropIn .22s ease-out both'}} role="dialog" aria-modal="true" aria-labelledby="deposit-status-title">
+          <div className={`gf-status-card relative w-full max-w-sm overflow-hidden rounded-[28px] border bg-white p-6 text-center shadow-2xl sm:p-7 ${statusPopup.kind === 'success' ? 'border-emerald-200' : statusPopup.kind === 'failed' ? 'border-rose-200' : 'border-amber-200'}`} style={{animation:'gfPopupIn .48s cubic-bezier(.2,.85,.25,1.2) both', ...(statusPopup.kind === 'success' ? {boxShadow:'0 24px 80px rgba(0,0,0,.35), 0 0 0 1px rgba(16,185,129,.12)'} : {})}}>
+            <div className={`pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full blur-3xl ${statusPopup.kind === 'success' ? 'bg-emerald-300/35' : statusPopup.kind === 'failed' ? 'bg-rose-300/35' : 'bg-amber-300/35'}`} />
+            {statusPopup.kind === 'success' && <div className="pointer-events-none absolute inset-x-0 top-0 h-1 overflow-hidden bg-emerald-100"><div className="gf-status-shine h-full w-1/3 bg-gradient-to-r from-transparent via-emerald-500 to-transparent" style={{animation:'gfShine 1.3s ease-in-out .25s both'}} /></div>}
+            <div className={`gf-status-icon relative mx-auto mb-4 flex h-[76px] w-[76px] items-center justify-center rounded-full ring-8 ${statusPopup.kind === 'success' ? 'bg-gradient-to-br from-emerald-400 to-green-600 text-white ring-emerald-50' : statusPopup.kind === 'failed' ? 'bg-gradient-to-br from-rose-400 to-red-600 text-white ring-rose-50' : 'bg-gradient-to-br from-amber-300 to-orange-500 text-white ring-amber-50'}`} style={{animation:'gfIconIn .55s cubic-bezier(.2,.9,.25,1.3) .12s both'}}>
+              {statusPopup.kind === 'success' ? <CheckCircle2 className="h-10 w-10 drop-shadow-sm" strokeWidth={2.5} /> : statusPopup.kind === 'failed' ? <AlertCircle className="h-10 w-10 drop-shadow-sm" strokeWidth={2.5} /> : <Clock3 className="h-10 w-10 drop-shadow-sm" strokeWidth={2.5} />}
             </div>
-            <h3 id="deposit-status-title" className="text-lg font-bold text-slate-900">{statusPopup.title}</h3>
-            {statusPopup.amount && <p className="mt-1 font-mono text-sm font-bold text-slate-700">{formatUsdt(statusPopup.amount)} USDT</p>}
-            <p className="mt-3 text-sm leading-6 text-slate-600">{statusPopup.message}</p>
-            {statusPopup.txHash && <p className="mt-3 break-all text-[10px] text-slate-400">{shortHash(statusPopup.txHash)}</p>}
-            <button onClick={() => setStatusPopup(null)} className={`mt-5 w-full rounded-xl px-4 py-3 text-sm font-bold text-white ${statusPopup.kind === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' : statusPopup.kind === 'failed' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'}`}>Okay, got it</button>
+            <div className="relative">
+              <p className={`mb-1 text-[10px] font-extrabold uppercase tracking-[.24em] ${statusPopup.kind === 'success' ? 'text-emerald-600' : statusPopup.kind === 'failed' ? 'text-rose-600' : 'text-amber-600'}`}>Global Finance · Deposit Update</p>
+              <h3 id="deposit-status-title" className="text-xl font-extrabold tracking-tight text-slate-900">{statusPopup.title}</h3>
+              {statusPopup.amount && <div className="mx-auto mt-3 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 font-mono text-base font-extrabold text-slate-800 shadow-sm">{formatUsdt(statusPopup.amount)} <span className="ml-1 text-xs font-bold text-slate-500">USDT</span></div>}
+              <p className="mt-4 text-sm leading-6 text-slate-600">{statusPopup.message}</p>
+              {statusPopup.txHash && <p className="mx-auto mt-4 max-w-full rounded-lg bg-slate-50 px-3 py-2 font-mono text-[10px] text-slate-500">{shortHash(statusPopup.txHash)}</p>}
+              <button onClick={() => setStatusPopup(null)} className={`mt-6 w-full rounded-xl px-4 py-3.5 text-sm font-extrabold text-white shadow-lg transition duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[.98] focus:outline-none focus:ring-4 ${statusPopup.kind === 'success' ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-emerald-500/25 focus:ring-emerald-200' : statusPopup.kind === 'failed' ? 'bg-gradient-to-r from-rose-500 to-red-600 shadow-rose-500/25 focus:ring-rose-200' : 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-amber-500/25 focus:ring-amber-200'}`}>Okay, got it <span className="ml-1">→</span></button>
+            </div>
           </div>
         </div>
       )}
