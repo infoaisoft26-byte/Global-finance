@@ -45,6 +45,8 @@ const AdminTransactions = lazy(() => import('./components/pages/admin/AdminTrans
 const AdminP2PReport = lazy(() => import('./components/pages/admin/AdminP2PReport.tsx').then(m => ({ default: m.AdminP2PReport })));
 const AdminUsdtRecharge = lazy(() => import('./components/pages/admin/AdminUsdtRecharge.tsx').then(m => ({ default: m.AdminUsdtRecharge })));
 const AdminOfferPoster = lazy(() => import('./components/pages/admin/AdminOfferPoster.tsx').then(m => ({ default: m.AdminOfferPoster })));
+const AdminBrochure = lazy(() => import('./components/pages/admin/AdminBrochure.tsx').then(m => ({ default: m.AdminBrochure })));
+const BrochureDownload = lazy(() => import('./components/pages/BrochureDownload.tsx').then(m => ({ default: m.BrochureDownload })));
 const AdminAudit = lazy(() => import('./components/pages/admin/AdminAudit.tsx').then(m => ({ default: m.AdminAudit })));
 const AdminSettingsPage = lazy(() => import('./components/pages/admin/AdminSettingsPage.tsx').then(m => ({ default: m.AdminSettingsPage })));
 
@@ -78,7 +80,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     'user-detail': 'admin-user-detail', kyc: 'admin-kyc', tickets: 'admin-tickets',
     reports: 'admin-reports', packages: 'admin-packages',
     'package-activations': 'admin-package-activations', 'usdt-recharge': 'admin-usdt-recharge',
-    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster'
+    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster', brochure: 'admin-brochure'
   };
   if (requested && routes[requested]) return routes[requested];
   const normalized = pathname.replace(/\/+$/, '') || '/admin';
@@ -250,6 +252,8 @@ const MainLayout: React.FC = () => {
       case 'admin-p2p-report': return <AdminP2PReport />;
       case 'admin-usdt-recharge': return <AdminUsdtRecharge />;
       case 'admin-offer-poster': return <AdminOfferPoster />;
+      case 'admin-brochure': return <AdminBrochure />;
+      case 'brochure': return <BrochureDownload />;
       case 'admin-transactions': return <AdminTransactions />;
       case 'admin-package-activations': return <AdminPackageActivations />;
       case 'admin-users': return <AdminUsers onSelectUser={(userId) => { setSelectedAdminUserId(userId); setActivePage('admin-user-detail'); }} />;
