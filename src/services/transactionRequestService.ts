@@ -387,7 +387,8 @@ export async function adminUpdateTransactionRequestStatus(
   requestId: string,
   targetStatus: TransactionRequestStatus,
   adminNote?: string,
-  providerReference?: string
+  providerReference?: string,
+  adminIdToken?: string
 ): Promise<{ success: boolean; request: TransactionRequest }> {
   const reqDocRef = doc(db, 'transaction_requests', requestId);
   const snap = await getDoc(reqDocRef);
@@ -425,6 +426,21 @@ export async function adminUpdateTransactionRequestStatus(
   } else if (targetStatus === 'completed') {
     updates.completedAt = now;
     if (providerReference) updates.providerReference = providerReference;
+  }
+
+  // Withdrawal rejection/refund must run on the trusted server. Client Firestore rules
+  // intentionally prohibit direct wallet and ledger writes.
+  if (current.requestType === 'withdrawal' && targetStatus === 'rejected' && current.metadata?.walletDebited === true) {
+    if (!adminIdToken) throw new Error('Secure admin session is required to reject a withdrawal.');
+    const response = await fetch('/api/withdrawal-admin-review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminIdToken },
+      body: JSON.stringify({ requestId, adminNote: adminNote || '' })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Secure withdrawal rejection failed.');
+    const refreshed = await getDoc(reqDocRef);
+    return { success: true, request: refreshed.exists() ? refreshed.data() as TransactionRequest : { ...current, ...updates } };
   }
 
   // Refund a rejected withdrawal exactly once, in the same Firestore transaction as the status change.
