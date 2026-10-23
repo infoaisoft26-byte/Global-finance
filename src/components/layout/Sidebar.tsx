@@ -7,6 +7,7 @@ import {
   TrendingUp, 
   ArrowLeftRight, 
   FileBarChart2, 
+  FileText,
   LifeBuoy, 
   LogOut, 
   ChevronDown, 
@@ -103,6 +104,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <LayoutDashboard className="w-4 h-4 text-cyan-400" />
             <span className="text-sm">Dashboard</span>
+          </button>
+
+          {/* Member brochure download */}
+          <button
+            onClick={() => handleNav('brochure')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${activePage === 'brochure' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold shadow-lg shadow-blue-900/40' : 'hover:bg-[#0e1635] text-slate-300 hover:text-white'}`}
+          >
+            <FileText className="w-4 h-4 text-cyan-300" />
+            <span className="text-sm">Download Brochure</span>
           </button>
 
           {/* Main: Recharge */}
