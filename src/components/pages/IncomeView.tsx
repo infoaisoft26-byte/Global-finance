@@ -112,7 +112,12 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       if (!response.ok || !Array.isArray(payload.transactions)) throw new Error(payload.error || 'Unable to load income ledger');
       const allTxns = payload.transactions as TransactionLedger[];
       setAllIncomeRecords(allTxns);
-      setRecords(allTxns.filter((t) => String(t.type) === String(config.txnType)));
+      const typesForPage: Partial<Record<ActivePage, string[]>> = {
+        'basic-referral': ['basic_referral', 'basic_joining_referral', 'basic_retopup_referral'],
+        'fd-referral': ['fd_referral', 'fd_joining_referral', 'fd_retopup_referral'],
+      };
+      const allowedTypes = typesForPage[page] || [String(config.txnType)];
+      setRecords(allTxns.filter((t) => allowedTypes.includes(String(t.type))));
     } catch (err) {
       console.error(err);
     } finally {
@@ -151,8 +156,16 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
           fd_roi: 'FD Fund ROI',
           basic_referral: 'Basic Fund Referral',
           fd_referral: 'FD Fund Referral',
-          basic_level: 'Basic Fund Level',
-          fd_level: 'FD Fund Level',
+          basic_joining_referral: 'New Joining Income',
+          basic_joining_level: 'New Joining Level Income',
+          fd_joining_referral: 'FD New Joining Income',
+          fd_joining_level: 'FD New Joining Level Income',
+          basic_retopup_referral: 'Retopup Direct Income',
+          basic_retopup_level: 'Retopup Level Income',
+          fd_retopup_referral: 'FD Retopup Direct Income',
+          fd_retopup_level: 'FD Retopup Level Income',
+          basic_level: 'Basic Fund ROI Level',
+          fd_level: 'FD Fund ROI Level',
           rd_level: 'RD Fund Level',
           salary: 'Salary Fund',
           joining_bonus: 'Joining Bonus',
