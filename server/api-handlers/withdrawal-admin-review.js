@@ -60,12 +60,16 @@ export default async function handler(req, res) {
 
     // Neon is the canonical wallet/ledger source. This transaction is idempotent:
     // a retry after a Firestore failure sees the existing refund ledger and will not credit twice.
-    await withTransaction(async client => {
+    const neonBalance = await withTransaction(async client => {
       const existing = await client.query(
         'SELECT id FROM ledger_transactions WHERE id = $1 FOR UPDATE',
         [refundId]
       );
-      if (existing.rows.length) return;
+      if (existing.rows.length) {
+        const currentWallet = await client.query('SELECT income_wallet FROM wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+        if (!currentWallet.rows.length) throw new Error('NEON_WALLET_NOT_FOUND');
+        return Number(currentWallet.rows[0].income_wallet || 0);
+      }
 
       const debit = await client.query(
         "SELECT id, amount FROM ledger_transactions WHERE id = $1 AND type = 'withdrawal' AND flow = 'debit' FOR UPDATE",
@@ -96,6 +100,8 @@ export default async function handler(req, res) {
           'Release withdrawal reserve for rejected request (' + reference + ')', refundId, 'completed',
           JSON.stringify({ requestId, refund: true, asset: 'USDT', idempotencyKey: liabilityId }), now]
       );
+      const updatedWallet = await client.query('SELECT income_wallet FROM wallets WHERE user_id = $1', [userId]);
+      return Number(updatedWallet.rows[0]?.income_wallet || 0);
     });
 
     const refundRef = firestore.collection('transactions').doc(refundId);
@@ -118,9 +124,7 @@ export default async function handler(req, res) {
       if (!walletSnap.exists()) throw new Error('Firestore wallet mirror is missing; Neon refund is recorded and requires reconciliation.');
       const now = new Date().toISOString();
       if (!refundSnap.exists()) {
-        const wallet = walletSnap.data() || {};
-        const currentBalance = Number(wallet.incomeWallet || 0);
-        txn.update(walletRef, { incomeWallet: Number((currentBalance + amount).toFixed(8)), updatedAt: now });
+        txn.update(walletRef, { incomeWallet: Number(neonBalance.toFixed(8)), updatedAt: now });
         txn.set(refundRef, {
           id: refundId, userId, type: 'withdrawal', category: 'income_wallet', flow: 'credit',
           amount, fee: 0, netAmount: amount, description: 'Refund for rejected withdrawal (' + reference + ')',
