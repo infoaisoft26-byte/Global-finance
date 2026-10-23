@@ -135,7 +135,7 @@ export default async function handler(req, res) {
       }
       if (!liabilitySnap.exists()) {
         txn.set(liabilityRef, {
-          id: liabilityId, userId: 'GLOBAL_FINANCE_LIABILITIES', type: 'withdrawal', category: 'income_wallet',
+          id: liabilityId, userId, type: 'withdrawal_reserve_release', category: 'income_wallet',
           flow: 'debit', amount, fee: 0, netAmount: amount,
           description: 'Release withdrawal reserve for rejected request (' + reference + ')',
           referenceId: refundId, status: 'completed',
