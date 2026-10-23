@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, UploadCloud, CheckCircle2, AlertCircle, Download, Loader2 } from 'lucide-react';
+import { FileText, UploadCloud, CheckCircle2, AlertCircle, Download, Loader2, Link2 } from 'lucide-react';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from '../../../lib/firebase.ts';
@@ -19,6 +19,31 @@ export const AdminBrochure: React.FC = () => {
   useEffect(() => {
     getDoc(doc(db, 'platformContent', 'brochure')).then(s => setCurrent(s.exists() ? s.data() as BrochureRecord : null)).catch(() => {});
   }, []);
+
+  const publishDriveLink = async () => {
+    if (!isAdmin || isSubAdmin || !user) { setError(true); setMessage('Only the main administrator can publish the brochure.'); return; }
+    setBusy(true); setError(false); setMessage('Publishing Google Drive brochure link for members…');
+    try {
+      const driveURL = 'https://drive.google.com/file/d/1-gC8fieJUdibtyKmsUTYGJWB0YuVeDDE/view?usp=drive_link';
+      const sizeBytes = 56870000;
+      const record = {
+        fileName: 'Global Finance Brochure.pdf',
+        downloadURL: driveURL,
+        storagePath: 'brochures/global-finance-brochure.pdf',
+        size: sizeBytes,
+        sizeBytes,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+      };
+      await setDoc(doc(db, 'platformContent', 'brochure'), record);
+      setCurrent({ ...record, updatedAt: new Date() });
+      setMessage('Google Drive brochure link published. Members can now open the brochure from their dashboard.');
+    } catch (e) {
+      setError(true);
+      const code = typeof e === 'object' && e !== null && 'code' in e ? String((e as { code: unknown }).code) : '';
+      setMessage(code.includes('permission-denied') ? 'Firestore permission denied. Check that the updated platformContent/brochure rule is published.' : (e instanceof Error ? e.message : 'Could not publish the Google Drive link. Check Firestore permissions.'));
+    } finally { setBusy(false); }
+  };
 
   const upload = async () => {
     if (!isAdmin || isSubAdmin || !user) { setError(true); setMessage('Only the main administrator can upload the brochure.'); return; }
@@ -77,6 +102,8 @@ export const AdminBrochure: React.FC = () => {
         <label htmlFor="gf-brochure-file" className="block cursor-pointer rounded-2xl border-2 border-dashed border-blue-400/30 bg-blue-500/5 p-6 text-center transition hover:border-cyan-300/60 hover:bg-blue-500/10"><UploadCloud className="mx-auto h-9 w-9 text-cyan-300"/><span className="mt-3 block text-sm font-bold text-white">{file ? file.name : 'Choose brochure PDF'}</span><span className="mt-1 block text-xs text-slate-400">Click to browse your computer</span><input id="gf-brochure-file" type="file" accept=".pdf,application/pdf" className="sr-only" onChange={e => setFile(e.target.files?.[0] ?? null)}/></label>
         {file && <div className="text-xs text-slate-300">Selected: {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</div>}
         {busy && <div className="space-y-2" role="status" aria-live="polite"><div className="flex items-center justify-between text-xs font-bold text-cyan-200"><span>{progress >= 100 ? 'Publishing brochure' : 'Upload progress'}</span><span>{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300 transition-all duration-200" style={{ width: `${progress}%` }}/></div><p className="text-xs text-slate-400">Please keep this page open until the brochure is published.</p></div>}
+        <button onClick={publishDriveLink} disabled={busy} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-5 py-3 text-sm font-extrabold text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-50"><Link2 className="h-4 w-4"/>Publish Google Drive PDF Link</button>
+        <p className="text-xs leading-5 text-slate-400">Use this alternative if Firebase upload fails. The Drive file must be shared as “Anyone with the link”. Publishing this link replaces the current brochure link for members.</p>
         <button onClick={upload} disabled={busy || !file} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-blue-950/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <><Loader2 className="h-4 w-4 animate-spin"/>{progress >= 100 ? 'Publishing brochure…' : `Uploading PDF… ${progress}%`}</> : <><UploadCloud className="h-4 w-4"/>{current?.downloadURL ? 'Upload / Replace Brochure' : 'Upload Brochure PDF'}</>}</button>
         {message && <div role="status" className={`flex items-start gap-2 rounded-xl p-4 text-sm font-semibold ${error ? 'bg-rose-500/10 text-rose-200' : 'bg-emerald-500/10 text-emerald-200'}`}>{error ? <AlertCircle className="mt-0.5 h-4 w-4 shrink-0"/> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0"/>}<span>{message}</span></div>}
       </div>
