@@ -123,8 +123,8 @@ export default async function handler(req, res) {
       }
       if (!walletSnap.exists()) throw new Error('Firestore wallet mirror is missing; Neon refund is recorded and requires reconciliation.');
       const now = new Date().toISOString();
+      txn.update(walletRef, { incomeWallet: Number(neonBalance.toFixed(8)), updatedAt: now });
       if (!refundSnap.exists()) {
-        txn.update(walletRef, { incomeWallet: Number(neonBalance.toFixed(8)), updatedAt: now });
         txn.set(refundRef, {
           id: refundId, userId, type: 'withdrawal', category: 'income_wallet', flow: 'credit',
           amount, fee: 0, netAmount: amount, description: 'Refund for rejected withdrawal (' + reference + ')',
