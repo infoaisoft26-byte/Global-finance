@@ -101,6 +101,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const [sponsorReferralParam, setSponsorReferralParam] = useState<string>('');
   const pendingSponsorRef = useRef<string>('');
+  // Prevent the auth-state observer from navigating away mid-registration.
+  const registrationInProgressRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -122,6 +124,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      // Registration owns the first profile sync and its visible error state.
+      // Do not unmount AuthScreen while that request is still in progress.
+      if (registrationInProgressRef.current) return;
       setUser(currentUser);
       if (!currentUser) {
         setProfile(null);
@@ -261,17 +266,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!/^GF\d{6}$/.test(sponsor)) {
       throw new Error('Sponsor Referral ID is required. Open a valid sponsor referral link or enter the sponsor ID.');
     }
-    setLoading(true);
+    registrationInProgressRef.current = true;
     pendingSponsorRef.current = sponsor;
     try {
       await setPersistence(auth, browserLocalPersistence);
       const res = await createUserWithEmailAndPassword(auth, email, pass);
       if (res.user) {
         await updateProfile(res.user, { displayName: name });
-        setUser(res.user);
-        // Keep the newly created member signed in. Signing out here sent
-        // referral registrations straight back to the login screen.
+        // Keep AuthScreen mounted until server sync succeeds so errors are
+        // visible instead of being lost when the auth observer changes routes.
         await loadUserData(res.user, sponsor, true, { phone, country });
+        setUser(res.user);
       }
     } catch (err: any) {
       console.error('Email Registration failed:', err);
@@ -281,7 +286,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(err?.message || 'Registration could not be completed.');
     } finally {
       pendingSponsorRef.current = '';
-      setLoading(false);
+      registrationInProgressRef.current = false;
     }
   };
 
