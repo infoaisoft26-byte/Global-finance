@@ -93,7 +93,10 @@ export async function getSystemSettings(force = false): Promise<SystemSettings> 
   const fetchSettings = async (): Promise<SystemSettings> => {
     const fallback = cachedSettings || DEFAULT_SYSTEM_SETTINGS;
     try {
-      const headers = await authHeaders();
+      // Public GET exposes only maintenanceMode to unauthenticated members;
+      // the API returns the full settings document only to administrators.
+      let headers: Record<string, string> = {};
+      try { headers = await authHeaders(); } catch { /* public maintenance status is still readable */ }
       const response = await withTimeout(
         fetch('/api/system-settings', { method: 'GET', credentials: 'include', headers }),
         READ_TIMEOUT_MS,
