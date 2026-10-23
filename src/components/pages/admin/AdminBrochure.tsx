@@ -41,7 +41,7 @@ export const AdminBrochure: React.FC = () => {
       });
       setMessage('Upload complete. Publishing brochure for users…');
       const downloadURL = await getDownloadURL(objectRef);
-      const record = { fileName: file.name.slice(0, 160), downloadURL, storagePath: path, sizeBytes: file.size, updatedAt: serverTimestamp(), updatedBy: user.uid };
+      const record = { fileName: file.name.slice(0, 160), downloadURL, storagePath: path, size: file.size, sizeBytes: file.size, updatedAt: serverTimestamp(), updatedBy: user.uid };
       await setDoc(doc(db, 'platformContent', 'brochure'), record);
       setCurrent({ ...record, updatedAt: new Date() });
       setFile(null);
