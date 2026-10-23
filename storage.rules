@@ -20,7 +20,7 @@ service firebase.storage {
       allow read: if signedIn();
       allow create, update: if isAdmin()
         && request.resource.size > 0
-        && request.resource.size <= 8388608
+        && request.resource.size <= 67108864
         && request.resource.contentType == 'application/pdf';
       allow delete: if false;
     }
