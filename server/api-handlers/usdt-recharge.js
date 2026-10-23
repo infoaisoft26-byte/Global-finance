@@ -301,6 +301,53 @@ async function review(actor,id,action,note){
   const ref=db.collection('usdtRecharges').doc(id);
   const now=new Date();
 
+  // Reconcile a partial approval safely when Neon already has the matching
+  // completed deposit and wallet ledger. Do not re-verify or credit again:
+  // the Neon balance may already have been spent on a package purchase.
+  if(action==='approve'){
+    const snap=await ref.get();
+    if(!snap.exists) throw new Error('RECHARGE_NOT_FOUND');
+    const r=snap.data()||{};
+    if(r.status!=='pending') throw new Error('ALREADY_REVIEWED');
+    const pool=getPool();
+    const check=await pool.query(
+      `SELECT r.id,r.user_id,r.amount_usdt,r.status,r.ledger_id,
+              l.id AS matched_ledger_id,l.amount AS ledger_amount,l.flow,l.status AS ledger_status
+         FROM usdt_bep20_recharges r
+         JOIN ledger_transactions l
+           ON l.id=r.ledger_id
+          AND lower(l.reference_id)=lower(r.tx_hash)
+        WHERE lower(r.tx_hash)=lower($1)
+        LIMIT 1`,
+      [String(r.txHash||'').toLowerCase()]
+    );
+    if(check.rows.length){
+      const existing=check.rows[0];
+      const sameMember=String(existing.user_id)===String(r.userId);
+      const sameAmount=Number(existing.amount_usdt)===Number(r.amountUsdt);
+      const validLedger=String(existing.flow)==='credit' && String(existing.ledger_status)==='completed' && Number(existing.ledger_amount)===Number(r.amountUsdt);
+      if(!sameMember || !sameAmount || !validLedger) throw new Error('TXID_ALREADY_CREDITED');
+      return db.runTransaction(async t=>{
+        const fresh=await t.get(ref);
+        if(!fresh.exists) throw new Error('RECHARGE_NOT_FOUND');
+        const current=fresh.data()||{};
+        if(current.status==='approved') return {status:'approved',alreadyReconciled:true,ledgerId:String(existing.matched_ledger_id),creditUsdt:Number(existing.amount_usdt)};
+        if(current.status!=='pending') throw new Error('ALREADY_REVIEWED');
+        if(String(current.txHash||'').toLowerCase()!==String(r.txHash||'').toLowerCase() || String(current.userId)!==String(r.userId) || Number(current.amountUsdt)!==Number(r.amountUsdt)) throw new Error('REVIEW_CHANGED');
+        const txRef=db.collection('usdtDepositTx').doc(String(current.txHash));
+        t.set(ref,{status:'approved',creditUsdt:String(existing.amount_usdt),ledgerId:String(existing.matched_ledger_id),reviewNote:'Reconciled with existing completed Neon deposit; no additional wallet credit issued.',reviewedBy:actor.id,reviewedAt:now.toISOString(),updatedAt:now.toISOString()},{merge:true});
+        t.set(txRef,{status:'approved',creditedAt:now.toISOString(),ledgerId:String(existing.matched_ledger_id),rechargeId:id,userId:current.userId,amountUsdt:String(current.amountUsdt),reconciled:true},{merge:true});
+        t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
+          actorUserId:actor.id,actorEmail:actor.email,action:'USDT_RECHARGE_RECONCILED',
+          entityType:'usdt_recharge',entityId:id,
+          metadata:{txHash:current.txHash,amountUsdt:String(current.amountUsdt),ledgerId:String(existing.matched_ledger_id),note:'Existing completed Neon credit reused; no wallet balance changed.'},
+          timestamp:now,
+        });
+        return {status:'approved',alreadyReconciled:true,ledgerId:String(existing.matched_ledger_id),creditUsdt:Number(existing.amount_usdt)};
+      });
+    }
+  }
+
   // Verify the actual BSC transfer and credit its exact USDT amount. The admin
   // may add a note, but cannot key an arbitrary wallet credit.
   const initialSnap=await ref.get();
