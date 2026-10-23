@@ -3,27 +3,32 @@ import { getFirestoreAdmin } from './firebaseAdmin.js';
 
 const MAX_LEVEL = 15;
 
-// Default 15-level commission schedule. Admin settings in Firestore override these
-// rates for future eligible transactions; existing ledger entries are never rewritten.
-const DEFAULT_LEVEL_COMMISSION_RATES = Object.freeze({1:5,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:0.5,14:0.5,15:0.5});
-const levelRate = (level, rates = DEFAULT_LEVEL_COMMISSION_RATES) => Number(rates[Number(level)] ?? 0);
+// Separate schedules prevent joining, retopup and ROI-level income from sharing rates.
+const DEFAULT_COMMISSION_RATES = Object.freeze({
+  joining: Object.freeze({1:5,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0,13:0,14:0,15:0}),
+  retopup: Object.freeze({1:1,2:0.25,3:0.25,4:0.25,5:0.25,6:0.25,7:0.25,8:0.25,9:0.25,10:0.25,11:0.25,12:0.25,13:0.25,14:0.25,15:0.25}),
+  roi: Object.freeze({1:5,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:1,14:1,15:1}),
+});
+const levelRate = (level, rates) => Number(rates?.[Number(level)] ?? 0);
 
-async function getLevelCommissionRates() {
+async function getCommissionRates(kind) {
+  const defaults = DEFAULT_COMMISSION_RATES[kind] || DEFAULT_COMMISSION_RATES.roi;
+  const settingKey = kind === 'roi' ? 'roiLevelCommissionRates' : `${kind}CommissionRates`;
   try {
     const db = getFirestoreAdmin();
     const snap = await db.collection('system').doc('settings').get();
-    const stored = snap.exists ? snap.data()?.levelCommissionRates : null;
+    const stored = snap.exists ? snap.data()?.[settingKey] : null;
     const rates = {};
     for (let level = 1; level <= MAX_LEVEL; level++) {
-      const value = Number(stored?.[level] ?? DEFAULT_LEVEL_COMMISSION_RATES[level]);
+      const value = Number(stored?.[level] ?? defaults[level]);
       rates[level] = Number.isFinite(value) && value >= 0 && value <= 100
         ? value
-        : DEFAULT_LEVEL_COMMISSION_RATES[level];
+        : defaults[level];
     }
     return rates;
   } catch (error) {
-    console.error('Unable to load admin level commission rates; using defaults:', error instanceof Error ? error.message : error);
-    return { ...DEFAULT_LEVEL_COMMISSION_RATES };
+    console.error(`Unable to load ${kind} commission rates; using defaults:`, error instanceof Error ? error.message : error);
+    return { ...defaults };
   }
 }
 const money = (v) => Number(Number(v || 0).toFixed(2));
@@ -245,7 +250,7 @@ async function completeActivation(client,activationId) {
   return true;
 }
 
-async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=0,base,amount,description,businessDate}) {
+async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=0,base,amount,description,businessDate,countInDailyTotals=false}) {
   const requested=money(amount);
   if(requested<=0) return 0;
   const id='INC-'+crypto.createHash('sha256').update(`${eventKey}:${recipient}:${incomeType}:${level}`).digest('hex').slice(0,28);
@@ -293,9 +298,11 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
   await client.query(`INSERT INTO ledger_transactions(id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata)
     VALUES($1,$2,$3,'income_wallet','credit',$4,0,$4,$5,$6,'completed',$7::jsonb)`,
     [ledgerId,recipient,incomeType,allowed,description,eventKey,JSON.stringify(metadata)]);
-  const basicReferral=incomeType==='basic_referral'?allowed:0, fdReferral=incomeType==='fd_referral'?allowed:0;
+  const basicReferral=['basic_referral','basic_joining_referral','basic_retopup_referral'].includes(incomeType)?allowed:0;
+  const fdReferral=['fd_referral','fd_joining_referral','fd_retopup_referral'].includes(incomeType)?allowed:0;
   const basicRoi=incomeType==='basic_roi'?allowed:0, basicLevel=incomeType==='basic_level'?allowed:0;
   const fdRoi=incomeType==='fd_roi'?allowed:0, fdLevel=incomeType==='fd_level'?allowed:0;
+  const dailyDate=countInDailyTotals ? (businessDate||null) : null;
   await client.query(`UPDATE wallets SET
     income_wallet=income_wallet+$2,total_income=total_income+$2,
     referral_income=referral_income+$3,fd_referral_income=fd_referral_income+$4,
@@ -307,7 +314,7 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
     fd_total_roi_income=fd_total_roi_income+$8,fd_total_level_income=fd_total_level_income+$9,
     income_stat_date=CASE WHEN $5::date IS NULL THEN income_stat_date ELSE $5::date END,
     updated_at=NOW() WHERE user_id=$1`,
-    [recipient,allowed,basicReferral,fdReferral,businessDate||null,basicRoi,basicLevel,fdRoi,fdLevel]);
+    [recipient,allowed,basicReferral,fdReferral,dailyDate,basicRoi,basicLevel,fdRoi,fdLevel]);
   for(const allocation of allocations) {
     const updated=await client.query(`UPDATE package_activations SET credited_total=$2,
       status=CASE WHEN $2>=cap_amount THEN 'completed' ELSE status END,
@@ -330,7 +337,6 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
 
 export async function applyActivationIncome(client,{activationId,userId,amount,packageName,packageType='basic'}) {
   await ensureIncomeSchema(client);
-  const rates = await getLevelCommissionRates();
   const activationOrder = await client.query(
     `SELECT COUNT(*)::int AS n
        FROM package_activations a
@@ -344,6 +350,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
   );
   const first=Number(activationOrder.rows[0]?.n||0)===1;
   const type=first?'joining':'retopup';
+  const rates = await getCommissionRates(type);
   const key=`ACT:${activationId}:${type}`;
   const businessDate=currentIndiaBusinessDate();
   const eventCreated=await eventOnce(client,key,type,userId,activationId,amount,businessDate,{packageName,packageType});
@@ -355,13 +362,12 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
     rate=levelRate(level, rates);
     if(rate<=0) continue;
 
-    // Daily level income is ROI-based. A member must have at least
-    // one active downline at the exact level being paid.
+    // Joining and retopup payouts use their own schedules and retain level eligibility checks.
     if(level > 0 && !(await hasActiveReferralAtLevel(client, u.id, level))) continue;
 
     const incomeType=packageType==='fd'
-      ? (level===1 ? 'fd_referral' : 'fd_level')
-      : (level===1 ? 'basic_referral' : 'basic_level');
+      ? (first ? (level===1 ? 'fd_joining_referral' : 'fd_joining_level') : (level===1 ? 'fd_retopup_referral' : 'fd_retopup_level'))
+      : (first ? (level===1 ? 'basic_joining_referral' : 'basic_joining_level') : (level===1 ? 'basic_retopup_referral' : 'basic_retopup_level'));
     const distributionAmount=pct(amount,rate);
     const actualCredit=Number(await credit(client,{eventKey:key,recipient:u.id,source:userId,incomeType,level,rate,base:amount,amount:distributionAmount,description:`${first?'Joining':'Re-topup'} referral income L${level} (${rate}%) from ${userId}`,businessDate})||0);
     if(actualCredit>0){
@@ -376,7 +382,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
 // Daily level income is calculated only on recorded ROI income, never on invested principal.
 export async function runDailyIncome(client,businessDate) {
   await ensureIncomeSchema(client);
-  const rates = await getLevelCommissionRates();
+  const rates = await getCommissionRates('roi');
   const date=businessDate || previousIndiaBusinessDate();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_BUSINESS_DATE');
   // Expired activations must transition out of active status even if a prior daily run was missed.
@@ -402,7 +408,7 @@ export async function runDailyIncome(client,businessDate) {
       WHERE event_key=$1 AND recipient_user_id=$2 AND income_type=$3 AND level=0 LIMIT 1`,[key,a.user_id,roiType]);
     let creditedRoi=Number(priorRoiCredit.rows[0]?.amount||0);
     if(!priorRoiCredit.rowCount){
-      creditedRoi=Number(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date})||0);
+      creditedRoi=Number(await credit(client,{eventKey:key,recipient:a.user_id,source:a.user_id,incomeType:roiType,rate:Number(a.roi_daily_rate),base:a.amount,amount:roi,description:`Daily ROI ${a.package_name} ${date}`,businessDate:date,countInDailyTotals:true})||0);
       if(creditedRoi>0){
         roiCredits++;
         await client.query('UPDATE package_activations SET total_earned=total_earned+$2 WHERE id=$1',[a.id,creditedRoi]);
@@ -429,7 +435,8 @@ export async function runDailyIncome(client,businessDate) {
         base:creditedRoiBase,
         amount:pct(creditedRoiBase,rate),
         description:`Daily level L${level} (${rate}%) calculated on ROI ${creditedRoiBase.toFixed(2)} USDT from ${a.user_id}`,
-        businessDate:date
+        businessDate:date,
+        countInDailyTotals:true
       })) levelCredits++;
     }
     packagesProcessed++;
@@ -501,7 +508,7 @@ export async function runDailyIncome(client,businessDate) {
         COALESCE(SUM(d.amount) FILTER (WHERE d.income_type='fd_level'),0) AS fd_level
       FROM income_distributions d
       JOIN income_events e ON e.event_key=d.event_key
-      WHERE e.business_date=$1::date
+      WHERE e.business_date=$1::date AND e.event_type='daily_roi'
       GROUP BY d.recipient_user_id
     )
     UPDATE wallets w SET
