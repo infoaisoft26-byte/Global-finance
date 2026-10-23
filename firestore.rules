@@ -284,6 +284,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Brochure metadata: signed-in members can read the current brochure;
+    // only an authenticated administrator can publish or replace it.
+    match /platformContent/{contentId} {
+      allow read: if signedIn() && contentId == 'brochure';
+      allow create, update: if isAdmin() && contentId == 'brochure'
+        && request.resource.data.fileName is string
+        && request.resource.data.downloadURL is string
+        && request.resource.data.storagePath == 'brochures/global-finance-brochure.pdf'
+        && request.resource.data.sizeBytes is int
+        && request.resource.data.sizeBytes > 0
+        && request.resource.data.sizeBytes <= 8388608;
+      allow delete: if false;
+    }
+
     // Everything else remains denied.
     match /{document=**} {
       allow read, write: if false;
