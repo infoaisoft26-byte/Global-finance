@@ -269,12 +269,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.user) {
         await updateProfile(res.user, { displayName: name });
         setUser(res.user);
+        // Keep the newly created member signed in. Signing out here sent
+        // referral registrations straight back to the login screen.
         await loadUserData(res.user, sponsor, true, { phone, country });
-        await signOut(auth);
-        setUser(null);
-        setProfile(null);
-        setWallet(null);
-        window.history.replaceState({}, '', '/');
       }
     } catch (err: any) {
       console.error('Email Registration failed:', err);
