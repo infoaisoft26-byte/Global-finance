@@ -129,7 +129,7 @@ async function autoCreditRecharge({id,actor,txHash,amount,walletAddress='',walle
       await db.collection('usdtRecharges').doc(id).set({
         reviewNote:`Auto-credit deferred: ${code}`,updatedAt:new Date()
       },{merge:true}).catch(()=>{});
-      return {attempted:true,status:'pending',deferred:code};
+      return {attempted:true,status:'pending',deferred:'ONCHAIN_VERIFICATION_PENDING',message:'Transaction is still being verified. Check that the TXID, USDT amount, and deposit address match. No credit has been issued yet.'};
     }
     throw error;
   }
@@ -642,7 +642,7 @@ export default async function handler(req,res){
       if(!snap.exists||snap.data()?.userId!==actor.id) return json(res,404,{error:'Recharge not found'});
       const r=snap.data()||{};
       if(r.status!=='pending') return json(res,200,{success:true,status:r.status,alreadyProcessed:true});
-      const result=await autoCreditRecharge({id,actor,txHash:r.txHash,amount:String(r.amountUsdt)});
+      const result=await autoCreditRecharge({id,actor,txHash:r.txHash,amount:String(r.amountUsdt),walletAddress:String(r.walletAddress||''),walletSignature:String(r.walletSignature||'')});
       return json(res,200,{success:true,...result});
     }
 
