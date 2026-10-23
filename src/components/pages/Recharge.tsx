@@ -334,7 +334,13 @@ export const Recharge: React.FC = () => {
             <div className="relative">
               <p className={`mb-1 text-[10px] font-extrabold uppercase tracking-[.24em] ${statusPopup.kind === 'success' ? 'text-emerald-600' : statusPopup.kind === 'failed' ? 'text-rose-600' : 'text-amber-600'}`}>Global Finance · Deposit Update</p>
               <h3 id="deposit-status-title" className="text-xl font-extrabold tracking-tight text-slate-900">{statusPopup.title}</h3>
-              {statusPopup.amount && <div className="mx-auto mt-3 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 font-mono text-base font-extrabold text-slate-800 shadow-sm">{formatUsdt(statusPopup.amount)} <span className="ml-1 text-xs font-bold text-slate-500">USDT</span></div>}
+              {statusPopup.amount && <div className="relative mx-auto mt-4 w-full max-w-[280px] rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.10)]" style={{filter:'none',backdropFilter:'none',WebkitBackdropFilter:'none',transform:'translateZ(0)'}}>
+                <p className="mb-1 text-[10px] font-black uppercase tracking-[.22em] text-slate-500">Deposit Amount</p>
+                <div className="flex items-baseline justify-center gap-2 whitespace-nowrap">
+                  <span className="text-[28px] font-black leading-tight tracking-tight text-slate-950 sm:text-[32px]" style={{opacity:1,filter:'none',textShadow:'none',fontVariantNumeric:'tabular-nums'}}>{formatUsdt(statusPopup.amount, 2)}</span>
+                  <span className="rounded-md bg-slate-900 px-2 py-1 text-xs font-extrabold tracking-wide text-white">USDT</span>
+                </div>
+              </div>}
               <p className="mt-4 text-sm leading-6 text-slate-600">{statusPopup.message}</p>
               {statusPopup.txHash && <p className="mx-auto mt-4 max-w-full rounded-lg bg-slate-50 px-3 py-2 font-mono text-[10px] text-slate-500">{shortHash(statusPopup.txHash)}</p>}
               <button onClick={() => setStatusPopup(null)} className={`mt-6 w-full rounded-xl px-4 py-3.5 text-sm font-extrabold text-white shadow-lg transition duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[.98] focus:outline-none focus:ring-4 ${statusPopup.kind === 'success' ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-emerald-500/25 focus:ring-emerald-200' : statusPopup.kind === 'failed' ? 'bg-gradient-to-r from-rose-500 to-red-600 shadow-rose-500/25 focus:ring-rose-200' : 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-amber-500/25 focus:ring-amber-200'}`}>Okay, got it <span className="ml-1">→</span></button>
