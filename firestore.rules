@@ -294,7 +294,7 @@ service cloud.firestore {
         && request.resource.data.storagePath == 'brochures/global-finance-brochure.pdf'
         && request.resource.data.sizeBytes is int
         && request.resource.data.sizeBytes > 0
-        && request.resource.data.sizeBytes <= 8388608;
+        && request.resource.data.sizeBytes <= 67108864;
       allow delete: if false;
     }
 
