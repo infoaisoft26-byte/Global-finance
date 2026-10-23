@@ -9,14 +9,15 @@ export const TelegramSupportButton: React.FC = () => {
   const [connecting, setConnecting] = useState(false);
 
   const openTelegram = async () => {
-    // Open synchronously from the click so popup blockers do not prevent Telegram from opening.
-    const popup = window.open('about:blank', '_blank');
-    if (popup) {
-      popup.opener = null;
-      popup.location.href = TELEGRAM_SUPPORT_URL;
+    if (connecting) return;
+
+    // For visitors and admins, navigate directly to Telegram instead of opening
+    // an about:blank popup that can remain empty when Telegram handoff is blocked.
+    if (!user || isAdmin) {
+      window.location.assign(TELEGRAM_SUPPORT_URL);
+      return;
     }
 
-    if (!user || isAdmin || connecting) return;
     setConnecting(true);
     try {
       const idToken = await user.getIdToken();
@@ -33,14 +34,13 @@ export const TelegramSupportButton: React.FC = () => {
       if (!response.ok || !data?.botUrl) {
         throw new Error(data?.error || 'Could not securely link your account.');
       }
-      if (popup && !popup.closed) {
-        popup.location.href = data.botUrl;
-      } else {
-        window.location.href = data.botUrl;
-      }
+
+      // Same-tab navigation avoids popup blockers and empty about:blank tabs.
+      window.location.assign(data.botUrl);
     } catch (error) {
       console.error('Telegram account linking could not start:', error);
-      // The standard bot chat has already been opened; users can still ask general questions.
+      // Always keep support reachable even if account linking fails.
+      window.location.assign(TELEGRAM_SUPPORT_URL);
     } finally {
       setConnecting(false);
     }
