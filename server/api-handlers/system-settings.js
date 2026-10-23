@@ -41,25 +41,31 @@ async function authenticatedUser(req){
 export default async function handler(req,res){
   if(!['GET','POST'].includes(req.method))return json(res,405,{error:'Method not allowed'});
   try{
-    const decoded=await authenticatedUser(req);
+    let decoded=null;
+    try { decoded=await authenticatedUser(req); }
+    catch(error) { if(req.method!=='GET')throw error; }
+
     const db=getFirestoreAdmin();
     const settingsRef=db.collection('system').doc('settings');
-    const userRef=db.collection('users').doc(decoded.uid);
-    const userSnap=await userRef.get();
-    const user=userSnap.exists?(userSnap.data()||{}):{};
-    const admin=isAdminEmail(decoded.email)||['admin','super_admin','administrator'].includes(String(user.role||'').toLowerCase());
 
     if(req.method==='GET'){
-      if(!admin)return json(res,403,{error:'Admin permission required'});
       const snap=await settingsRef.get();
-      if(!snap.exists)return json(res,200,{ok:true,settings:{}});
-      const data=snap.data()||{};
+      const data=snap.exists?(snap.data()||{}):{};
+      // Maintenance status is public; all other settings remain admin-only.
+      if(!decoded)return json(res,200,{ok:true,settings:{maintenanceMode:data.maintenanceMode===true}});
+      const userSnap=await db.collection('users').doc(decoded.uid).get();
+      const user=userSnap.exists?(userSnap.data()||{}):{};
+      const admin=isAdminEmail(decoded.email)||['admin','super_admin','administrator'].includes(String(user.role||'').toLowerCase());
+      if(!admin)return json(res,200,{ok:true,settings:{maintenanceMode:data.maintenanceMode===true}});
       return json(res,200,{ok:true,settings:{
         ...data,
         updatedAt:data.updatedAt?.toDate?.()?.toISOString?.()||data.updatedAt||undefined
       }});
     }
 
+    const userSnap=await db.collection('users').doc(decoded.uid).get();
+    const user=userSnap.exists?(userSnap.data()||{}):{};
+    const admin=isAdminEmail(decoded.email)||['admin','super_admin','administrator'].includes(String(user.role||'').toLowerCase());
     if(!admin||user.status==='suspended')return json(res,403,{error:'Admin permission required'});
 
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
