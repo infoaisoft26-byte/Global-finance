@@ -96,7 +96,7 @@ export default async function handler(req, res) {
       );
       await client.query(
         'INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)',
-        [liabilityId, 'GLOBAL_FINANCE_LIABILITIES', 'withdrawal_refund_liability', 'income_wallet', 'debit', amount, 0, amount,
+        [liabilityId, userId, 'withdrawal_reserve_release', 'income_wallet', 'debit', amount, 0, amount,
           'Release withdrawal reserve for rejected request (' + reference + ')', refundId, 'completed',
           JSON.stringify({ requestId, refund: true, asset: 'USDT', idempotencyKey: liabilityId }), now]
       );
