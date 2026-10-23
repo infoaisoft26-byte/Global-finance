@@ -51,6 +51,39 @@ export const Recharge: React.FC = () => {
   const [submitMessage, setSubmitMessage] = useState('');
   const [error, setError] = useState('');
   const creditedSeen = useRef<Set<string>>(new Set());
+  const statusInitialized = useRef(false);
+  const [statusPopup, setStatusPopup] = useState<{title:string;message:string;kind:'pending'|'success'|'failed';amount?:string;txHash?:string}|null>(null);
+
+  const notifyDepositStatus = (id:string, status:string, amount:string, hash:string) => {
+    if (!id || !status || !user?.uid) return;
+    const key = `gf-deposit-status:${user.uid}:${id}:${status}`;
+    try {
+      if (window.sessionStorage.getItem(key)) return;
+      window.sessionStorage.setItem(key, '1');
+    } catch {}
+    if (status === 'pending') {
+      setStatusPopup({title:'Recharge Pending',message:'Your deposit has been received for verification. Your Fund Wallet will update only after approval or successful blockchain verification.',kind:'pending',amount,txHash:hash});
+    } else if (status === 'approved' || status === 'credited') {
+      setStatusPopup({title:'Recharge Successful',message:'Your deposit has been approved and credited to your Fund Wallet.',kind:'success',amount,txHash:hash});
+    } else if (status === 'rejected' || status === 'ignored' || status === 'failed') {
+      setStatusPopup({title:'Recharge Failed',message:'This deposit was rejected or could not be verified. Check the recharge details or contact support. No credit is confirmed.',kind:'failed',amount,txHash:hash});
+    }
+  };
+
+  const syncDepositStatusNotices = (history:UsdtRechargeRequest[], deposits:AutomaticUsdtDepositEvent[]) => {
+    if (!statusInitialized.current) {
+      for (const item of history) {
+        try { window.sessionStorage.setItem(`gf-deposit-status:${user?.uid}:${item.id}:${item.status}`, '1'); } catch {}
+      }
+      for (const item of deposits) {
+        try { window.sessionStorage.setItem(`gf-deposit-status:${user?.uid}:${item.id}:${item.status}`, '1'); } catch {}
+      }
+      statusInitialized.current = true;
+      return;
+    }
+    for (const item of history) notifyDepositStatus(item.id, item.status, item.amountUsdt, item.txHash);
+    for (const item of deposits) notifyDepositStatus(item.id, item.status, item.amountUsdt, item.txHash);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +103,7 @@ export const Recharge: React.FC = () => {
         if (next.mode === 'shared') {
           const history = await listUsdtRecharges(user);
           if (!cancelled) setRequests(history.requests || []);
+          if (!cancelled) syncDepositStatusNotices(history.requests || [], next.deposits || []);
           const newlyApproved = (history.requests || []).some((item: UsdtRechargeRequest) => {
             const key = `shared:${item.id}`;
             if (item.status !== 'approved' || creditedSeen.current.has(key)) return false;
@@ -78,6 +112,7 @@ export const Recharge: React.FC = () => {
           });
           if (newlyApproved) await refreshWallet();
         }
+        if (next.mode !== 'shared' && !cancelled) syncDepositStatusNotices([], next.deposits || []);
         const newlyCredited = (next.deposits || []).some((item: AutomaticUsdtDepositEvent) => {
           if (item.status !== 'credited') return false;
           if (creditedSeen.current.has(item.id)) return false;
@@ -185,7 +220,8 @@ export const Recharge: React.FC = () => {
       if (info.mode === 'shared') {
         const claimMessage = createUsdtDepositClaimMessage(user.uid, tx.hash, amountUsdt.trim(), signerAddress);
         const walletSignature = await signer.signMessage(claimMessage);
-        await submitUsdtRecharge(user, amountUsdt.trim(), tx.hash, undefined, signerAddress, walletSignature);
+        const result = await submitUsdtRecharge(user, amountUsdt.trim(), tx.hash, undefined, signerAddress, walletSignature);
+        notifyDepositStatus(String(result?.id || result?.rechargeId || tx.hash), String(result?.status || 'pending'), amountUsdt.trim(), tx.hash);
         const history = await listUsdtRecharges(user);
         setRequests(history.requests || []);
       }
@@ -217,6 +253,7 @@ export const Recharge: React.FC = () => {
       }
       const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim(), undefined, walletAddress, walletSignature);
       setSubmitMessage(String(result?.message || 'TXID submitted for verification.'));
+      notifyDepositStatus(String(result?.id || result?.rechargeId || txHash.trim()), String(result?.status || 'pending'), amountUsdt.trim(), txHash.trim());
       if (result?.status === 'approved') await refreshWallet();
       setAmountUsdt('');
       setTxHash('');
@@ -251,6 +288,9 @@ export const Recharge: React.FC = () => {
       if (next.mode === 'shared') {
         const history = await listUsdtRecharges(user);
         setRequests(history.requests || []);
+        syncDepositStatusNotices(history.requests || [], next.deposits || []);
+      } else {
+        syncDepositStatusNotices([], next.deposits || []);
       }
       const newlyCredited = (next.deposits || []).some((item) => {
         if (item.status !== 'credited' || creditedSeen.current.has(item.id)) return false;
@@ -275,6 +315,20 @@ export const Recharge: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {statusPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="deposit-status-title">
+          <div className={`w-full max-w-sm rounded-2xl border bg-white p-6 text-center shadow-2xl ${statusPopup.kind === 'success' ? 'border-emerald-200' : statusPopup.kind === 'failed' ? 'border-rose-200' : 'border-amber-200'}`}>
+            <div className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ${statusPopup.kind === 'success' ? 'bg-emerald-100 text-emerald-600' : statusPopup.kind === 'failed' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+              {statusPopup.kind === 'success' ? <CheckCircle2 className="h-8 w-8" /> : statusPopup.kind === 'failed' ? <AlertCircle className="h-8 w-8" /> : <Clock3 className="h-8 w-8" />}
+            </div>
+            <h3 id="deposit-status-title" className="text-lg font-bold text-slate-900">{statusPopup.title}</h3>
+            {statusPopup.amount && <p className="mt-1 font-mono text-sm font-bold text-slate-700">{formatUsdt(statusPopup.amount)} USDT</p>}
+            <p className="mt-3 text-sm leading-6 text-slate-600">{statusPopup.message}</p>
+            {statusPopup.txHash && <p className="mt-3 break-all text-[10px] text-slate-400">{shortHash(statusPopup.txHash)}</p>}
+            <button onClick={() => setStatusPopup(null)} className={`mt-5 w-full rounded-xl px-4 py-3 text-sm font-bold text-white ${statusPopup.kind === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' : statusPopup.kind === 'failed' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'}`}>Okay, got it</button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-500/20 pb-4">
         <div>
           <h2 className="text-xl font-bold text-white">USDT Deposit — BEP20</h2>
