@@ -24,17 +24,17 @@ function fallbackReply(question, account) {
   const wallet = account.wallet;
   if (/wallet|balance|fund wallet|income wallet|available balance|paise|amount showing|balance show/.test(q)) {
     if (!wallet) return 'I could not load your wallet record right now. Please refresh once. If the balance is still missing, open a Support Ticket under Technical / Login and include your Member ID. I have not changed your balance.';
-    return `I checked your account records.\\n• Fund Wallet: ${money(wallet.fundWallet)}\\n• Income Wallet: ${money(wallet.incomeWallet)}\\n• Total income recorded: ${money(wallet.totalIncome)}\\n• Total withdrawals recorded: ${money(wallet.totalWithdrawal)}\\n\\nIf your dashboard shows a different amount, do not deposit again just to test it. Refresh the page and open a Support Ticket if the mismatch remains.`;
+    return `I checked your account records.\n• Fund Wallet: ${money(wallet.fundWallet)}\n• Income Wallet: ${money(wallet.incomeWallet)}\n• Total income recorded: ${money(wallet.totalIncome)}\n• Total withdrawals recorded: ${money(wallet.totalWithdrawal)}\n\nIf your dashboard shows a different amount, do not deposit again just to test it. Refresh the page and open a Support Ticket if the mismatch remains.`;
   }
   if (/deposit|recharge|txid|tx hash|transaction hash|pending|approved|rejected/.test(q)) {
     const list = account.recharges || [];
     if (!list.length) return 'I could not find a recent USDT recharge request in the available records. If you have already sent USDT, do not send it again. Open Recharge and check your submitted TX hash; if it is missing, create a Deposit / Recharge support ticket with the TX hash and amount.';
-    return 'Here are your latest USDT deposit requests from the account records:\\n' + list.map((x, i) => `${i + 1}. ${x.amountUsdt} USDT — status: ${x.status}${x.txHash ? `, TX: ${x.txHash.slice(0, 12)}…` : ''}${x.reviewNote ? `, note: ${x.reviewNote}` : ''}`).join('\\n') + '\\n\\nIf a deposit is pending, wait for admin review and do not submit the same TX hash again. If it is approved but the wallet is unchanged, open a ticket and include the TX hash.';
+    return 'Here are your latest USDT deposit requests from the account records:\n' + list.map((x, i) => `${i + 1}. ${x.amountUsdt} USDT — status: ${x.status}${x.txHash ? `, TX: ${x.txHash.slice(0, 12)}…` : ''}${x.reviewNote ? `, note: ${x.reviewNote}` : ''}`).join('\n') + '\n\nIf a deposit is pending, wait for admin review and do not submit the same TX hash again. If it is approved but the wallet is unchanged, open a ticket and include the TX hash.';
   }
   if (/withdraw|payout|withdrawal/.test(q)) {
     const withdrawals = (account.ledger || []).filter(x => /withdraw/i.test(x.type + ' ' + x.description)).slice(0, 5);
     if (!withdrawals.length) return 'I could not find a recent completed withdrawal in your ledger. To check a pending or rejected request, open Support Tickets and submit a Withdrawal / Payout ticket with the request reference. I cannot approve or reject withdrawals from chat.';
-    return 'Your latest withdrawal-related ledger entries:\\n' + withdrawals.map((x, i) => `${i + 1}. ${money(x.amount)} — ${x.status} — ref ${x.referenceId || x.id}`).join('\\n') + '\\n\\nFor a pending request, open a Withdrawal / Payout support ticket with its reference.';
+    return 'Your latest withdrawal-related ledger entries:\n' + withdrawals.map((x, i) => `${i + 1}. ${money(x.amount)} — ${x.status} — ref ${x.referenceId || x.id}`).join('\n') + '\n\nFor a pending request, open a Withdrawal / Payout support ticket with its reference.';
   }
   return 'I can help check your wallet, deposits/recharges, withdrawals, package activation, login and account issues. Tell me which issue you are facing, or tap Wallet / Deposit above. For a case that needs staff action, open Support Tickets and include the transaction reference. I cannot change balances or approve transactions from chat.';
 }
