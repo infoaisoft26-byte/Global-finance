@@ -13,6 +13,7 @@ import {
   X,
   ClipboardList,
   WalletCards,
+  Banknote,
   Megaphone,
   FileText
 } from 'lucide-react';
@@ -31,6 +32,7 @@ const items: Array<{ page: ActivePage; label: string; icon: React.ComponentType<
   { page: 'admin-users', label: 'User Management', icon: Users },
   { page: 'admin-kyc', label: 'KYC Approvals', icon: FileCheck },
   { page: 'admin-transactions', label: 'Transaction Requests', icon: ArrowLeftRight },
+  { page: 'admin-withdrawals', label: 'Withdrawal Management', icon: Banknote },
   { page: 'admin-p2p-report', label: 'P2P & GF ID Accounting', icon: ArrowLeftRight },
   { page: 'admin-usdt-recharge', label: 'USDT Recharge', icon: WalletCards },
   { page: 'admin-package-activations', label: 'Package Activations', icon: ClipboardList },
@@ -88,7 +90,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
-          {items.filter(({ page }) => !isSubAdmin || ['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-p2p-report', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports'].includes(page)).map(({ page, label, icon: Icon }) => {
+          {items.filter(({ page }) => !isSubAdmin || ['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-withdrawals', 'admin-p2p-report', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports'].includes(page)).map(({ page, label, icon: Icon }) => {
             const selected = activePage === page || (page === 'admin-users' && activePage === 'admin-user-detail');
             return (
               <button
