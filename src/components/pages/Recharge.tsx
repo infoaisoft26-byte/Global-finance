@@ -425,15 +425,7 @@ export const Recharge: React.FC = () => {
           <form onSubmit={submitTxid} className="space-y-3 rounded-xl border border-blue-500/20 bg-[#060d20] p-4">
             <h4 className="text-sm font-bold text-white">Submit your deposit</h4>
             <p className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-[11px] leading-5 text-amber-100/80">Wallet connection is not required. Shared-address deposits submitted here stay pending for admin review unless independently verified by the server.</p>
-            {/** Sender wallet connection UI removed as requested. */}
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-white">Sender wallet verification</p>
-                  <p className="mt-1 break-all text-[10px] leading-4 text-slate-400">{connectedWallet ? `Connected: ${connectedWallet}` : 'Connect the same Trust Wallet address that sent this USDT. You will sign a message only; no transaction or gas fee is required.'}</p>
-                </div>
-                <button type="button" onClick={connectTrustWallet} disabled={connectingWallet || submitting} className="shrink-0 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-200 disabled:opacity-50">{connectingWallet ? 'Connecting…' : connectedWallet ? 'Reconnect wallet' : 'Connect Trust Wallet'}</button>
-              </div>
-            </div>
+            {/* Trust Wallet connection controls removed as requested. */}
             <label className="block text-xs text-slate-300">Amount sent (USDT)
               <input required inputMode="decimal" value={amountUsdt} onChange={e => setAmountUsdt(e.target.value)} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 text-sm text-white" placeholder="e.g. 10" />
             </label>
