@@ -16,6 +16,22 @@ import {
   type AutomaticUsdtDepositEvent,
 } from '../../services/usdtRechargeService.ts';
 
+function getInjectedWalletProvider(): any {
+  const w = window as any;
+  const candidates = [
+    w.trustwallet?.ethereum,
+    w.ethereum,
+    ...(Array.isArray(w.ethereum?.providers) ? w.ethereum.providers : []),
+  ].filter(Boolean);
+  return candidates.find((provider: any) =>
+    provider?.isTrust ||
+    provider?.isTrustWallet ||
+    provider?.providerInfo?.rdns === 'com.trustwallet.app' ||
+    provider?.isMetaMask ||
+    typeof provider?.request === 'function'
+  ) || null;
+}
+
 function formatUsdt(value: number | string, max = 8) {
   const number = Number(value || 0);
   if (!Number.isFinite(number)) return '0.00';
@@ -152,9 +168,9 @@ export const Recharge: React.FC = () => {
     setError('');
     setConnectingWallet(true);
     try {
-      const ethereum = (window as any).ethereum;
+      const ethereum = getInjectedWalletProvider();
       if (!ethereum) {
-        throw new Error('Trust Wallet was not detected. Open this website in the Trust Wallet DApp browser or install the Trust Wallet browser extension.');
+        throw new Error('Wallet connect nahi hua. Mobile par Trust Wallet app ke Browser/DApp section se globalfinance1.online kholein. Desktop par Trust Wallet ya compatible EVM wallet extension enable karke page refresh karein.');
       }
       const provider = new BrowserProvider(ethereum);
       await provider.send('eth_requestAccounts', []);
@@ -201,7 +217,7 @@ export const Recharge: React.FC = () => {
     setWalletMessage('');
     try {
       const ethereum = (window as any).ethereum;
-      if (!ethereum) throw new Error('Trust Wallet connection is no longer available. Reconnect your wallet.');
+      if (!ethereum) throw new Error('Wallet connection nahi mil raha. Wallet reconnect karke dobara try karein.');
       const provider = new BrowserProvider(ethereum);
       const network = await provider.getNetwork();
       if (network.chainId !== 56n) throw new Error('Switch Trust Wallet to BNB Smart Chain (BEP20) and reconnect.');
@@ -247,7 +263,7 @@ export const Recharge: React.FC = () => {
       if (info?.mode === 'shared') {
         const ethereum = (window as any).ethereum;
         if (!ethereum || !connectedWallet) {
-          throw new Error('Connect the same Trust Wallet that sent this USDT before submitting the TXID.');
+          throw new Error('TXID submit karne se pehle wahi wallet connect karein jis address se USDT bheja tha. Mobile par Trust Wallet DApp browser use karein, ya desktop par wallet extension enable karein.');
         }
         const provider = new BrowserProvider(ethereum);
         const network = await provider.getNetwork();
