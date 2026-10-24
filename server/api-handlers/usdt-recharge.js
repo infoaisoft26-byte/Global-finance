@@ -121,94 +121,136 @@ async function createRecharge(db,actor,amount,txHash,proofUrl,walletAddress='',w
   });
   return id;
 }
-async function autoCreditRecharge({id,actor,txHash,amount,walletAddress='',walletSignature=''}){
-  // Shared addresses cannot identify a member by destination alone. Require a
-  // signed claim from the actual transaction sender before automatic credit.
-  if(!autoCreditConfigured()) return {attempted:false,status:'pending',reason:'AUTO_CREDIT_DISABLED'};
-  if(!walletAddress || !walletSignature) return {attempted:false,status:'pending',reason:'WALLET_SIGNATURE_REQUIRED'};
-  let proof;
-  try{
-    await verifyDepositClaim({userId:actor.id,txHash,amountUsdt:amount,walletAddress,walletSignature});
-    proof=await verifyBep20(txHash,amount,BEP20_WALLET);
+async function autoCreditRecharge({id,actor,txHash,amount,walletAddress='',walletSignature=''}) {
+  if (!autoCreditConfigured()) return {attempted:false,status:'pending',reason:'AUTO_CREDIT_DISABLED'};
+  const db = getFirestoreAdmin();
+  const rechargeRef = db.collection('usdtRecharges').doc(id);
+  const rechargeSnap = await rechargeRef.get();
+  if (!rechargeSnap.exists) throw new Error('RECHARGE_NOT_FOUND');
+  const recharge = rechargeSnap.data() || {};
+  if (recharge.status === 'approved') return {
+    attempted:true,status:'approved',autoCredited:true,alreadyCredited:true,
+    creditUsdt:Number(Number(recharge.creditUsdt || amount).toFixed(8)),ledgerId:recharge.ledgerId || null
+  };
+  if (recharge.status !== 'pending') throw new Error('ALREADY_REVIEWED');
+  if (String(recharge.txHash || '').toLowerCase() !== String(txHash || '').toLowerCase() ||
+      String(recharge.amountUsdt) !== String(amount)) throw new Error('REVIEW_CHANGED');
+
+  // Resolve both current and legacy member-address records. This is important
+  // for deposits created before address documents were keyed by Firebase UID.
+  const candidates = [
+    String(recharge.depositAddress || '').trim().toLowerCase(),
+    String(recharge.walletAddress || '').trim().toLowerCase()
+  ];
+  const assigned = await db.collection('usdtDepositAddresses').doc(String(actor.id)).get();
+  candidates.push(String(assigned.data()?.address || '').trim().toLowerCase());
+  try {
+    const legacy = await db.collection('usdtDepositAddresses').where('userId', '==', String(actor.id)).get();
+    for (const d of legacy.docs) candidates.push(String(d.data()?.address || '').trim().toLowerCase());
+  } catch (error) {
+    console.warn('Legacy deposit-address lookup skipped:', error instanceof Error ? error.message : error);
   }
-  catch(error){
-    const code=String(error?.message||'');
-    if(['TRANSACTION_NOT_CONFIRMED','TRANSFER_MISMATCH','WRONG_NETWORK','INVALID_TOKEN','BSC_RPC_FAILED','WALLET_SIGNATURE_REQUIRED','WALLET_SIGNATURE_INVALID','WALLET_SENDER_MISMATCH','TRANSACTION_NOT_FOUND','BSC_RPC_NOT_CONFIGURED'].includes(code)){
-      const db=getFirestoreAdmin();
-      await db.collection('usdtRecharges').doc(id).set({
-        reviewNote:`Auto-credit deferred: ${code}`,updatedAt:new Date()
-      },{merge:true}).catch(()=>{});
-      return {attempted:true,status:'pending',deferred:'ONCHAIN_VERIFICATION_PENDING',message:'Transaction is still being verified. Check that the TXID, USDT amount, and deposit address match. No credit has been issued yet.'};
+  candidates.push(String(BEP20_WALLET || '').trim().toLowerCase());
+  const uniqueCandidates = [...new Set(candidates)].filter(a => /^0x[0-9a-f]{40}$/.test(a));
+  const shared = String(BEP20_WALLET || '').trim().toLowerCase();
+  let proof = null;
+  let verifiedDepositAddress = '';
+  let lastMismatch = null;
+
+  for (const candidate of uniqueCandidates) {
+    // A shared receiving address cannot identify which member paid. Require
+    // the sender wallet to sign a claim only for shared-wallet deposits.
+    if (candidate === shared) {
+      if (!walletAddress || !walletSignature) continue;
+      try {
+        await verifyDepositClaim({userId:actor.id,txHash,amountUsdt:amount,walletAddress,walletSignature});
+      } catch (error) {
+        const code = String(error?.message || '');
+        if (['WALLET_SIGNATURE_REQUIRED','WALLET_SIGNATURE_INVALID','WALLET_SENDER_MISMATCH','TRANSACTION_NOT_FOUND','WRONG_NETWORK','BSC_RPC_FAILED','BSC_RPC_NOT_CONFIGURED'].includes(code)) {
+          lastMismatch = error;
+          continue;
+        }
+        throw error;
+      }
     }
-    throw error;
+    try {
+      proof = await verifyBep20(txHash, amount, candidate);
+      verifiedDepositAddress = candidate;
+      break;
+    } catch (error) {
+      const code = String(error?.message || '');
+      if (code === 'TRANSFER_MISMATCH') { lastMismatch = error; continue; }
+      if (code === 'TRANSACTION_NOT_CONFIRMED') {
+        const txRef = db.collection('usdtRecharges').doc(id);
+        await txRef.set({reviewNote:'Auto-credit deferred: TRANSACTION_NOT_CONFIRMED',updatedAt:new Date()},{merge:true}).catch(()=>{});
+        return {attempted:true,status:'pending',deferred:'ONCHAIN_VERIFICATION_PENDING',message:'Waiting for BSC confirmations. No wallet credit has been issued.'};
+      }
+      throw error;
+    }
   }
-  const db=getFirestoreAdmin();
-  const now=new Date();
-  const rechargeRef=db.collection('usdtRecharges').doc(id);
-  const txRef=db.collection('usdtDepositTx').doc(txHash);
-  const walletRef=db.collection('wallets').doc(actor.id);
-  // Avoid sending already-reviewed requests into the Neon credit path.
-  const beforeCredit=await rechargeRef.get();
-  if(!beforeCredit.exists) throw new Error('RECHARGE_NOT_FOUND');
-  const before=beforeCredit.data()||{};
-  if(before.status==='approved') return {attempted:true,status:'approved',autoCredited:true,alreadyCredited:true,creditUsdt:Number(Number(before.creditUsdt||amount).toFixed(8)),ledgerId:before.ledgerId||null};
-  if(before.status!=='pending') throw new Error('ALREADY_REVIEWED');
-  if(String(before.txHash||'').toLowerCase()!==String(txHash).toLowerCase()||String(before.amountUsdt)!==String(amount)) throw new Error('REVIEW_CHANGED');
-  const claimedTx=await txRef.get();
-  if(claimedTx.exists&&claimedTx.data()?.status==='approved') throw new Error('ALREADY_CREDITED');
-  // Neon is the source of truth for the live Fund Wallet. Credit it first with
-  // a deterministic TXID ledger key; retries will reuse the same credit.
-  const neonCredit=await creditNeonRecharge({
-    id,userId:actor.id,txHash,amount,depositAddress:BEP20_WALLET,actor,
-    note:'Automatic credit after signed wallet claim and on-chain verification',proof,createdAt:now,
+  if (!proof) {
+    const reason = lastMismatch?.message || (!walletSignature ? 'WALLET_SIGNATURE_REQUIRED_OR_RECEIVER_MISMATCH' : 'TRANSFER_MISMATCH');
+    await rechargeRef.set({reviewNote:'Auto-credit deferred: '+reason,updatedAt:new Date()},{merge:true}).catch(()=>{});
+    return {attempted:true,status:'pending',deferred:'ONCHAIN_VERIFICATION_PENDING',reason,message:'TXID saved, but automatic verification could not match the exact USDT transfer to this member’s deposit address. No credit has been issued.'};
+  }
+
+  const now = new Date();
+  const txRef = db.collection('usdtDepositTx').doc(String(txHash).toLowerCase());
+  const walletRef = db.collection('wallets').doc(actor.id);
+  const claimedTx = await txRef.get();
+  if (claimedTx.exists && claimedTx.data()?.status === 'approved') throw new Error('ALREADY_CREDITED');
+
+  // Neon is the source of truth for the live Fund Wallet. Deterministic TXID
+  // ledger IDs make retries idempotent, so a retry cannot add the same deposit twice.
+  const neonCredit = await creditNeonRecharge({
+    id,userId:actor.id,txHash,amount,depositAddress:verifiedDepositAddress,actor,
+    note:'Automatic credit after exact on-chain USDT verification',proof,createdAt:recharge.createdAt
   });
-  const ledgerRef=db.collection('transactions').doc(neonCredit.ledgerId);
-  await db.runTransaction(async t=>{
-    const [rechargeSnap,txSnap,walletSnap,userSnap,ledgerSnap]=await Promise.all([
+  const ledgerRef = db.collection('transactions').doc(neonCredit.ledgerId);
+  await db.runTransaction(async t => {
+    const [freshRecharge, freshTx, walletSnap, userSnap, ledgerSnap] = await Promise.all([
       t.get(rechargeRef),t.get(txRef),t.get(walletRef),t.get(db.collection('users').doc(actor.id)),t.get(ledgerRef)
     ]);
-    if(!rechargeSnap.exists) throw new Error('RECHARGE_NOT_FOUND');
-    const r=rechargeSnap.data()||{};
-    if(r.status!=='pending'){
-      if(r.status==='approved') return;
-      throw new Error('ALREADY_REVIEWED');
-    }
-    if(r.txHash!==txHash || String(r.amountUsdt)!==String(amount)) throw new Error('REVIEW_CHANGED');
-    if(txSnap.exists && txSnap.data()?.status==='approved') throw new Error('ALREADY_CREDITED');
-    if(!userSnap.exists || userSnap.data()?.status!=='active') throw new Error('MEMBER_UNAVAILABLE');
-    const wallet=walletSnap.exists()?walletSnap.data()||{}:emptyWallet(actor.id,now);
-    const credit=Number(Number(amount).toFixed(8));
-    if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
-    if(ledgerSnap.exists){
-      const prior=ledgerSnap.data()||{};
-      if(String(prior.userId)!==String(actor.id)||String(prior.referenceId)!==String(txHash)||Number(prior.amount)!==credit) throw new Error('TXID_ALREADY_CREDITED');
-    }
-    const ledger={
-      id:ledgerRef.id,userId:actor.id,type:'recharge',category:'fund_wallet',flow:'credit',
-      amount:credit,fee:0,netAmount:credit,
-      description:`Auto-verified USDT BEP20 recharge ${id}`,
-      referenceId:txHash,status:'completed',
-      metadata:{rechargeId:id,amountUsdt:String(amount),walletCreditUsdt:credit,chainProof:proof,autoCredit:true},
-      createdAt:now.toISOString()
-    };
-    if(!ledgerSnap.exists){
-      t.set(ledgerRef,ledger);
+    if (!freshRecharge.exists) throw new Error('RECHARGE_NOT_FOUND');
+    const current = freshRecharge.data() || {};
+    if (current.status === 'approved') return;
+    if (current.status !== 'pending') throw new Error('ALREADY_REVIEWED');
+    if (String(current.txHash || '').toLowerCase() !== String(txHash).toLowerCase() ||
+        String(current.amountUsdt) !== String(amount)) throw new Error('REVIEW_CHANGED');
+    if (freshTx.exists && freshTx.data()?.status === 'approved') throw new Error('ALREADY_CREDITED');
+    if (!userSnap.exists || userSnap.data()?.status !== 'active') throw new Error('MEMBER_UNAVAILABLE');
+    const credit = Number(Number(amount).toFixed(8));
+    if (!Number.isFinite(credit) || credit <= 0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
+    const wallet = walletSnap.exists ? walletSnap.data() || {} : emptyWallet(actor.id, now);
+    if (ledgerSnap.exists) {
+      const prior = ledgerSnap.data() || {};
+      if (String(prior.userId) !== String(actor.id) || String(prior.referenceId).toLowerCase() !== String(txHash).toLowerCase() || Number(prior.amount) !== credit) {
+        throw new Error('TXID_ALREADY_CREDITED');
+      }
+    } else {
+      t.set(ledgerRef,{
+        id:ledgerRef.id,userId:actor.id,type:'recharge',category:'fund_wallet',flow:'credit',
+        amount:credit,fee:0,netAmount:credit,
+        description:'Auto-verified USDT BEP20 recharge '+id,referenceId:txHash,status:'completed',
+        metadata:{rechargeId:id,amountUsdt:String(amount),walletCreditUsdt:credit,chainProof:proof,autoCredit:true},
+        createdAt:now.toISOString()
+      });
       t.set(walletRef,{...wallet,userId:actor.id,fundWallet:Number((num(wallet.fundWallet)+credit).toFixed(8)),updatedAt:now},{merge:true});
     }
     t.set(rechargeRef,{
-      status:'approved',creditUsdt:String(credit),
-      reviewNote:'Auto-approved after on-chain verification',
-      reviewedBy:actor.id,reviewedAt:now,ledgerId:ledgerRef.id,updatedAt:now
+      status:'approved',creditUsdt:String(credit),depositAddress:verifiedDepositAddress,
+      reviewNote:'Auto-approved after on-chain verification',reviewedBy:'SYSTEM',
+      reviewedAt:now,ledgerId:ledgerRef.id,updatedAt:now
     },{merge:true});
     t.set(txRef,{status:'approved',creditedAt:now,ledgerId:ledgerRef.id,rechargeId:id,userId:actor.id,amountUsdt:String(amount)},{merge:true});
     t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
       actorUserId:actor.id,actorEmail:actor.email,action:'USDT_RECHARGE_AUTO_CREDITED',
       entityType:'usdt_recharge',entityId:id,
-      metadata:{txHash,amountUsdt:String(amount),walletCreditUsdt:credit,ledgerId:ledgerRef.id,chainProof:proof,autoCredit:true},
-      timestamp:now,
+      metadata:{txHash,amountUsdt:String(amount),walletCreditUsdt:credit,ledgerId:ledgerRef.id,chainProof:proof,autoCredit:true,depositAddress:verifiedDepositAddress},
+      timestamp:now
     });
   });
-  return {attempted:true,status:'approved',autoCredited:true,creditUsdt:Number(Number(amount).toFixed(8)),ledgerId:ledgerRef.id};
+  return {attempted:true,status:'approved',autoCredited:true,creditUsdt:Number(Number(amount).toFixed(8)),ledgerId:neonCredit.ledgerId,depositAddress:verifiedDepositAddress};
 }
 async function listRequests(actor,admin){
   const db=getFirestoreAdmin();
@@ -216,8 +258,7 @@ async function listRequests(actor,admin){
   // exists for this recharge ID, member, and amount. Never change wallet balance.
   const q=admin
     ? db.collection('usdtRecharges')
-    : db.collection('usdtRecharges').where('userId','==',actor.id);
-  const snap=await q.get();
+    : db.collection('usdtRecharges').where('userId','==',actor.id);  const snap=await q.get();
   const items=snap.docs.map(d=>({id:d.id,data:d.data()||{}}));
   const pool=getPool();
   for(const item of items){
@@ -436,8 +477,7 @@ async function review(actor,id,action,note){
   const initial=initialSnap.data()||{};
   if(initial.status!=='pending') throw new Error('ALREADY_REVIEWED');
 
-  let proof=null;
-  let credit=0;
+  let proof=null;  let credit=0;
   let verifiedDepositAddress=String(initial.depositAddress||BEP20_WALLET||'').trim().toLowerCase();
   if(action==='approve'){
     const initialError=null;
@@ -656,8 +696,7 @@ export default async function handler(req,res){
     const actor=await actorFromToken(req);
     const searchParams=new URL(req.url,'http://localhost').searchParams;
     const scope=searchParams.get('scope');
-    const action=String(searchParams.get('action')||'').trim().toLowerCase();
-    const admin=['admin','super_admin','administrator'].includes(actor.role)||adminEmailAllowed(actor.email);
+    const action=String(searchParams.get('action')||'').trim().toLowerCase();    const admin=['admin','super_admin','administrator'].includes(actor.role)||adminEmailAllowed(actor.email);
 
     if(req.method==='GET'){
       // Support both GET and POST callers for the authenticated downline API.
