@@ -237,7 +237,16 @@ const MainLayout: React.FC = () => {
     // Render the selected React state. The URL is synchronized by navigateToPage/popstate;
     // deriving render output from window.location here can leave the admin content stuck
     // on the dashboard when client-side navigation changes history without a reload.
-    const resolvedPage = activePage;
+    const routePage = isAdminEntry
+      ? adminPageFromPath(window.location.pathname, window.location.search)
+      : activePage;
+    const hasExplicitAdminSection = isAdminEntry && (
+      Boolean(new URLSearchParams(window.location.search).get('section')) ||
+      /^\/admin\/(dashboard|p2p-report|transactions|withdrawals|users|user-detail|kyc|tickets|reports|packages|package-activations|usdt-recharge|audit|settings|offer-poster)\/?$/.test(window.location.pathname)
+    );
+    // For direct admin URLs, the URL is the source of truth. For client-side
+    // navigation, activePage is updated together with history by navigateToPage.
+    const resolvedPage = hasExplicitAdminSection ? routePage : activePage;
     const isAdminRoute = resolvedPage.startsWith('admin-');
     if (isAdminRoute && !isAdmin) {
       return (
@@ -311,12 +320,12 @@ const MainLayout: React.FC = () => {
           <AdminUsers
             onSelectUser={(userId) => {
               setSelectedAdminUserId(userId);
-              setActivePage('admin-user-detail');
+              navigateToPage('admin-user-detail');
             }}
           />
         );
       case 'admin-user-detail':
-        return <AdminUserDetail userId={selectedAdminUserId} onBack={() => setActivePage('admin-users')} />;
+        return <AdminUserDetail userId={selectedAdminUserId} onBack={() => navigateToPage('admin-users')} />;
       case 'admin-kyc':
         return <AdminKyc />;
       case 'admin-tickets':
