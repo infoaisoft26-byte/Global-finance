@@ -30,14 +30,32 @@ export default async function handler(req, res) {
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const requestId = String(body.requestId || '').trim();
+    const targetStatus = String(body.targetStatus || 'rejected').trim().toLowerCase();
     const adminNote = String(body.adminNote || '').trim().slice(0, 1000);
+    if (!['approved', 'rejected'].includes(targetStatus)) return json(res, 400, { error: 'Only approve or reject actions are supported.' });
     if (!requestId) return json(res, 400, { error: 'Transaction request ID is required.' });
 
     const requestRef = firestore.collection('transaction_requests').doc(requestId);
     const initialSnap = await requestRef.get();
     if (!initialSnap.exists) return json(res, 404, { error: 'Transaction request not found.' });
     const initial = initialSnap.data() || {};
-    if (initial.requestType !== 'withdrawal') return json(res, 400, { error: 'This endpoint only handles withdrawal rejection.' });
+    if (initial.requestType !== 'withdrawal') return json(res, 400, { error: 'This endpoint only handles withdrawal requests.' });
+    if (targetStatus === 'approved') {
+      if (initial.status === 'approved') return json(res, 200, { success: true, alreadyProcessed: true, status: 'approved' });
+      if (!['pending', 'under_review'].includes(String(initial.status || ''))) return json(res, 409, { error: 'Withdrawal is not in a status that can be approved. Refresh before retrying.' });
+      const now = new Date().toISOString();
+      await firestore.runTransaction(async txn => {
+        const snap = await txn.get(requestRef);
+        if (!snap.exists) throw new Error('Transaction request not found.');
+        const fresh = snap.data() || {};
+        if (fresh.requestType !== 'withdrawal') throw new Error('This is not a withdrawal request.');
+        if (fresh.status === 'approved') return;
+        if (!['pending', 'under_review'].includes(String(fresh.status || ''))) throw new Error('Withdrawal status changed; refresh and retry.');
+        txn.update(requestRef, { status: 'approved', approvedBy: decoded.uid, approvedAt: now, adminNote: adminNote || fresh.adminNote || '', updatedAt: now });
+      });
+      return json(res, 200, { success: true, status: 'approved' });
+    }
+    if (initial.status === 'rejected' && initial.metadata?.refundIssued === true) return json(res, 200, { success: true, alreadyProcessed: true, status: 'rejected' });
     if (!['pending', 'under_review', 'approved'].includes(String(initial.status || ''))) {
       if (initial.status === 'rejected' && initial.metadata?.refundIssued === true) {
         return json(res, 200, { success: true, alreadyProcessed: true, status: 'rejected' });
@@ -96,7 +114,7 @@ export default async function handler(req, res) {
       );
       await client.query(
         'INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)',
-        [liabilityId, userId, 'withdrawal_reserve_release', 'income_wallet', 'debit', amount, 0, amount,
+        [liabilityId, 'GLOBAL_FINANCE_LIABILITIES', 'withdrawal_reserve_release', 'income_wallet', 'debit', amount, 0, amount,
           'Release withdrawal reserve for rejected request (' + reference + ')', refundId, 'completed',
           JSON.stringify({ requestId, refund: true, asset: 'USDT', idempotencyKey: liabilityId }), now]
       );
@@ -135,7 +153,7 @@ export default async function handler(req, res) {
       }
       if (!liabilitySnap.exists()) {
         txn.set(liabilityRef, {
-          id: liabilityId, userId, type: 'withdrawal_reserve_release', category: 'income_wallet',
+          id: liabilityId, userId: 'GLOBAL_FINANCE_LIABILITIES', type: 'withdrawal_reserve_release', category: 'income_wallet',
           flow: 'debit', amount, fee: 0, netAmount: amount,
           description: 'Release withdrawal reserve for rejected request (' + reference + ')',
           referenceId: refundId, status: 'completed',
