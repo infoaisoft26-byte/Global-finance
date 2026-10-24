@@ -106,3 +106,15 @@ export async function verifyFirebaseIdToken(idToken) {
     name: typeof payload.name === 'string' ? payload.name : '',
   };
 }
+
+
+export function getFirebaseAuthAdmin() {
+  return getAuth(adminApp());
+}
+
+export async function updateFirebaseAuthEmail(uid, email) {
+  const id = String(uid || '').trim();
+  const target = String(email || '').trim().toLowerCase();
+  if (!id || !target) throw new Error('Firebase user ID and email are required.');
+  return getFirebaseAuthAdmin().updateUser(id, { email: target, emailVerified: true });
+}
