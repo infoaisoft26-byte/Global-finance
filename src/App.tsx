@@ -37,6 +37,7 @@ import { AdminReports } from './components/pages/admin/AdminReports.tsx';
 import { AdminPackages } from './components/pages/admin/AdminPackages.tsx';
 import { AdminPackageActivations } from './components/pages/admin/AdminPackageActivations.tsx';
 import { AdminTransactions } from './components/pages/admin/AdminTransactions.tsx';
+import { AdminWithdrawals } from './components/pages/admin/AdminWithdrawals.tsx';
 import { AdminP2PReport } from './components/pages/admin/AdminP2PReport.tsx';
 import { AdminUsdtRecharge } from './components/pages/admin/AdminUsdtRecharge.tsx';
 import { AdminAudit } from './components/pages/admin/AdminAudit.tsx';
@@ -54,6 +55,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     dashboard: 'admin-dashboard',
     'p2p-report': 'admin-p2p-report',
     transactions: 'admin-transactions',
+    withdrawals: 'admin-withdrawals',
     users: 'admin-users',
     'user-detail': 'admin-user-detail',
     kyc: 'admin-kyc',
@@ -293,6 +295,8 @@ const MainLayout: React.FC = () => {
         return <AdminDashboard onNavigate={navigateToPage} />;
       case 'admin-transactions':
         return <AdminTransactions />;
+      case 'admin-withdrawals':
+        return <AdminWithdrawals />;
       case 'admin-p2p-report':
         return <AdminP2PReport />;
       case 'admin-usdt-recharge':
