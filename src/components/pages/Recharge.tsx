@@ -244,10 +244,20 @@ export const Recharge: React.FC = () => {
     try {
       let walletAddress = '';
       let walletSignature = '';
-      if (connectedWallet && (window as any).ethereum) {
-        const provider = new BrowserProvider((window as any).ethereum);
+      if (info?.mode === 'shared') {
+        const ethereum = (window as any).ethereum;
+        if (!ethereum || !connectedWallet) {
+          throw new Error('Connect the same Trust Wallet that sent this USDT before submitting the TXID.');
+        }
+        const provider = new BrowserProvider(ethereum);
+        const network = await provider.getNetwork();
+        if (network.chainId !== 56n) throw new Error('Switch Trust Wallet to BNB Smart Chain (BEP20), then reconnect.');
         const signer = await provider.getSigner();
         walletAddress = await signer.getAddress();
+        if (walletAddress.toLowerCase() !== connectedWallet.toLowerCase()) {
+          setConnectedWallet(walletAddress);
+          throw new Error('The connected wallet changed. Please confirm the sender wallet and submit again.');
+        }
         const claimMessage = createUsdtDepositClaimMessage(user.uid, txHash.trim(), amountUsdt.trim(), walletAddress);
         walletSignature = await signer.signMessage(claimMessage);
       }
@@ -412,13 +422,22 @@ export const Recharge: React.FC = () => {
           <p className="text-xs leading-5 text-amber-200">Only send USDT on BNB Smart Chain (BEP20). Other networks may cause permanent loss.</p>
           <form onSubmit={submitTxid} className="space-y-3 rounded-xl border border-blue-500/20 bg-[#060d20] p-4">
             <h4 className="text-sm font-bold text-white">Submit your deposit</h4>
+            <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-white">Sender wallet verification</p>
+                  <p className="mt-1 break-all text-[10px] leading-4 text-slate-400">{connectedWallet ? `Connected: ${connectedWallet}` : 'Connect the same Trust Wallet address that sent this USDT. You will sign a message only; no transaction or gas fee is required.'}</p>
+                </div>
+                <button type="button" onClick={connectTrustWallet} disabled={connectingWallet || submitting} className="shrink-0 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-200 disabled:opacity-50">{connectingWallet ? 'Connecting…' : connectedWallet ? 'Reconnect wallet' : 'Connect Trust Wallet'}</button>
+              </div>
+            </div>
             <label className="block text-xs text-slate-300">Amount sent (USDT)
               <input required inputMode="decimal" value={amountUsdt} onChange={e => setAmountUsdt(e.target.value)} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 text-sm text-white" placeholder="e.g. 10" />
             </label>
             <label className="block text-xs text-slate-300">Transaction hash / TXID
               <input required minLength={66} maxLength={66} value={txHash} onChange={e => setTxHash(e.target.value.trim())} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 font-mono text-xs text-white" placeholder="0x..." />
             </label>
-            <button type="submit" disabled={submitting} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit TXID for verification'}</button>
+            <button type="submit" disabled={submitting || connectingWallet || !connectedWallet} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? 'Signing & verifying…' : !connectedWallet ? 'Connect Trust Wallet to continue' : 'Sign & submit TXID for auto-credit'}</button>
             {submitMessage && <p className="text-xs text-emerald-300">{submitMessage}</p>}
           </form>
           <div className="space-y-2">
