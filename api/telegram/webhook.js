@@ -5,13 +5,12 @@ const API = "https://api.telegram.org";
 const BOT_URL = "https://t.me/GlobalFinanceHelp2026Bot"; // Public support bot; account data requires a verified one-time website link.
 const MENU = {
   keyboard: [
-    [{ text: "💰 Wallet Balance" }, { text: "📥 Deposit" }],
-    [{ text: "📊 Total Income" }],
-    [{ text: "💬 Talk to Support" }],
+    [{ text: "💰 Wallet" }, { text: "📥 Deposit" }],
+    [{ text: "📊 Income" }, { text: "💬 Support" }],
   ],
   resize_keyboard: true,
   is_persistent: true,
-  input_field_placeholder: "Choose an option or type your question",
+  input_field_placeholder: "Tap a button or type a message",
 };
 
 async function telegram(method, payload) {
@@ -124,7 +123,7 @@ async function getLinkedMember(chatId) {
 async function showMenu(chatId, name) {
   await sendMessage(
     chatId,
-    `Welcome${name ? " " + name : ""} to Global Finance Support. Your account is linked securely. Choose an option below to fetch your latest account details, or type a support question.\n\nFor your safety, never send passwords, OTPs, or wallet private keys.`,
+    `Hi${name ? " " + name : ""}! Global Finance Support.\nChoose a button below. Never share passwords or OTPs.`,
     MENU,
   );
 }
@@ -132,7 +131,7 @@ async function showMenu(chatId, name) {
 async function answerAccountOption(chatId, member, text) {
   const pool = getPool();
   const uid = String(member.id);
-  if (text === "💰 Wallet Balance" || text.toLowerCase() === "wallet balance") {
+  if (text === "💰 Wallet" || text === "💰 Wallet Balance" || ["wallet", "wallet balance"].includes(text.toLowerCase())) {
     const result = await pool.query(
       `SELECT COALESCE(w.fund_wallet,0) AS fund_wallet,
               COALESCE(w.income_wallet,0) AS income_wallet,
@@ -168,7 +167,7 @@ async function answerAccountOption(chatId, member, text) {
     );
   }
 
-  if (text === "📊 Total Income" || text.toLowerCase() === "total income") {
+  if (text === "📊 Income" || text === "📊 Total Income" || ["income", "total income"].includes(text.toLowerCase())) {
     const result = await pool.query(
       `SELECT COALESCE(w.total_income,0) AS total_income,
               COALESCE(w.total_roi_income,0) + COALESCE(w.fd_total_roi_income,0) AS roi_income,
@@ -273,7 +272,7 @@ export default async function handler(req, res) {
       if (member) {
         await showMenu(chatId, member.name || "");
       } else {
-        await sendMessage(chatId, "Welcome to Global Finance Support. You can ask general questions here. For private wallet, deposit, and income details, log in to https://globalfinance1.online and tap Telegram Support to securely link your active member account. Never send passwords, OTPs, or wallet private keys.");
+        await sendMessage(chatId, "Welcome! Ask a general support question here. To view your account, log in at globalfinance1.online and tap Telegram Support. Never share passwords or OTPs.");
       }
       return res.status(200).json({ ok: true });
     }
@@ -286,15 +285,15 @@ export default async function handler(req, res) {
     const member = await getLinkedMember(chatId);
     if (["💰 Wallet Balance", "📥 Deposit", "📊 Total Income", "wallet balance", "deposit", "total income"].includes(text.toLowerCase()) || ["💰 Wallet Balance", "📥 Deposit", "📊 Total Income"].includes(text)) {
       if (!member) {
-        await sendMessage(chatId, "Account information is available only to active, linked Global Finance members. Please log in to https://globalfinance1.online and tap Telegram Support to link your account.");
+        await sendMessage(chatId, "Link your account first: log in at globalfinance1.online and tap Telegram Support.");
         return res.status(200).json({ ok: true, accountNotLinked: true });
       }
       const result = await answerAccountOption(chatId, member, text);
       if (result) return res.status(200).json({ ok: true, accountAction: true });
     }
 
-    if (text === "💬 Talk to Support") {
-      await sendMessage(chatId, "Please type your support question in your next message. It will be sent privately to the Global Finance admin. Do not send passwords, OTPs, or wallet private keys.", MENU);
+    if (text === "💬 Support" || text === "💬 Talk to Support") {
+      await sendMessage(chatId, "Type your question next. Never send passwords or OTPs.", MENU);
       return res.status(200).json({ ok: true });
     }
 
