@@ -430,12 +430,12 @@ export async function adminUpdateTransactionRequestStatus(
 
   // Withdrawal rejection/refund must run on the trusted server. Client Firestore rules
   // intentionally prohibit direct wallet and ledger writes.
-  if (current.requestType === 'withdrawal' && targetStatus === 'rejected' && current.metadata?.walletDebited === true) {
+  if (current.requestType === 'withdrawal' && (targetStatus === 'approved' || targetStatus === 'rejected')) {
     if (!adminIdToken) throw new Error('Secure admin session is required to reject a withdrawal.');
     const response = await fetch('/api/withdrawal-admin-review', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminIdToken },
-      body: JSON.stringify({ requestId, adminNote: adminNote || '' })
+      body: JSON.stringify({ requestId, targetStatus, adminNote: adminNote || '' })
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || 'Secure withdrawal rejection failed.');
@@ -443,7 +443,7 @@ export async function adminUpdateTransactionRequestStatus(
     return { success: true, request: refreshed.exists() ? refreshed.data() as TransactionRequest : { ...current, ...updates } };
   }
 
-  // Refund a rejected withdrawal exactly once, in the same Firestore transaction as the status change.
+  // Legacy fallback for old records only; current withdrawal decisions are handled by the trusted server endpoint.
   if (current.requestType === 'withdrawal' && targetStatus === 'rejected' && current.metadata?.walletDebited === true) {
     const refundReference = String(current.reference || requestId) + '-WITHDRAWAL-REFUND';
     const refundEntryRef = doc(db, 'transactions', refundReference);
