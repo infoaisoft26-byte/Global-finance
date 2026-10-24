@@ -154,7 +154,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
       const res = await submitWithdrawalWithOtp(user, { amount, walletAddress: walletAddress.trim(), note: userNote.trim(), otpId });
 
       if (res.success) {
-        setSuccessMsg(`Withdrawal request submitted successfully. USDT ${amount.toFixed(6)} has been deducted from your available balance and reserved. Admin approval and processing target: within 24 hours. Reference: ${res.request.reference}`);
+        setSuccessMsg(`Withdrawal request submitted. ${amount.toFixed(6)} USDT reserved; fee ${feeAmount.toFixed(6)} USDT; estimated payout ${netPayout.toFixed(6)} USDT. If rejected, the full reserved amount is refunded. Reference: ${res.request.reference}`);
         setUserNote('');
         setOtpId(''); setOtpCode(''); setOtpVerified(false);
         await refreshWallet();
@@ -207,11 +207,11 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
     },
     {
       key: 'status',
-      header: 'Status',
+      header: 'Status / Refund',
       render: (item) => {
-        if (item.status === 'completed') return <span className="inline-flex items-center gap-1 text-xs font-semibold"><CheckCircle2 className="w-3.5 h-3.5" /> Completed</span>;
-        if (item.status === 'rejected' || item.status === 'failed') return <span className="inline-flex items-center gap-1 text-xs font-semibold"><XCircle className="w-3.5 h-3.5" /> {item.status.toUpperCase()}</span>;
-        return <span className="inline-flex items-center gap-1 text-xs font-semibold"><Clock className="w-3.5 h-3.5" /> {item.status.replace('_', ' ')}</span>;
+        const refunded = Boolean(item.metadata?.refundIssued || item.metadata?.refundedAt);
+        const label = item.status.replace(/_/g, ' ').toUpperCase();
+        return <div className="space-y-1"><span className="inline-flex items-center gap-1 text-xs font-semibold">{item.status === 'completed' ? <CheckCircle2 className="w-3.5 h-3.5" /> : item.status === 'rejected' || item.status === 'failed' ? <XCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}{label}</span>{refunded && <span className="block text-[10px] font-bold text-emerald-700">REFUNDED · {Number(item.amountRupees || 0).toFixed(6)} USDT</span>}{item.approvedAt && <span className="block text-[10px] text-slate-500">Approved: {new Date(item.approvedAt).toLocaleString('en-IN')}</span>}{item.rejectedAt && <span className="block text-[10px] text-slate-500">Rejected: {new Date(item.rejectedAt).toLocaleString('en-IN')}</span>}{item.completedAt && <span className="block text-[10px] text-slate-500">Completed: {new Date(item.completedAt).toLocaleString('en-IN')}</span>}{item.adminNote && <span className="block max-w-[180px] break-words text-[10px] text-slate-500">Note: {item.adminNote}</span>}</div>;
       }
     }
   ];
@@ -251,8 +251,15 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
             <div>
               <label className="block text-xs font-semibold mb-1">Withdrawal Amount (USDT) *</label>
               <div className="relative">
-                <input type="number" min="2" step="0.000001" value={amount} onChange={(e) => setAmount(Number(e.target.value))} required className="w-full pr-16 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 font-mono text-sm focus:outline-none focus:border-cyan-500" />
+                <input type="number" min="2" step="0.000001" value={amount} onChange={(e) => { setAmount(Number(e.target.value)); setOtpVerified(false); }} required className="w-full pr-16 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 font-mono text-sm focus:outline-none focus:border-cyan-500" />
                 <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold">USDT</span>
+              </div>
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-slate-700">
+                <div className="font-bold text-amber-900">Withdrawal calculation · {feePercent}% fee</div>
+                <div className="mt-2 flex justify-between gap-3"><span>Requested amount</span><strong>{amount.toFixed(6)} USDT</strong></div>
+                <div className="mt-1 flex justify-between gap-3"><span>5% withdrawal fee</span><strong className="text-rose-700">− {feeAmount.toFixed(6)} USDT</strong></div>
+                <div className="mt-2 flex justify-between gap-3 border-t border-amber-200 pt-2 text-sm"><span className="font-bold">Estimated payout</span><strong className="text-emerald-700">{netPayout.toFixed(6)} USDT</strong></div>
+                <p className="mt-2 text-[10px] leading-relaxed text-slate-600">Example: 2.000000 USDT request → 0.100000 USDT fee → 1.900000 USDT payout. The requested amount is reserved from your wallet. If the withdrawal is rejected, the full reserved amount is refunded and no fee is retained.</p>
               </div>
             </div>
 
