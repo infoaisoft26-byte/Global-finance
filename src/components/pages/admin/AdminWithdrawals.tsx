@@ -6,7 +6,7 @@ import { DataTable, type Column } from '../../common/DataTable.tsx';
 import type { TransactionRequest, TransactionRequestStatus } from '../../../types/index.ts';
 
 type StatusFilter = 'all' | 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed' | 'processing' | 'failed';
-const money = (n: number) => `USDT ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })};
+const money = (n: number) => `USDT ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}`;
 const statusTone: Record<string, string> = {
   pending: 'text-amber-300 bg-amber-500/10 border-amber-500/30',
   under_review: 'text-sky-300 bg-sky-500/10 border-sky-500/30',
