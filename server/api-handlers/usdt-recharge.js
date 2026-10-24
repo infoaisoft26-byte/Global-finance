@@ -139,8 +139,7 @@ async function autoCreditRecharge({id,actor,txHash,amount,walletAddress='',walle
   // Resolve both current and legacy member-address records. This is important
   // for deposits created before address documents were keyed by Firebase UID.
   const candidates = [
-    String(recharge.depositAddress || '').trim().toLowerCase(),
-    String(recharge.walletAddress || '').trim().toLowerCase()
+    String(recharge.depositAddress || '').trim().toLowerCase()
   ];
   const assigned = await db.collection('usdtDepositAddresses').doc(String(actor.id)).get();
   candidates.push(String(assigned.data()?.address || '').trim().toLowerCase());
@@ -216,8 +215,7 @@ async function autoCreditRecharge({id,actor,txHash,amount,walletAddress='',walle
     if (current.status === 'approved') return;
     if (current.status !== 'pending') throw new Error('ALREADY_REVIEWED');
     if (String(current.txHash || '').toLowerCase() !== String(txHash).toLowerCase() ||
-        String(current.amountUsdt) !== String(amount)) throw new Error('REVIEW_CHANGED');
-    if (freshTx.exists && freshTx.data()?.status === 'approved') throw new Error('ALREADY_CREDITED');
+        String(current.amountUsdt) !== String(amount)) throw new Error('REVIEW_CHANGED');    if (freshTx.exists && freshTx.data()?.status === 'approved') throw new Error('ALREADY_CREDITED');
     if (!userSnap.exists || userSnap.data()?.status !== 'active') throw new Error('MEMBER_UNAVAILABLE');
     const credit = Number(Number(amount).toFixed(8));
     if (!Number.isFinite(credit) || credit <= 0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
@@ -436,8 +434,7 @@ async function review(actor,id,action,note){
       `SELECT r.id,r.user_id,r.amount_usdt,r.status,r.ledger_id,
               l.id AS matched_ledger_id,l.amount AS ledger_amount,l.flow,l.status AS ledger_status
          FROM usdt_bep20_recharges r
-         JOIN ledger_transactions l
-           ON l.id=r.ledger_id
+         JOIN ledger_transactions l           ON l.id=r.ledger_id
           AND lower(l.reference_id)=lower(r.tx_hash)
         WHERE lower(r.tx_hash)=lower($1)
         LIMIT 1`,
@@ -656,8 +653,7 @@ async function loadDownline(pool, actor) {
     ) pkg ON TRUE
     LEFT JOIN LATERAL (
       SELECT SUM(l.net_amount) AS total_commission
-      FROM ledger_transactions l
-      WHERE l.user_id::text = n.id
+      FROM ledger_transactions l      WHERE l.user_id::text = n.id
         AND l.flow = 'credit'
         AND l.status = 'completed'
         AND l.type IN ('referral_bonus','referral_income','direct_referral','basic_referral','fd_referral','level_bonus','level_income','basic_level','fd_level','rd_level')
