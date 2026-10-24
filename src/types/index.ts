@@ -397,6 +397,7 @@ export type ActivePage =
   | 'admin-packages'
   | 'admin-package-activations'
   | 'admin-transactions'
+  | 'admin-withdrawals'
   | 'admin-p2p-report'
   | 'admin-usdt-recharge'
   | 'admin-audit'
