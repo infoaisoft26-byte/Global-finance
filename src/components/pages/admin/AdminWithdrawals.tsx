@@ -60,7 +60,13 @@ export const AdminWithdrawals: React.FC = () => {
     pending: requests.filter(r => ['pending', 'under_review'].includes(r.status)).length,
     approved: requests.filter(r => r.status === 'approved').length,
     rejected: requests.filter(r => r.status === 'rejected').length,
+    completed: requests.filter(r => r.status === 'completed').length,
+    refunded: requests.filter(r => Boolean(r.metadata?.refundIssued || r.metadata?.refundedAt)).length,
     total: requests.length,
+    requested: requests.reduce((sum, r) => sum + Number(r.amountRupees || 0), 0),
+    fees: requests.filter(r => !r.metadata?.refundIssued).reduce((sum, r) => sum + Number(r.feeRupees || r.metadata?.feeAmountUsdt || 0), 0),
+    net: requests.filter(r => !r.metadata?.refundIssued).reduce((sum, r) => sum + Number(r.netAmountRupees ?? r.metadata?.netPayoutUsdt ?? 0), 0),
+    refundedAmount: requests.filter(r => Boolean(r.metadata?.refundIssued || r.metadata?.refundedAt)).reduce((sum, r) => sum + Number(r.amountRupees || 0), 0),
   }), [requests]);
 
   const review = async (status: Extract<TransactionRequestStatus, 'approved' | 'rejected'>) => {
@@ -88,7 +94,7 @@ export const AdminWithdrawals: React.FC = () => {
     { key: 'reference', header: 'Reference', render: r => <span className="font-mono text-xs text-cyan-300">{r.reference || r.id}</span> },
     { key: 'member', header: 'Member', render: r => <div><div className="text-xs font-bold text-white">{r.userName || r.userEmail || 'Member'}</div><div className="text-[10px] text-cyan-300">{r.userReferralCode || '—'}</div></div> },
     { key: 'amountRupees', header: 'Amount', render: r => <span className="font-mono text-xs font-bold text-white">{money(r.amountRupees)}</span> },
-    { key: 'feeRupees', header: 'Fee / Net', render: r => <div className="text-[11px]"><div className="text-slate-300">Fee: {money(r.feeRupees)}</div><div className="text-slate-400">Net: {money(r.netAmountRupees)}</div></div> },
+    { key: 'feeRupees', header: 'Fee / Net Payout', render: r => { const refunded = Boolean(r.metadata?.refundIssued || r.metadata?.refundedAt); const fee = Number(r.feeRupees ?? r.metadata?.feeAmountUsdt ?? 0); const net = Number(r.netAmountRupees ?? r.metadata?.netPayoutUsdt ?? (Number(r.amountRupees || 0) - fee)); return <div className="text-[11px]"><div className="text-slate-300">Fee ({Number(r.metadata?.feePercent ?? 5)}%): {money(fee)}</div><div className="font-bold text-emerald-300">Net: {money(net)}</div>{refunded && <div className="mt-1 font-bold text-emerald-300">Refunded: {money(r.amountRupees)}</div>}</div>; } },
     { key: 'wallet', header: 'Destination Wallet', render: r => {
       const m = (r.metadata || {}) as Record<string, any>;
       const address = String(m.destinationWalletAddress || m.walletAddress || m.destination || '');
@@ -108,6 +114,13 @@ export const AdminWithdrawals: React.FC = () => {
       <button type="button" onClick={() => setStatusFilter('pending')} className={`rounded-2xl border p-4 text-left ${statusFilter === 'pending' ? 'border-amber-400/60 bg-amber-500/10' : 'border-blue-500/20 bg-[#091129]'}`}><div className="flex items-center gap-1 text-xs text-amber-200"><Clock3 className="h-3.5 w-3.5" />Pending</div><div className="mt-1 text-2xl font-extrabold text-white">{requests.filter(r => r.status === 'pending').length}</div><div className="text-[10px] text-slate-500">Under review: {requests.filter(r => r.status === 'under_review').length}</div></button>
       <button type="button" onClick={() => setStatusFilter('approved')} className={`rounded-2xl border p-4 text-left ${statusFilter === 'approved' ? 'border-emerald-400/60 bg-emerald-500/10' : 'border-blue-500/20 bg-[#091129]'}`}><div className="flex items-center gap-1 text-xs text-emerald-200"><CheckCircle2 className="h-3.5 w-3.5" />Approved</div><div className="mt-1 text-2xl font-extrabold text-white">{counts.approved}</div></button>
       <button type="button" onClick={() => setStatusFilter('rejected')} className={`rounded-2xl border p-4 text-left ${statusFilter === 'rejected' ? 'border-rose-400/60 bg-rose-500/10' : 'border-blue-500/20 bg-[#091129]'}`}><div className="flex items-center gap-1 text-xs text-rose-200"><XCircle className="h-3.5 w-3.5" />Rejected</div><div className="mt-1 text-2xl font-extrabold text-white">{counts.rejected}</div></button>
+    </div>
+
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="rounded-xl border border-blue-500/20 bg-[#091129] p-3"><div className="text-[10px] text-slate-400">Total requested</div><div className="mt-1 text-lg font-extrabold text-white">{money(counts.requested)}</div><div className="text-[10px] text-slate-500">{counts.total} requests</div></div>
+      <div className="rounded-xl border border-amber-500/20 bg-[#091129] p-3"><div className="text-[10px] text-slate-400">Potential fees (not refunded)</div><div className="mt-1 text-lg font-extrabold text-amber-200">{money(counts.fees)}</div><div className="text-[10px] text-slate-500">5% default, per request record</div></div>
+      <div className="rounded-xl border border-emerald-500/20 bg-[#091129] p-3"><div className="text-[10px] text-slate-400">Estimated net payout</div><div className="mt-1 text-lg font-extrabold text-emerald-200">{money(counts.net)}</div><div className="text-[10px] text-slate-500">Excludes requests marked refunded</div></div>
+      <div className="rounded-xl border border-rose-500/20 bg-[#091129] p-3"><div className="text-[10px] text-slate-400">Refunded total</div><div className="mt-1 text-lg font-extrabold text-white">{money(counts.refundedAmount)}</div><div className="text-[10px] text-slate-500">{counts.refunded} refunded requests · {counts.rejected} rejected</div></div>
     </div>
 
     {error && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{error}</div>}
