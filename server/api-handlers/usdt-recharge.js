@@ -89,6 +89,15 @@ async function createRecharge(db,actor,amount,txHash,proofUrl,walletAddress='',w
   const id='RCH_'+crypto.randomUUID().replaceAll('-','').slice(0,24);
   const ref=db.collection('usdtRecharges').doc(id);
   const txRef=db.collection('usdtDepositTx').doc(txHash);
+  // If this member has a generated BEP20 deposit address, persist that exact
+  // address on the claim. Falling back to the shared wallet preserves legacy
+  // deposits for members who do not have a generated address.
+  const assignedAddressSnap=await db.collection('usdtDepositAddresses').doc(actor.id).get();
+  const assignedAddress=String(assignedAddressSnap.data()?.address||'').trim().toLowerCase();
+  const requestDepositAddress=/^0x[0-9a-f]{40}$/.test(assignedAddress)
+    ? assignedAddress
+    : String(BEP20_WALLET||'').trim().toLowerCase();
+  if(!/^0x[0-9a-f]{40}$/.test(requestDepositAddress)) throw new Error('DEPOSIT_WALLET_NOT_CONFIGURED');
   await db.runTransaction(async t=>{
     const txSnap=await t.get(txRef);
     if(txSnap.exists) throw new Error(txSnap.data()?.status==='approved'?'ALREADY_CREDITED':'TXID_ALREADY_SUBMITTED');
@@ -96,7 +105,7 @@ async function createRecharge(db,actor,amount,txHash,proofUrl,walletAddress='',w
     if(!userSnap.exists || userSnap.data()?.status!=='active') throw new Error('ACTIVE_MEMBER_REQUIRED');
     t.set(ref,{
       id,userId:actor.id,userName:actor.name,userEmail:actor.email,referralCode:actor.referralCode,
-      txHash,depositAddress:BEP20_WALLET.toLowerCase(),amountUsdt:amount,
+      txHash,depositAddress:requestDepositAddress,amountUsdt:amount,
       walletAddress:String(walletAddress||'').trim().toLowerCase()||null,
       walletSignature:String(walletSignature||'').trim()||null,
       status:'pending',creditUsdt:null,reviewNote:null,proofUrl:proofUrl||null,
@@ -106,7 +115,7 @@ async function createRecharge(db,actor,amount,txHash,proofUrl,walletAddress='',w
     t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
       actorUserId:actor.id,actorEmail:actor.email,action:'USDT_RECHARGE_SUBMITTED',
       entityType:'usdt_recharge',entityId:id,
-      metadata:{txHash,amountUsdt:amount,network:'BSC',autoCreditEnabled:autoCreditConfigured(),storage:'firestore'},
+      metadata:{txHash,amountUsdt:amount,network:'BSC',autoCreditEnabled:autoCreditConfigured(),storage:'firestore',depositAddress:requestDepositAddress},
       timestamp:now,
     });
   });
@@ -429,8 +438,22 @@ async function review(actor,id,action,note){
 
   let proof=null;
   let credit=0;
+  let verifiedDepositAddress=String(initial.depositAddress||BEP20_WALLET||'').trim().toLowerCase();
   if(action==='approve'){
-    proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''),String(initial.depositAddress||BEP20_WALLET));
+    try{
+      proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''),verifiedDepositAddress);
+    }catch(error){
+      // Older pending claims may have stored the shared wallet even when the
+      // member paid the unique address shown in their deposit screen. Retry
+      // only against this same member's assigned address, and only for a
+      // transfer-mismatch result; all other verification failures remain fatal.
+      if(!(error instanceof Error) || error.message!=='TRANSFER_MISMATCH') throw error;
+      const assignedSnap=await db.collection('usdtDepositAddresses').doc(String(initial.userId||'')).get();
+      const assignedAddress=String(assignedSnap.data()?.address||'').trim().toLowerCase();
+      if(!/^0x[0-9a-f]{40}$/.test(assignedAddress) || assignedAddress===verifiedDepositAddress) throw error;
+      proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''),assignedAddress);
+      verifiedDepositAddress=assignedAddress;
+    }
     credit=Number(Number(initial.amountUsdt).toFixed(8));
     if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
     // Neon powers the live member wallet and package transactions. Credit it
@@ -438,7 +461,7 @@ async function review(actor,id,action,note){
     // a partially completed review will never credit the same TXID twice.
     await creditNeonRecharge({
       id,userId:initial.userId,txHash:initial.txHash,amount:initial.amountUsdt,
-      depositAddress:initial.depositAddress||BEP20_WALLET,actor,note,proof,createdAt:initial.createdAt,
+      depositAddress:verifiedDepositAddress,actor,note,proof,createdAt:initial.createdAt,
     });
   }
 
@@ -466,7 +489,7 @@ async function review(actor,id,action,note){
       });
       t.set(walletRef,{...wallet,userId:r.userId,fundWallet:Number((num(wallet.fundWallet)+credit).toFixed(8)),updatedAt:now.toISOString()},{merge:true});
       t.set(txRef,{status:'approved',creditedAt:now.toISOString(),ledgerId:ledgerRef.id,rechargeId:id,userId:r.userId,amountUsdt:String(r.amountUsdt)},{merge:true});
-      t.set(ref,{status:'approved',creditUsdt:String(credit),ledgerId:ledgerRef.id,reviewNote:note||'Approved after on-chain verification',reviewedBy:actor.id,reviewedAt:now.toISOString(),updatedAt:now.toISOString()},{merge:true});
+      t.set(ref,{status:'approved',creditUsdt:String(credit),depositAddress:verifiedDepositAddress,ledgerId:ledgerRef.id,reviewNote:note||'Approved after on-chain verification',reviewedBy:actor.id,reviewedAt:now.toISOString(),updatedAt:now.toISOString()},{merge:true});
       t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
         actorUserId:actor.id,actorEmail:actor.email,action:'USDT_RECHARGE_APPROVED',
         entityType:'usdt_recharge',entityId:id,
