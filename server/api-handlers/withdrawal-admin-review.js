@@ -112,12 +112,8 @@ export default async function handler(req, res) {
           'Refund for rejected withdrawal (' + reference + ')', refundId, 'completed',
           JSON.stringify({ requestId, refund: true, asset: 'USDT', idempotencyKey: refundId }), now]
       );
-      await client.query(
-        'INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)',
-        [liabilityId, 'GLOBAL_FINANCE_LIABILITIES', 'withdrawal_reserve_release', 'income_wallet', 'debit', amount, 0, amount,
-          'Release withdrawal reserve for rejected request (' + reference + ')', refundId, 'completed',
-          JSON.stringify({ requestId, refund: true, asset: 'USDT', idempotencyKey: liabilityId }), now]
-      );
+      // Do not write a synthetic liability user into ledger_transactions: user_id has a real-user FK.
+      // The member refund is the only wallet-affecting ledger entry; reserve release is tracked in metadata/audit.
       const updatedWallet = await client.query('SELECT income_wallet FROM wallets WHERE user_id = $1', [userId]);
       return Number(updatedWallet.rows[0]?.income_wallet || 0);
     });
@@ -139,7 +135,7 @@ export default async function handler(req, res) {
       if (!['pending', 'under_review', 'approved', 'rejected'].includes(String(fresh.status || ''))) {
         throw new Error('Withdrawal status changed; refresh and reconcile.');
       }
-      if (!walletSnap.exists()) throw new Error('Firestore wallet mirror is missing; Neon refund is recorded and requires reconciliation.');
+      if (!walletSnap.exists) throw new Error('Firestore wallet mirror is missing; Neon refund is recorded and requires reconciliation.');
       const now = new Date().toISOString();
       txn.update(walletRef, { incomeWallet: Number(neonBalance.toFixed(8)), updatedAt: now });
       if (!refundSnap.exists()) {
