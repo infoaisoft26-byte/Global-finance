@@ -440,20 +440,32 @@ async function review(actor,id,action,note){
   let credit=0;
   let verifiedDepositAddress=String(initial.depositAddress||BEP20_WALLET||'').trim().toLowerCase();
   if(action==='approve'){
-    try{
-      proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''),verifiedDepositAddress);
-    }catch(error){
-      // Older pending claims may have stored the shared wallet even when the
-      // member paid the unique address shown in their deposit screen. Retry
-      // only against this same member's assigned address, and only for a
-      // transfer-mismatch result; all other verification failures remain fatal.
-      if(!(error instanceof Error) || error.message!=='TRANSFER_MISMATCH') throw error;
-      const assignedSnap=await db.collection('usdtDepositAddresses').doc(String(initial.userId||'')).get();
-      const assignedAddress=String(assignedSnap.data()?.address||'').trim().toLowerCase();
-      if(!/^0x[0-9a-f]{40}$/.test(assignedAddress) || assignedAddress===verifiedDepositAddress) throw error;
-      proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''),assignedAddress);
-      verifiedDepositAddress=assignedAddress;
+    const initialError=null;
+    const candidates=[verifiedDepositAddress];
+    // Historical claims can contain a stale shared address while the user
+    // paid either their assigned address or the currently configured wallet.
+    const assignedSnap=await db.collection('usdtDepositAddresses').doc(String(initial.userId||'')).get();
+    candidates.push(String(assignedSnap.data()?.address||'').trim().toLowerCase());
+    candidates.push(String(BEP20_WALLET||'').trim().toLowerCase());
+    const uniqueCandidates=[...new Set(candidates)].filter(address=>/^0x[0-9a-f]{40}$/.test(address));
+    let mismatch=null;
+    for(const candidate of uniqueCandidates){
+      try{
+        proof=await verifyBep20(String(initial.txHash||''),String(initial.amountUsdt||''),candidate);
+        verifiedDepositAddress=candidate;
+        mismatch=null;
+        break;
+      }catch(error){
+        if(error instanceof Error && error.message==='TRANSFER_MISMATCH'){
+          mismatch=error;
+          continue;
+        }
+        // Confirmation, network, RPC, and token errors must not be bypassed
+        // by trying another destination.
+        throw error;
+      }
     }
+    if(!proof) throw (mismatch || new Error('TRANSFER_MISMATCH'));
     credit=Number(Number(initial.amountUsdt).toFixed(8));
     if(!Number.isFinite(credit)||credit<=0) throw new Error('INVALID_AUTO_CREDIT_AMOUNT');
     // Neon powers the live member wallet and package transactions. Credit it
