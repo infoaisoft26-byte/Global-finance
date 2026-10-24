@@ -52,10 +52,10 @@ export const TelegramSupportButton: React.FC = () => {
       onClick={openTelegram}
       aria-label="Open Global Finance support on Telegram"
       title="Chat with Global Finance Support on Telegram"
-      className="fixed bottom-5 right-5 z-[100] inline-flex items-center gap-2 rounded-full border border-sky-300/30 bg-[#229ED9] px-4 py-3 text-sm font-bold text-white shadow-xl shadow-sky-950/30 transition hover:-translate-y-0.5 hover:bg-[#168AC4] focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2 focus:ring-offset-[#070b19]"
+      className="fixed bottom-3 right-3 z-[100] inline-flex items-center gap-1.5 rounded-full border border-sky-300/30 bg-[#229ED9] px-3 py-2 text-xs font-semibold text-white shadow-md shadow-sky-950/20 transition hover:bg-[#168AC4] focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2 focus:ring-offset-[#070b19]"
     >
-      {connecting ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : <Send className="h-5 w-5" aria-hidden="true" />}
-      <span>{connecting ? 'Connecting Telegram…' : 'Telegram Support'}</span>
+      {connecting ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
+      <span>{connecting ? 'Connecting…' : 'Telegram'}</span>
     </button>
   );
 };
