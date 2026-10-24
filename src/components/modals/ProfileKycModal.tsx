@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
-import { User, Copy, Check, Save, X, RefreshCw, Coins, LogOut } from 'lucide-react';
+import { User, Copy, Check, Save, X, RefreshCw, Coins, LogOut, Mail, Send } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 
 interface ProfileKycModalProps {
@@ -23,6 +23,11 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
   const [copiedCode, setCopiedCode] = useState(false);
   const [tokenBalance, setTokenBalance] = useState<number>(0);
   const [tokenLoading, setTokenLoading] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailOtpId, setEmailOtpId] = useState('');
+  const [emailChangeSending, setEmailChangeSending] = useState(false);
+  const [emailChangeVerifying, setEmailChangeVerifying] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -30,6 +35,7 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
     setPhone(profile?.phone || '');
     setOldPassword(''); setNewPassword(''); setConfirmPassword('');
     setErrorMsg('');
+    setNewEmail(''); setEmailOtp(''); setEmailOtpId('');
   }, [isOpen, profile?.name, profile?.phone]);
 
   useEffect(() => {
@@ -76,6 +82,58 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
     } finally {
       setSaving(false);
     }
+  };
+
+
+  const handleSendEmailOtp = async () => {
+    if (!user) { setErrorMsg('Please sign in again.'); return; }
+    const target = newEmail.trim().toLowerCase();
+    if (!/^[^\\s<>@]+@[^\\s<>@]+\\.[^\\s<>@]+$/.test(target)) {
+      setErrorMsg('Enter a valid new email address.');
+      return;
+    }
+    if (target === String(profile?.email || user.email || '').trim().toLowerCase()) {
+      setErrorMsg('This is already your current email address.');
+      return;
+    }
+    setEmailChangeSending(true); setErrorMsg(''); setSuccessMsg('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/email-change', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'send', newEmail: target }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to send email OTP.');
+      setEmailOtpId(String(data.otpId || ''));
+      setEmailOtp('');
+      setSuccessMsg(`OTP sent to ${data.maskedEmail || target}. Enter it below to confirm the new email.`);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Unable to send email OTP.');
+    } finally { setEmailChangeSending(false); }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (!user || !emailOtpId) { setErrorMsg('Request an OTP first.'); return; }
+    if (!/^\\d{6}$/.test(emailOtp)) { setErrorMsg('Enter the 6-digit OTP.'); return; }
+    setEmailChangeVerifying(true); setErrorMsg(''); setSuccessMsg('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/email-change', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'verify', newEmail: newEmail.trim().toLowerCase(), otpId: emailOtpId, code: emailOtp }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Email verification failed.');
+      setSuccessMsg('Email updated successfully. Refreshing your secure account session…');
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Email verification failed.');
+    } finally { setEmailChangeVerifying(false); }
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -150,8 +208,35 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
             <div className="mb-3">
               <label className="block text-xs text-slate-600 mb-1">Email Address</label>
               <input type="email" value={profile?.email || user?.email || ''} readOnly className="w-full px-3 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-600 text-xs cursor-not-allowed" />
-              <p className="text-[10px] text-slate-500 mt-1">Your sign-in email is shown here and cannot be changed from this form.</p>
+              <p className="text-[10px] text-slate-500 mt-1">Use the secure OTP section below to correct an email address.</p>
             </div>
+
+            <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-blue-600" />
+                <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Change Registered Email</h4>
+              </div>
+              <p className="text-[11px] leading-5 text-slate-500">If your old email was entered incorrectly, enter the correct email. We will send an OTP to the new address. Your Member ID, sponsor, downline, wallet and financial history stay unchanged.</p>
+              <div>
+                <label className="block text-xs text-slate-600 mb-1">Current Email</label>
+                <input type="email" value={profile?.email || user?.email || ''} readOnly className="w-full px-3 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-600 text-xs" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-600 mb-1">Correct Email Address</label>
+                <input type="email" inputMode="email" autoComplete="email" value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailOtpId(''); setEmailOtp(''); }} placeholder="Enter your correct email" className="w-full px-3 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs focus:outline-none focus:border-blue-500" />
+              </div>
+              <button type="button" onClick={handleSendEmailOtp} disabled={emailChangeSending || !newEmail.trim()} className="w-full px-4 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-50">
+                {emailChangeSending ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Sending OTP…</> : <><Send className="w-3.5 h-3.5" />Send OTP to New Email</>}
+              </button>
+              {emailOtpId && <div className="space-y-2">
+                <label className="block text-xs text-slate-600">6-digit OTP</label>
+                <div className="flex gap-2">
+                  <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={emailOtp} onChange={e => setEmailOtp(e.target.value.replace(/\\D/g, '').slice(0, 6))} placeholder="Enter OTP" className="min-w-0 flex-1 px-3 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm tracking-[0.3em]" />
+                  <button type="button" onClick={handleVerifyEmailOtp} disabled={emailChangeVerifying || emailOtp.length !== 6} className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs disabled:opacity-50">{emailChangeVerifying ? 'Verifying…' : 'Verify & Change'}</button>
+                </div>
+              </div>}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-slate-600 mb-1">Full Name</label>
