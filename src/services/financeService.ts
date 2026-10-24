@@ -409,7 +409,7 @@ export async function activatePackage(
   if (!currentUser || currentUser.uid !== userId) throw new Error('Authentication required');
 
   const token = await currentUser.getIdToken();
-  const response = await fetch('/api/support-ai', {
+  const response = await fetch('/api/usdt-recharge', {
     method: 'POST',
     credentials: 'include',
     headers: {
@@ -686,7 +686,7 @@ export async function getDownlineMembers(referralCode: string): Promise<Downline
   const currentUser = auth.currentUser;
   if (!currentUser) return [];
   const token = await currentUser.getIdToken();
-  const response = await fetch('/api/support-ai', {
+  const response = await fetch('/api/usdt-recharge', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
