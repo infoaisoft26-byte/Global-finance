@@ -37,7 +37,7 @@ export const SupportAiChat: React.FC = () => {
 
     try {
       const token = user ? await user.getIdToken() : '';
-      const response = await fetch('/api/usdt-recharge', {
+      const response = await fetch('/api/support-ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
