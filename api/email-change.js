@@ -21,7 +21,7 @@ function maskEmail(email) {
   return first + '*'.repeat(Math.max(2, Math.min(8, local.length - first.length - last.length))) + last + '@' + domain;
 }
 function validEmail(value) {
-  return /^[^\\s<>@]+@[^\\s<>@]+\\.[^\\s<>@]+$/.test(value) && value.length <= 254;
+  return /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(value) && value.length <= 254;
 }
 async function ensureTable() {
   await getPool().query(`
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
     if (action !== 'verify') return json(res, 400, { error: 'Invalid action.' });
     const otpId = String(body.otpId || '');
     const code = String(body.code || '').trim();
-    if (!otpId || !/^\\d{6}$/.test(code)) return json(res, 400, { error: 'Enter the 6-digit email OTP.' });
+    if (!otpId || !/^\d{6}$/.test(code)) return json(res, 400, { error: 'Enter the 6-digit email OTP.' });
     const currentFirebaseUser = await getFirebaseAuthAdmin().getUser(uid);
     oldAuthEmail = String(currentFirebaseUser.email || '').trim().toLowerCase();
     await assertEmailAvailable(uid, newEmail);
