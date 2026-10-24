@@ -234,7 +234,10 @@ const MainLayout: React.FC = () => {
   }
 
   const renderContent = () => {
-    const resolvedPage = isAdminEntry ? adminPageFromPath(window.location.pathname, window.location.search) : activePage;
+    // Render the selected React state. The URL is synchronized by navigateToPage/popstate;
+    // deriving render output from window.location here can leave the admin content stuck
+    // on the dashboard when client-side navigation changes history without a reload.
+    const resolvedPage = activePage;
     const isAdminRoute = resolvedPage.startsWith('admin-');
     if (isAdminRoute && !isAdmin) {
       return (
