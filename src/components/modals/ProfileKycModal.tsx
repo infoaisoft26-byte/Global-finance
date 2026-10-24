@@ -88,7 +88,7 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
   const handleSendEmailOtp = async () => {
     if (!user) { setErrorMsg('Please sign in again.'); return; }
     const target = newEmail.trim().toLowerCase();
-    if (!/^[^\\s<>@]+@[^\\s<>@]+\\.[^\\s<>@]+$/.test(target)) {
+    if (!/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(target)) {
       setErrorMsg('Enter a valid new email address.');
       return;
     }
@@ -117,7 +117,7 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
 
   const handleVerifyEmailOtp = async () => {
     if (!user || !emailOtpId) { setErrorMsg('Request an OTP first.'); return; }
-    if (!/^\\d{6}$/.test(emailOtp)) { setErrorMsg('Enter the 6-digit OTP.'); return; }
+    if (!/^\d{6}$/.test(emailOtp)) { setErrorMsg('Enter the 6-digit OTP.'); return; }
     setEmailChangeVerifying(true); setErrorMsg(''); setSuccessMsg('');
     try {
       const token = await user.getIdToken();
@@ -231,7 +231,7 @@ export const ProfileKycModal: React.FC<ProfileKycModalProps> = ({ isOpen, onClos
               {emailOtpId && <div className="space-y-2">
                 <label className="block text-xs text-slate-600">6-digit OTP</label>
                 <div className="flex gap-2">
-                  <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={emailOtp} onChange={e => setEmailOtp(e.target.value.replace(/\\D/g, '').slice(0, 6))} placeholder="Enter OTP" className="min-w-0 flex-1 px-3 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm tracking-[0.3em]" />
+                  <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={emailOtp} onChange={e => setEmailOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Enter OTP" className="min-w-0 flex-1 px-3 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm tracking-[0.3em]" />
                   <button type="button" onClick={handleVerifyEmailOtp} disabled={emailChangeVerifying || emailOtp.length !== 6} className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs disabled:opacity-50">{emailChangeVerifying ? 'Verifying…' : 'Verify & Change'}</button>
                 </div>
               </div>}
