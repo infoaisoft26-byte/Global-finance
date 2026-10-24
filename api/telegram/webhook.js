@@ -283,7 +283,7 @@ export default async function handler(req, res) {
     }
 
     const member = await getLinkedMember(chatId);
-    if (["💰 Wallet Balance", "📥 Deposit", "📊 Total Income", "wallet balance", "deposit", "total income"].includes(text.toLowerCase()) || ["💰 Wallet Balance", "📥 Deposit", "📊 Total Income"].includes(text)) {
+    if (["💰 wallet", "💰 wallet balance", "📥 deposit", "📊 income", "📊 total income", "wallet", "wallet balance", "deposit", "income", "total income"].includes(text.toLowerCase())) {
       if (!member) {
         await sendMessage(chatId, "Link your account first: log in at globalfinance1.online and tap Telegram Support.");
         return res.status(200).json({ ok: true, accountNotLinked: true });
