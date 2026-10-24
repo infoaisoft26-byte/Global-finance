@@ -170,7 +170,7 @@ export async function sendTransactionOtp({ to, name, code, purpose }) {
   const apiKey = String(process.env.RESEND_API_KEY || '').trim();
   const from = String(process.env.EMAIL_FROM || '').trim();
   if (!apiKey || !from) throw new Error('EMAIL_DELIVERY_NOT_CONFIGURED');
-  const label = purpose === 'p2p_transfer' ? 'P2P transfer' : 'USDT withdrawal';
+  const label = purpose === 'p2p_transfer' ? 'P2P transfer' : purpose === 'email_change' ? 'email address change' : 'USDT withdrawal';
   const brand = process.env.EMAIL_BRAND_NAME || DEFAULT_BRAND;
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
