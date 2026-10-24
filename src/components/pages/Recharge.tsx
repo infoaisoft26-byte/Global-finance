@@ -260,23 +260,9 @@ export const Recharge: React.FC = () => {
     try {
       let walletAddress = '';
       let walletSignature = '';
-      if (info?.mode === 'shared') {
-        const ethereum = (window as any).ethereum;
-        if (!ethereum || !connectedWallet) {
-          throw new Error('TXID submit karne se pehle wahi wallet connect karein jis address se USDT bheja tha. Mobile par Trust Wallet DApp browser use karein, ya desktop par wallet extension enable karein.');
-        }
-        const provider = new BrowserProvider(ethereum);
-        const network = await provider.getNetwork();
-        if (network.chainId !== 56n) throw new Error('Switch Trust Wallet to BNB Smart Chain (BEP20), then reconnect.');
-        const signer = await provider.getSigner();
-        walletAddress = await signer.getAddress();
-        if (walletAddress.toLowerCase() !== connectedWallet.toLowerCase()) {
-          setConnectedWallet(walletAddress);
-          throw new Error('The connected wallet changed. Please confirm the sender wallet and submit again.');
-        }
-        const claimMessage = createUsdtDepositClaimMessage(user.uid, txHash.trim(), amountUsdt.trim(), walletAddress);
-        walletSignature = await signer.signMessage(claimMessage);
-      }
+      // Wallet connection is intentionally optional/removed from the member UI.
+      // Shared-wallet claims without a sender signature remain pending for admin review;
+      // the server must never auto-credit a shared-address payment without sender proof.
       const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim(), undefined, walletAddress, walletSignature);
       setSubmitMessage(String(result?.message || 'TXID submitted for verification.'));
       notifyDepositStatus(String(result?.id || result?.rechargeId || txHash.trim()), String(result?.status || 'pending'), amountUsdt.trim(), txHash.trim());
@@ -377,7 +363,7 @@ export const Recharge: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-500/20 pb-4">
         <div>
           <h2 className="text-xl font-bold text-white">USDT Deposit — BEP20</h2>
-          <p className="mt-1 text-xs text-slate-400">{info?.mode === 'shared' ? 'Send USDT to the shared BEP20 address. Sign the TXID claim with the sending wallet for automatic credit; emergency admin review remains available.' : 'Send USDT to your personal address. Blockchain verification updates your Fund Wallet automatically.'}</p>
+          <p className="mt-1 text-xs text-slate-400">{info?.mode === 'shared' ? 'Send USDT to the shared BEP20 address and submit the TXID. Wallet connection is not required; shared-address claims may need admin review.' : 'Send USDT to your personal address. Blockchain verification updates your Fund Wallet automatically.'}</p>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-cyan-400/25 bg-[#091129] px-4 py-3">
           <Wallet className="h-5 w-5 text-cyan-400" />
@@ -393,7 +379,7 @@ export const Recharge: React.FC = () => {
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-white">Automatic deposit verification</h3>
-            <p className="text-xs leading-5 text-slate-400">{info?.mode === 'shared' ? 'For a shared address, submit the TXID and sign the claim with the same wallet that sent USDT. The system checks sender ownership, exact token, destination, amount and ' + (info?.confirmationsRequired || 12) + ' confirmations before automatic credit. Admin approve/reject remains available for emergencies.' : 'No TXID, payment screenshot, or manual form is required. Deposits are detected from BNB Smart Chain token-transfer logs and credited after ' + (info?.confirmationsRequired || 12) + ' confirmations, subject to scanner availability.'}</p>
+            <p className="text-xs leading-5 text-slate-400">{info?.mode === 'shared' ? 'For a shared address, submit the TXID for review. The system checks token, destination, amount and confirmations; without a sender-wallet signature, automatic credit is not guaranteed and admin review may be required.' : 'No TXID, payment screenshot, or manual form is required. Deposits are detected from BNB Smart Chain token-transfer logs and credited after ' + (info?.confirmationsRequired || 12) + ' confirmations, subject to scanner availability.'}</p>
           </div>
         </div>
       </div>
@@ -438,7 +424,8 @@ export const Recharge: React.FC = () => {
           <p className="text-xs leading-5 text-amber-200">Only send USDT on BNB Smart Chain (BEP20). Other networks may cause permanent loss.</p>
           <form onSubmit={submitTxid} className="space-y-3 rounded-xl border border-blue-500/20 bg-[#060d20] p-4">
             <h4 className="text-sm font-bold text-white">Submit your deposit</h4>
-            <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-3">
+            <p className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-[11px] leading-5 text-amber-100/80">Wallet connection is not required. Shared-address deposits submitted here stay pending for admin review unless independently verified by the server.</p>
+            {/** Sender wallet connection UI removed as requested. */}
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-white">Sender wallet verification</p>
@@ -453,7 +440,7 @@ export const Recharge: React.FC = () => {
             <label className="block text-xs text-slate-300">Transaction hash / TXID
               <input required minLength={66} maxLength={66} value={txHash} onChange={e => setTxHash(e.target.value.trim())} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 font-mono text-xs text-white" placeholder="0x..." />
             </label>
-            <button type="submit" disabled={submitting || connectingWallet || !connectedWallet} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? 'Signing & verifying…' : !connectedWallet ? 'Connect Trust Wallet to continue' : 'Sign & submit TXID for auto-credit'}</button>
+            <button type="submit" disabled={submitting} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? 'Submitting TXID…' : 'Submit TXID for verification'}</button>
             {submitMessage && <p className="text-xs text-emerald-300">{submitMessage}</p>}
           </form>
           <div className="space-y-2">
