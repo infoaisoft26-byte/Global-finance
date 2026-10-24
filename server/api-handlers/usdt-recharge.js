@@ -203,14 +203,72 @@ async function autoCreditRecharge({id,actor,txHash,amount,walletAddress='',walle
 }
 async function listRequests(actor,admin){
   const db=getFirestoreAdmin();
-  // Do not use orderBy/low limits here: older recharge documents may not have
-  // createdAt, and small limits hide valid historical recharge records.
+  // Firestore remains the request queue, but Neon is the source of truth for
+  // financial credits. Reconcile pending requests only when an exact matching
+  // completed manual-credit ledger entry already exists. This updates status
+  // metadata only: it never credits a wallet a second time.
   const q=admin
     ? db.collection('usdtRecharges')
     : db.collection('usdtRecharges').where('userId','==',actor.id);
   const snap=await q.get();
-  return snap.docs
-    .map(d=>({id:d.id,data:d.data()||{}}))
+  const items=snap.docs.map(d=>({id:d.id,data:d.data()||{}}));
+  const pool=getPool();
+  for(const item of items){
+    const r=item.data;
+    if(r.status!=='pending' || !r.userId || !r.amountUsdt) continue;
+    try{
+      const normalizedRef=`MANUAL_USDT:${String(item.id).toLowerCase()}`;
+      const found=await pool.query(
+        `SELECT id,user_id,amount,flow,status,created_at
+           FROM ledger_transactions
+          WHERE lower(reference_id)=lower($1)
+            AND type='admin_manual_credit'
+          LIMIT 1`,
+        [normalizedRef]
+      );
+      if(!found.rows.length) continue;
+      const l=found.rows[0];
+      if(String(l.user_id)!==String(r.userId) ||
+         String(l.flow)!=='credit' || String(l.status)!=='completed' ||
+         Number(l.amount)!==Number(r.amountUsdt)) continue;
+      const now=new Date();
+      const ref=db.collection('usdtRecharges').doc(item.id);
+      await db.runTransaction(async t=>{
+        const fresh=await t.get(ref);
+        if(!fresh.exists) return;
+        const current=fresh.data()||{};
+        if(current.status!=='pending' ||
+           String(current.userId)!==String(r.userId) ||
+           Number(current.amountUsdt)!==Number(r.amountUsdt)) return;
+        t.set(ref,{
+          status:'approved',
+          creditUsdt:String(l.amount),
+          ledgerId:String(l.id),
+          reviewNote:'Reconciled with existing manual credit ledger; no additional wallet credit issued.',
+          reviewedAt:now.toISOString(),
+          updatedAt:now.toISOString()
+        },{merge:true});
+        t.set(db.collection('usdtDepositTx').doc(String(current.txHash||'')),{
+          status:'approved',creditedAt:now.toISOString(),ledgerId:String(l.id),
+          rechargeId:item.id,userId:current.userId,amountUsdt:String(current.amountUsdt),
+          reconciledManualCredit:true
+        },{merge:true});
+        t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
+          actorUserId:admin?actor.id:'SYSTEM',actorEmail:admin?actor.email:null,
+          action:'USDT_RECHARGE_MANUAL_LEDGER_RECONCILED',
+          entityType:'usdt_recharge',entityId:item.id,
+          metadata:{ledgerId:String(l.id),amountUsdt:String(l.amount),noAdditionalCredit:true},
+          timestamp:now
+        });
+      });
+      item.data={...r,status:'approved',creditUsdt:String(l.amount),ledgerId:String(l.id),
+        reviewNote:'Reconciled with existing manual credit ledger; no additional wallet credit issued.',
+        reviewedAt:now.toISOString()};
+    }catch(error){
+      console.error('Manual USDT ledger reconciliation skipped:',item.id,error instanceof Error?error.message:error);
+    }
+  }
+  return items
     .sort((a,b)=>new Date(iso(b.data.createdAt)).getTime()-new Date(iso(a.data.createdAt)).getTime())
     .map(({id,data})=>mapRecharge(data,id));
 }
