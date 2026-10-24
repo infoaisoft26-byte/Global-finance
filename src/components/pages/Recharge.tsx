@@ -363,7 +363,7 @@ export const Recharge: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-500/20 pb-4">
         <div>
           <h2 className="text-xl font-bold text-white">USDT Deposit — BEP20</h2>
-          <p className="mt-1 text-xs text-slate-400">{info?.mode === 'shared' ? 'Send USDT to the shared BEP20 address and submit the TXID. Wallet connection is not required; shared-address claims may need admin review.' : 'Send USDT to your personal address. Blockchain verification updates your Fund Wallet automatically.'}</p>
+          <p className="mt-1 text-xs text-slate-400">Send USDT using BNB Smart Chain (BEP20). Your Fund Wallet updates after the deposit is verified.</p>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-cyan-400/25 bg-[#091129] px-4 py-3">
           <Wallet className="h-5 w-5 text-cyan-400" />
@@ -379,7 +379,7 @@ export const Recharge: React.FC = () => {
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-white">Automatic deposit verification</h3>
-            <p className="text-xs leading-5 text-slate-400">{info?.mode === 'shared' ? 'For a shared address, submit the TXID for review. The system checks token, destination, amount and confirmations; without a sender-wallet signature, automatic credit is not guaranteed and admin review may be required.' : 'No TXID, payment screenshot, or manual form is required. Deposits are detected from BNB Smart Chain token-transfer logs and credited after ' + (info?.confirmationsRequired || 12) + ' confirmations, subject to scanner availability.'}</p>
+            <p className="text-xs leading-5 text-slate-400">Deposits are checked on the blockchain and credited after successful verification.</p>
           </div>
         </div>
       </div>
@@ -391,7 +391,7 @@ export const Recharge: React.FC = () => {
             <div>
               <h3 className="text-sm font-bold text-amber-200">Personal deposit address not ready</h3>
               <p className="mt-1 text-xs leading-5 text-amber-100/80">{setupMessage}</p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-white">Please do not send USDT to the old shared wallet. Wait until your personal deposit address is shown here.</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-white">Please wait until your deposit address is available before sending USDT.</p>
             </div>
           </div>
         </div>
@@ -424,7 +424,7 @@ export const Recharge: React.FC = () => {
           <p className="text-xs leading-5 text-amber-200">Only send USDT on BNB Smart Chain (BEP20). Other networks may cause permanent loss.</p>
           <form onSubmit={submitTxid} className="space-y-3 rounded-xl border border-blue-500/20 bg-[#060d20] p-4">
             <h4 className="text-sm font-bold text-white">Submit your deposit</h4>
-            <p className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-[11px] leading-5 text-amber-100/80">Wallet connection is not required. Shared-address deposits submitted here stay pending for admin review unless independently verified by the server.</p>
+
             {/* Trust Wallet connection controls removed as requested. */}
             <label className="block text-xs text-slate-300">Amount sent (USDT)
               <input required inputMode="decimal" value={amountUsdt} onChange={e => setAmountUsdt(e.target.value)} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 text-sm text-white" placeholder="e.g. 10" />
