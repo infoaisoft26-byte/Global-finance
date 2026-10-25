@@ -15,7 +15,8 @@ import {
   WalletCards,
   Banknote,
   Megaphone,
-  FileText
+  FileText,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import type { ActivePage } from '../../types/index.ts';
@@ -39,6 +40,7 @@ const items: Array<{ page: ActivePage; label: string; icon: React.ComponentType<
   { page: 'admin-packages', label: 'Package Management', icon: Package },
   { page: 'admin-tickets', label: 'Support Tickets', icon: LifeBuoy },
   { page: 'admin-reports', label: 'Reports', icon: FileBarChart2 },
+  { page: 'admin-website-feedback', label: 'Website Reviews', icon: MessageSquare },
   { page: 'admin-audit', label: 'Audit Logs', icon: ShieldCheck },
   { page: 'admin-offer-poster', label: 'Offer Poster', icon: Megaphone },
   { page: 'admin-brochure', label: 'Brochure PDF', icon: FileText },
