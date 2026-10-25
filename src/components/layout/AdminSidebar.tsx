@@ -92,7 +92,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
-          {items.filter(({ page }) => !isSubAdmin || ['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-withdrawals', 'admin-p2p-report', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports'].includes(page)).map(({ page, label, icon: Icon }) => {
+          {items.filter(({ page }) => !isSubAdmin || ['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-withdrawals', 'admin-p2p-report', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports', 'admin-website-feedback'].includes(page)).map(({ page, label, icon: Icon }) => {
             const selected = activePage === page || (page === 'admin-users' && activePage === 'admin-user-detail');
             return (
               <button
