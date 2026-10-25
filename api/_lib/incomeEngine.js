@@ -272,7 +272,9 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
     const already=money(cycle.credited_total||0);
     const headroom=money(Math.max(0,cap-already));
     if(headroom<=0) {
-      await completeActivation(client,cycle.id);
+      // Income-cap exhaustion stops further capped income allocation, but does not
+      // complete the package early. Package lifecycle is governed by its duration
+      // and scheduled ROI, not by credited_total.
       continue;
     }
     const part=money(Math.min(left,headroom));
@@ -316,9 +318,7 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
     updated_at=NOW() WHERE user_id=$1`,
     [recipient,allowed,basicReferral,fdReferral,dailyDate,basicRoi,basicLevel,fdRoi,fdLevel]);
   for(const allocation of allocations) {
-    const updated=await client.query(`UPDATE package_activations SET credited_total=$2,
-      status=CASE WHEN $2>=cap_amount THEN 'completed' ELSE status END,
-      completed_at=CASE WHEN $2>=cap_amount THEN COALESCE(completed_at,NOW()) ELSE completed_at END
+    const updated=await client.query(`UPDATE package_activations SET credited_total=$2
       WHERE id=$1 AND status='active' RETURNING user_id,amount,package_type,status`,[allocation.id,allocation.nextTotal]);
     if(updated.rowCount && allocation.nextTotal>=allocation.cap) {
       const a=updated.rows[0];
