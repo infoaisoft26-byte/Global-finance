@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Star, Sparkles, CheckCircle2, MessageSquareText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 
@@ -13,7 +13,7 @@ function getPromptState(): FeedbackState {
   } catch { return { day: todayKey(), count: 0, lastAt: 0 }; }
 }
 export const WebsiteFeedbackPopup: React.FC = () => {
-  const { user, isAdmin, profile } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [visible, setVisible] = useState(false);
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
@@ -24,7 +24,6 @@ export const WebsiteFeedbackPopup: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [checked, setChecked] = useState(false);
-  const promptState = useMemo(() => getPromptState(), [visible]);
 
   useEffect(() => {
     if (!user || isAdmin) { setVisible(false); return; }
