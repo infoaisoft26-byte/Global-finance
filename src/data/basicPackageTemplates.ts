@@ -4,7 +4,7 @@ const createdAt = '2026-09-27T00:00:00.000Z';
 
 const amounts = [2, 5, 10, 20, 25, 10000, 20000, 50000, 100000, 200000, 500000];
 const dailyRates = [5, 5, 1, 5, 5, 1, 1, 1, 1, 1, 1];
-const durations = [25, 25, 25, 24, 25, 25, 25, 25, 25, 25, 25];
+const durations = [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25];
 
 /**
  * Global Finance Base Plan terms. Displayed rates and durations match the
