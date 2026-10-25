@@ -328,10 +328,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
 
         {/* Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+        <div className="grid grid-cols-2 w-full sm:w-auto sm:flex sm:flex-wrap items-stretch gap-2 sm:gap-3 shrink-0">
           <button
             onClick={() => onNavigate('recharge')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs transition-all shadow-lg shadow-emerald-950/40"
+            className="min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-[11px] sm:text-xs transition-all shadow-lg shadow-emerald-950/40"
           >
             <ArrowUpRight className="w-4 h-4" />
             <span>Recharge Fund</span>
@@ -339,15 +339,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
 
           <button
             onClick={() => onNavigate('basic-package')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-950/40"
+            className="min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-[11px] sm:text-xs transition-all shadow-lg shadow-blue-950/40"
           >
             <Package className="w-4 h-4" />
-            <span>Activate Package</span>
+            <span>Basic Package</span>
           </button>
 
           <button
             onClick={() => onNavigate('p2p-transfer')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#111c44] hover:bg-[#16255c] text-cyan-300 font-semibold text-xs border border-blue-500/30 transition-all shadow-sm"
+            className="min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl bg-[#111c44] hover:bg-[#16255c] text-cyan-300 font-semibold text-[11px] sm:text-xs border border-blue-500/30 transition-all shadow-sm"
           >
             <ArrowDownLeft className="w-4 h-4" />
             <span>P2P Transfer</span>
@@ -355,7 +355,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
 
           <button
             onClick={() => onNavigate('fund-withdrawal')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#111c44] hover:bg-[#16255c] text-rose-300 font-semibold text-xs border border-blue-500/30 transition-all shadow-sm"
+            className="min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl bg-[#111c44] hover:bg-[#16255c] text-rose-300 font-semibold text-[11px] sm:text-xs border border-blue-500/30 transition-all shadow-sm"
           >
             <CreditCard className="w-4 h-4" />
             <span>Withdraw</span>
