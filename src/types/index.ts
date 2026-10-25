@@ -401,5 +401,7 @@ export type ActivePage =
   | 'admin-p2p-report'
   | 'admin-usdt-recharge'
   | 'admin-audit'
-  | 'admin-settings'\n  | 'admin-offer-poster'
+  | 'admin-settings'
+  | 'admin-website-feedback'
+  | 'admin-offer-poster'
   | 'admin-brochure';
