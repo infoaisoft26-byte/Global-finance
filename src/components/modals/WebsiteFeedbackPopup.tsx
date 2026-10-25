@@ -2,15 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { X, Star, Sparkles, CheckCircle2, MessageSquareText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 
-const STORAGE_KEY = 'gf_feedback_prompt_v1';
 const MAX_PROMPTS_PER_DAY = 5;
 type FeedbackState = { day: string; count: number; lastAt: number; dismissedAt?: number };
 const todayKey = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-function getPromptState(): FeedbackState {
+const storageKeyFor = (uid: string) => 'gf_feedback_prompt_v2:' + uid;
+function getPromptState(uid: string): FeedbackState {
+  const fallback = { day: todayKey(), count: 0, lastAt: 0 };
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    return parsed.day === todayKey() ? parsed : { day: todayKey(), count: 0, lastAt: 0 };
-  } catch { return { day: todayKey(), count: 0, lastAt: 0 }; }
+    const parsed = JSON.parse(localStorage.getItem(storageKeyFor(uid)) || '{}');
+    return parsed.day === todayKey() ? parsed : fallback;
+  } catch { return fallback; }
 }
 export const WebsiteFeedbackPopup: React.FC = () => {
   const { user, isAdmin } = useAuth();
@@ -54,16 +55,16 @@ export const WebsiteFeedbackPopup: React.FC = () => {
 
   useEffect(() => {
     if (!user || isAdmin || !checked || submitted) return;
-    const state = getPromptState();
+    const state = getPromptState(user.uid);
     if (state.count >= MAX_PROMPTS_PER_DAY) return;
     const lastPrompt = Number(state.lastAt || 0);
-    const delay = lastPrompt ? Math.max(0, 4 * 60 * 60 * 1000 - (Date.now() - lastPrompt)) : 18_000;
+    const delay = lastPrompt ? Math.max(0, 4 * 60 * 60 * 1000 - (Date.now() - lastPrompt)) : 2_500;
     const timer = window.setTimeout(() => {
-      const latest = getPromptState();
+      const latest = getPromptState(user.uid);
       if (latest.count >= MAX_PROMPTS_PER_DAY) return;
       latest.count += 1;
       latest.lastAt = Date.now();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(latest));
+      localStorage.setItem(storageKeyFor(user.uid), JSON.stringify(latest));
       setVisible(true);
     }, Math.min(delay, 24 * 60 * 60 * 1000));
     return () => window.clearTimeout(timer);
@@ -73,7 +74,7 @@ export const WebsiteFeedbackPopup: React.FC = () => {
     setVisible(false);
     const state = getPromptState();
     state.dismissedAt = Date.now();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(storageKeyFor(user.uid), JSON.stringify(state));
   };
 
   const submit = async (event: React.FormEvent) => {
