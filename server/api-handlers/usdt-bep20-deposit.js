@@ -5,7 +5,7 @@ import { applyActivationIncome, ensureIncomeSchema, runDailyIncome } from '../..
 
 const BASIC_AMOUNTS = [2, 5, 10, 20, 25, 10000, 20000, 50000, 100000, 200000, 500000];
 const BASIC_ROI_RATES = [5, 5, 1, 5, 5, 1, 1, 1, 1, 1, 1];
-const BASIC_DURATIONS = [25, 25, 25, 24, 25, 25, 25, 25, 25, 25, 25];
+const BASIC_DURATIONS = [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25];
 const FD_AMOUNTS = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
 
 function json(res, status, body) {
