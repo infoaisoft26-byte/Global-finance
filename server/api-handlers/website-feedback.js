@@ -23,7 +23,7 @@ export default async function handler(req,res){
      pool.query('SELECT COUNT(*)::int total, COALESCE(ROUND(AVG(rating)::numeric,2),0) average, COUNT(*) FILTER(WHERE rating=5)::int five_star FROM website_feedback'),
      pool.query('SELECT f.id,f.rating,f.website_experience,f.transaction_experience,f.comment,f.created_at,u.name,u.email,u.referral_code FROM website_feedback f LEFT JOIN users u ON u.id=f.user_id ORDER BY f.created_at DESC LIMIT 500')
     ]);
-    return json(res,200,{stats:stats.rows[0],reviews:rows.rows});
+    return json(res,200,{summary:{total:stats.rows[0].total,average_rating:stats.rows[0].average,five_star:stats.rows[0].five_star},feedback:rows.rows});
    }
    const r=await pool.query('SELECT rating,created_at FROM website_feedback WHERE user_id=$1',[uid]);
    return json(res,200,{submitted:!!r.rows.length,review:r.rows[0]||null});
