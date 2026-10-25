@@ -15,7 +15,7 @@ export default async function handler(req,res){
    comment VARCHAR(1200), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
   const user=await pool.query('SELECT id,role,name,email FROM users WHERE id=$1 LIMIT 1',[uid]);
   if(!user.rows.length)return json(res,403,{error:'Member account not found'});
-  const isAdmin=['admin','super_admin','superadmin'].includes(String(user.rows[0].role||'').toLowerCase());
+  const isAdmin=['admin','super_admin','superadmin','sub_admin'].includes(String(user.rows[0].role||'').toLowerCase());
   if(req.method==='GET'){
    if(req.query?.admin==='1'){
     if(!isAdmin)return json(res,403,{error:'Admin access required'});
