@@ -1,11 +1,10 @@
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { getPool, withTransaction } from '../../api/_lib/db.js';
 import { verifyFirebaseIdToken } from '../../api/_lib/firebaseAdmin.js';
 
 const SETTINGS_ID = 'global_finance_system_settings';
 const codePattern = /^GF\d{6}$/;
 const amountPattern = /^(?:0|[1-9][0-9]{0,12})(?:\.[0-9]{1,2})?$/;
-function otpHash(value){const secret=String(process.env.OTP_HASH_SECRET||process.env.RESEND_API_KEY||'').trim();if(!secret)throw new Error('OTP_SECRET_NOT_CONFIGURED');return createHash('sha256').update(secret+':'+value).digest('hex');}
 
 function json(res, status, body) {
   res.statusCode = status;
@@ -106,9 +105,6 @@ export default async function handler(req, res) {
     const recipientCode = String(body.recipientCode || '').trim().toUpperCase();
     const amountText = String(body.amount || '').trim();
     const note = String(body.note || '').trim().slice(0, 250);
-    const otpId = String(body.otpId || '').trim();
-    if (!otpId) return json(res, 403, { error: 'Email OTP verification is required before P2P transfer.' });
-    const otpPayloadHash = otpHash(JSON.stringify({purpose:'p2p_transfer',recipientCode,amount:Number(amountText),note}));
 
     if (!settings.enabled) return json(res, 403, { error: 'P2P transfers are currently disabled in platform settings.' });
     if (settings.requireKyc && actor.kyc_status !== 'verified') return json(res, 403, { error: 'KYC verification is required before sending P2P transfers.' });
@@ -120,9 +116,6 @@ export default async function handler(req, res) {
     if (amount > settings.max) return json(res, 400, { error: `Maximum P2P transfer amount is ${settings.max.toFixed(2)} USDT.` });
 
     const result = await withTransaction(async client => {
-      const otpResult = await client.query('SELECT id,payload_hash,verified_at,expires_at,consumed_at FROM transaction_email_otps WHERE id=$1 AND user_id=$2 AND purpose=$3 FOR UPDATE',[otpId,actor.id,'p2p_transfer']);
-      const otp = otpResult.rows[0];
-      if (!otp || !otp.verified_at || otp.consumed_at || new Date(otp.expires_at).getTime() < Date.now() || otp.payload_hash !== otpPayloadHash) throw new Error('OTP_REQUIRED_OR_INVALID');
       const recipientResult = await client.query(
         `SELECT id,name,referral_code,status FROM users WHERE upper(referral_code)=$1 LIMIT 1`,
         [recipientCode]
@@ -183,7 +176,6 @@ export default async function handler(req, res) {
         [randomUUID(), actor.id, actor.email, reference, JSON.stringify({ recipientUserId: recipient.id, recipientCode: recipient.referral_code, amount, asset: 'USDT', debitId, creditId })]
       );
 
-      await client.query('UPDATE transaction_email_otps SET consumed_at=NOW() WHERE id=$1',[otpId]);
       const balance = await client.query('SELECT fund_wallet FROM wallets WHERE user_id=$1', [actor.id]);
       return { reference, recipient, balance: Number(balance.rows[0]?.fund_wallet || 0) };
     });
@@ -200,8 +192,6 @@ export default async function handler(req, res) {
   } catch (error) {
     const message = String(error?.message || '');
     if (message === 'AUTH_REQUIRED') return json(res, 401, { error: 'Authentication required' });
-    if (message === 'OTP_REQUIRED_OR_INVALID') return json(res, 403, { error: 'Email OTP is missing, expired, already used, or does not match this transfer. Request a new OTP.' });
-    if (message === 'OTP_SECRET_NOT_CONFIGURED') return json(res, 503, { error: 'OTP security secret is not configured in Vercel.' });
     if (message === 'ACTIVE_MEMBER_REQUIRED') return json(res, 403, { error: 'Active member account required' });
     if (message === 'RECIPIENT_NOT_FOUND') return json(res, 404, { error: 'Recipient Member ID was not found.' });
     if (message === 'RECIPIENT_INACTIVE') return json(res, 409, { error: 'Recipient account is not active and cannot receive transfers.' });
