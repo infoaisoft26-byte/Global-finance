@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeftRight, CheckCircle2, AlertCircle, UserCheck, Wallet, Send, RefreshCw, Clock, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getSystemSettings } from '../../services/settingsService.ts';
-import { listP2pTransfers, lookupP2pRecipient, sendP2pTransfer, requestTransactionOtp, verifyTransactionOtp } from '../../services/p2pTransferService.ts';
+import { listP2pTransfers, lookupP2pRecipient, sendP2pTransfer } from '../../services/p2pTransferService.ts';
 import { DataTable, type Column } from '../common/DataTable.tsx';
 import type { TransactionRequest, SystemSettings } from '../../types/index.ts';
 
@@ -15,11 +15,6 @@ export const P2PTransfer: React.FC = () => {
   const [amount, setAmount] = useState<number>(100);
   const [userNote, setUserNote] = useState('');
   const [transferring, setTransferring] = useState(false);
-  const [otpId, setOtpId] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [requests, setRequests] = useState<TransactionRequest[]>([]);
@@ -77,22 +72,6 @@ export const P2PTransfer: React.FC = () => {
     }
   };
 
-  const otpPayload = () => ({ purpose: 'p2p_transfer' as const, recipientCode: recipientInfo?.referralCode || recipientCode.trim().toUpperCase(), amount: Number(amount.toFixed(2)), note: userNote || 'Direct Member Transfer' });
-
-  const handleSendOtp = async () => {
-    if (!user || !recipientInfo) { setErrorMsg('Verify the recipient before requesting OTP.'); return; }
-    setSendingOtp(true); setErrorMsg(''); setSuccessMsg('');
-    try { const result = await requestTransactionOtp(user, otpPayload()); setOtpId(result.otpId); setOtpCode(''); setOtpVerified(false); setSuccessMsg('Email OTP sent to ' + result.maskedEmail + '. It expires in 10 minutes.'); }
-    catch (err: any) { setErrorMsg(err?.message || 'Unable to send email OTP.'); } finally { setSendingOtp(false); }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!user || !otpId) { setErrorMsg('Request an email OTP first.'); return; }
-    setVerifyingOtp(true); setErrorMsg('');
-    try { await verifyTransactionOtp(user, { ...otpPayload(), otpId, code: otpCode }); setOtpVerified(true); setSuccessMsg('Email OTP verified. You can now transfer these exact details.'); }
-    catch (err: any) { setOtpVerified(false); setErrorMsg(err?.message || 'OTP verification failed.'); } finally { setVerifyingOtp(false); }
-  };
-
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !profile || !wallet) {
@@ -103,7 +82,6 @@ export const P2PTransfer: React.FC = () => {
       setErrorMsg('Please verify the Recipient Member ID first.');
       return;
     }
-    if (!otpId || !otpVerified) { setErrorMsg('Verify the email OTP before transferring funds.'); return; }
 
     const minP2p = Number(settings?.minP2p || 1);
     const maxP2p = Number(settings?.maxP2p || 1000000);
@@ -128,12 +106,11 @@ export const P2PTransfer: React.FC = () => {
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const res = await sendP2pTransfer(user, recipientInfo.referralCode, amount, userNote || 'Direct Member Transfer', otpId);
+      const res = await sendP2pTransfer(user, recipientInfo.referralCode, amount, userNote || 'Direct Member Transfer');
       setSuccessMsg(res.message);
       setRecipientCode('');
       setRecipientInfo(null);
       setUserNote('');
-      setOtpId(''); setOtpCode(''); setOtpVerified(false);
       await refreshWallet();
       await loadData();
     } catch (err: any) {
@@ -247,15 +224,6 @@ export const P2PTransfer: React.FC = () => {
               <input type="text" maxLength={250} placeholder="e.g. Member fund transfer" value={userNote} onChange={(e) => setUserNote(e.target.value)} className="w-full px-3.5 py-2 text-xs rounded-xl bg-[#060b1c] border border-blue-500/30 text-white focus:outline-none focus:border-cyan-400" />
             </div>
 
-            <div className="rounded-xl border border-cyan-500/30 bg-slate-900/60 p-4 space-y-3">
-            <div className="text-xs font-bold text-cyan-300">Email OTP Security Verification</div>
-            <p className="text-[11px] text-slate-400">OTP will be sent to your registered email. Changing recipient, amount or note requires a new OTP.</p>
-            <button type="button" onClick={handleSendOtp} disabled={sendingOtp || !recipientInfo || !amount || otpVerified} className="w-full rounded-lg border border-cyan-500/40 px-3 py-2 text-xs font-bold text-cyan-200 disabled:opacity-50">{sendingOtp ? 'Sending OTP…' : 'Send OTP to Registered Email'}</button>
-            <div className="flex gap-2">
-              <input aria-label="Email OTP" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otpCode} onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0,6)); setOtpVerified(false); }} placeholder="Enter 6-digit OTP" className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm tracking-[0.25em] text-white" />
-              <button type="button" onClick={handleVerifyOtp} disabled={verifyingOtp || otpCode.length!==6 || !otpId || otpVerified} className="rounded-lg bg-cyan-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{otpVerified ? 'Verified ✓' : verifyingOtp ? 'Checking…' : 'Verify OTP'}</button>
-            </div>
-          </div>
           <button type="submit" disabled={transferring || !recipientInfo} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-cyan-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-cyan-950/40 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
               {transferring ? <><RefreshCw className="w-4 h-4 animate-spin" /><span>Processing Secure Transfer...</span></> : <><Send className="w-4 h-4" /><span>Transfer Funds Instantly</span></>}
             </button>
