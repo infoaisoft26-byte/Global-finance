@@ -22,6 +22,7 @@ import { FundWalletSummary } from './components/pages/FundWalletSummary.tsx';
 import { IncomeWalletSummary } from './components/pages/IncomeWalletSummary.tsx';
 import { SupportTickets } from './components/pages/SupportTickets.tsx';
 import { ProfileKycModal } from './components/modals/ProfileKycModal.tsx';
+import { WebsiteFeedbackPopup } from './components/modals/WebsiteFeedbackPopup.tsx';
 import { TransactionsPage } from './components/pages/TransactionsPage.tsx';
 import { NotificationsPage } from './components/pages/NotificationsPage.tsx';
 import { PackageActivationsPage } from './components/pages/PackageActivationsPage.tsx';
@@ -43,6 +44,7 @@ import { AdminUsdtRecharge } from './components/pages/admin/AdminUsdtRecharge.ts
 import { AdminAudit } from './components/pages/admin/AdminAudit.tsx';
 import { AdminSettingsPage } from './components/pages/admin/AdminSettingsPage.tsx';
 import { AdminOfferPoster } from './components/pages/admin/AdminOfferPoster.tsx';
+import { AdminWebsiteFeedback } from './components/pages/admin/AdminWebsiteFeedback.tsx';
 
 import { getSystemSettings } from './services/settingsService.ts';
 import type { ActivePage, SystemSettings } from './types/index.ts';
@@ -67,6 +69,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     audit: 'admin-audit',
     settings: 'admin-settings',
     'offer-poster': 'admin-offer-poster',
+    'website-feedback': 'admin-website-feedback',
   };
   if (requested && queryRoutes[requested]) return queryRoutes[requested];
   const normalizedPath = pathname.replace(/\/+$/, '') || '/admin';
@@ -242,7 +245,7 @@ const MainLayout: React.FC = () => {
       : activePage;
     const hasExplicitAdminSection = isAdminEntry && (
       Boolean(new URLSearchParams(window.location.search).get('section')) ||
-      /^\/admin\/(dashboard|p2p-report|transactions|withdrawals|users|user-detail|kyc|tickets|reports|packages|package-activations|usdt-recharge|audit|settings|offer-poster)\/?$/.test(window.location.pathname)
+      /^\/admin\/(dashboard|p2p-report|transactions|withdrawals|users|user-detail|kyc|tickets|reports|packages|package-activations|usdt-recharge|audit|settings|offer-poster|website-feedback)\/?$/.test(window.location.pathname)
     );
     // For direct admin URLs, the URL is the source of truth. For client-side
     // navigation, activePage is updated together with history by navigateToPage.
@@ -340,6 +343,8 @@ const MainLayout: React.FC = () => {
         return <AdminSettingsPage />;
       case 'admin-offer-poster':
         return <AdminOfferPoster />;
+      case 'admin-website-feedback':
+        return <AdminWebsiteFeedback />;
       default:
         return isAdminEntry
           ? <AdminDashboard onNavigate={setActivePage} />
@@ -387,6 +392,9 @@ const MainLayout: React.FC = () => {
         <Footer />
       </div>
 
+      {!isAdminEntry && (
+        <WebsiteFeedbackPopup />
+      )}
       {!isAdminEntry && (
         <ProfileKycModal
           isOpen={showProfileModal}
