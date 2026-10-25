@@ -240,13 +240,6 @@ const MainLayout: React.FC = () => {
     // Render the selected React state. The URL is synchronized by navigateToPage/popstate;
     // deriving render output from window.location here can leave the admin content stuck
     // on the dashboard when client-side navigation changes history without a reload.
-    const routePage = isAdminEntry
-      ? adminPageFromPath(window.location.pathname, window.location.search)
-      : activePage;
-    const hasExplicitAdminSection = isAdminEntry && (
-      Boolean(new URLSearchParams(window.location.search).get('section')) ||
-      /^\/admin\/(dashboard|p2p-report|transactions|withdrawals|users|user-detail|kyc|tickets|reports|packages|package-activations|usdt-recharge|audit|settings|offer-poster|website-feedback)\/?$/.test(window.location.pathname)
-    );
     // For direct admin URLs, the URL is the source of truth. For client-side
     // navigation, activePage is updated together with history by navigateToPage.
     // The selected admin page state is updated by the URL parser on first load,
