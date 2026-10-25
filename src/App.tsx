@@ -249,7 +249,10 @@ const MainLayout: React.FC = () => {
     );
     // For direct admin URLs, the URL is the source of truth. For client-side
     // navigation, activePage is updated together with history by navigateToPage.
-    const resolvedPage = hasExplicitAdminSection ? routePage : activePage;
+    // The selected admin page state is updated by the URL parser on first load,
+    // by sidebar navigation, and by popstate. Use that single source of truth for
+    // content rendering so the URL and selected sidebar cannot disagree.
+    const resolvedPage = activePage;
     const isAdminRoute = resolvedPage.startsWith('admin-');
     if (isAdminRoute && !isAdmin) {
       return (
