@@ -27,7 +27,7 @@ export async function listP2pTransfers(user: FirebaseUser): Promise<TransactionR
   return Array.isArray(data.history) ? data.history : [];
 }
 
-export async function sendP2pTransfer(user: FirebaseUser, recipientCode: string, amount: number, note?: string, otpId?: string): Promise<{
+export async function sendP2pTransfer(user: FirebaseUser, recipientCode: string, amount: number, note?: string): Promise<{
   success: boolean;
   reference: string;
   fundWallet: number;
@@ -37,7 +37,6 @@ export async function sendP2pTransfer(user: FirebaseUser, recipientCode: string,
     recipientCode: recipientCode.trim().toUpperCase(),
     amount: Number(amount.toFixed(2)),
     note: String(note || '').trim(),
-    otpId,
   });
 }
 
