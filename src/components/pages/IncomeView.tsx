@@ -115,6 +115,9 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       const typesForPage: Partial<Record<ActivePage, string[]>> = {
         'basic-referral': ['basic_referral', 'basic_joining_referral', 'basic_retopup_referral'],
         'fd-referral': ['fd_referral', 'fd_joining_referral', 'fd_retopup_referral'],
+        // Show every recorded generation payout, not only daily ROI-level credits.
+        'basic-level': ['basic_level', 'basic_joining_level', 'basic_retopup_level'],
+        'fd-level': ['fd_level', 'fd_joining_level', 'fd_retopup_level'],
       };
       const allowedTypes = typesForPage[page] || [String(config.txnType)];
       setRecords(allTxns.filter((t) => allowedTypes.includes(String(t.type))));
