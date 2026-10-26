@@ -16,7 +16,8 @@ import {
   Banknote,
   Megaphone,
   FileText,
-  MessageSquare
+  MessageSquare,
+  Trophy
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import type { ActivePage } from '../../types/index.ts';
@@ -40,6 +41,7 @@ const items: Array<{ page: ActivePage; label: string; icon: React.ComponentType<
   { page: 'admin-packages', label: 'Package Management', icon: Package },
   { page: 'admin-tickets', label: 'Support Tickets', icon: LifeBuoy },
   { page: 'admin-reports', label: 'Reports', icon: FileBarChart2 },
+  { page: 'admin-income-leaderboard', label: 'Income Leaderboard', icon: Trophy },
   { page: 'admin-website-feedback', label: 'Website Reviews', icon: MessageSquare },
   { page: 'admin-audit', label: 'Audit Logs', icon: ShieldCheck },
   { page: 'admin-offer-poster', label: 'Offer Poster', icon: Megaphone },
@@ -92,7 +94,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
-          {items.filter(({ page }) => !isSubAdmin || ['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-withdrawals', 'admin-p2p-report', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports', 'admin-website-feedback'].includes(page)).map(({ page, label, icon: Icon }) => {
+          {items.filter(({ page }) => !isSubAdmin || ['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-withdrawals', 'admin-p2p-report', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports', 'admin-income-leaderboard', 'admin-website-feedback'].includes(page)).map(({ page, label, icon: Icon }) => {
             const selected = activePage === page || (page === 'admin-users' && activePage === 'admin-user-detail');
             return (
               <button
