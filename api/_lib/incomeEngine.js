@@ -184,35 +184,23 @@ async function uplines(client, userId) {
 }
 
 
-async function hasActiveReferralAtLevel(client, recipientId, targetLevel) {
+async function hasRequiredActiveDirectReferrals(client, recipientId, targetLevel) {
+  // Qualification is cumulative and based on the recipient's own direct team:
+  // L1 requires >=1 active direct referral, L2 >=2, ... L15 >=15.
+  // A downstream member at the matching generation does not replace this requirement.
+  const required = Math.max(1, Math.min(MAX_LEVEL, Number(targetLevel) || 1));
   const { rows } = await client.query(
-    `WITH RECURSIVE d AS (
-       SELECT s.id, s.referral_code, s.sponsor_id, s.status, s.referral_status, 1 AS level, ARRAY[s.id]::varchar[] AS path
-       FROM users root
-       JOIN users s
-         ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.referral_code,'')))
-         OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
-       WHERE root.id=$1
-
-       UNION ALL
-
-       SELECT s.id, s.referral_code, s.sponsor_id, s.status, s.referral_status, d.level+1, d.path || s.id
-       FROM d
-       JOIN users s
-         ON LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.referral_code,'')))
-         OR LOWER(TRIM(COALESCE(s.sponsor_id,''))) = LOWER(TRIM(COALESCE(d.id::text,'')))
-       WHERE d.level < $2
-         AND NOT (s.id=ANY(d.path))
-     )
-     SELECT 1
-     FROM d
-     WHERE d.level=$2
-       AND d.status='active'
-       AND COALESCE(d.referral_status,'active')='active'
-     LIMIT 1`,
-    [recipientId, targetLevel]
+    `SELECT COUNT(*)::int AS active_directs
+       FROM users child
+       JOIN users root
+         ON LOWER(TRIM(COALESCE(child.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.referral_code,'')))
+         OR LOWER(TRIM(COALESCE(child.sponsor_id,''))) = LOWER(TRIM(COALESCE(root.id::text,'')))
+      WHERE root.id=$1
+        AND child.status='active'
+        AND COALESCE(child.referral_status,'active')='active'`,
+    [recipientId]
   );
-  return rows.length > 0;
+  return Number(rows[0]?.active_directs || 0) >= required;
 }
 
 async function eventOnce(client, key, type, sourceUserId, activationId, baseAmount, businessDate, metadata={}) {
@@ -363,7 +351,7 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
     if(rate<=0) continue;
 
     // Joining and retopup payouts use their own schedules and retain level eligibility checks.
-    if(level > 0 && !(await hasActiveReferralAtLevel(client, u.id, level))) continue;
+    if(level > 0 && !(await hasRequiredActiveDirectReferrals(client, u.id, level))) continue;
 
     const incomeType=packageType==='fd'
       ? (first ? (level===1 ? 'fd_joining_referral' : 'fd_joining_level') : (level===1 ? 'fd_retopup_referral' : 'fd_retopup_level'))
@@ -421,9 +409,9 @@ export async function runDailyIncome(client,businessDate) {
       const level=Number(u.level), rate=levelRate(level, rates);
       if(rate<=0) continue;
 
-      // 1:1 level qualification: at least one active member must exist
-      // in the recipient's exact downline generation for this level.
-      if(!(await hasActiveReferralAtLevel(client, u.id, level))) continue;
+      // Level qualification requires a cumulative count of active direct referrals:
+      // L1=1, L2=2, ... L15=15. Qualification is checked at each credit event.
+      if(!(await hasRequiredActiveDirectReferrals(client, u.id, level))) continue;
 
       if(await credit(client,{
         eventKey:key,
