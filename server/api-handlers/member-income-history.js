@@ -83,6 +83,29 @@ export default async function handler(req, res) {
       console.warn('Legacy member income history unavailable:', legacyError instanceof Error ? legacyError.message : legacyError);
     }
 
+    // Resolve the source/downline member's public GF referral code for the history display.
+    // Keep the financial ledger untouched; this only enriches response metadata.
+    try {
+      const sourceIds = [...new Set([...records.values()]
+        .map((item) => String(item.metadata?.sourceUserId || item.metadata?.referredUserId || item.metadata?.downlineUserId || ''))
+        .filter(Boolean))];
+      if (sourceIds.length) {
+        const sourceUsers = await getPool().query(
+          `SELECT id::text AS id, referral_code FROM users WHERE id::text = ANY($1::text[])`,
+          [sourceIds],
+        );
+        const sourceCodes = new Map(sourceUsers.rows.map((row) => [String(row.id), String(row.referral_code || '')]));
+        for (const item of records.values()) {
+          const sourceId = String(item.metadata?.sourceUserId || item.metadata?.referredUserId || item.metadata?.downlineUserId || '');
+          const sourceReferralCode = sourceCodes.get(sourceId);
+          if (sourceReferralCode) item.metadata = { ...(item.metadata || {}), sourceReferralCode };
+        }
+      }
+    } catch (lookupError) {
+      // History remains available when a legacy source ID cannot be resolved.
+      console.warn('Income history source GF ID lookup unavailable:', lookupError instanceof Error ? lookupError.message : lookupError);
+    }
+
     const transactions = [...records.values()]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return json(res, 200, { transactions, source: 'recorded_ledgers', count: transactions.length });
