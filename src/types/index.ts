@@ -389,6 +389,7 @@ export type ActivePage =
   | 'packages'
   // Admin routes
   | 'admin-dashboard'
+  | 'admin-income-leaderboard'
   | 'admin-users'
   | 'admin-user-detail'
   | 'admin-kyc'
