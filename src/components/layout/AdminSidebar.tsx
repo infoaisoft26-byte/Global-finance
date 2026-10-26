@@ -59,14 +59,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const handleNav = (page: ActivePage) => {
     onCloseMobile();
-    // Force a real route transition for the leaderboard so stale SPA state
-    // cannot leave the content pane on Admin Dashboard.
-    if (page === 'admin-income-leaderboard') {
-      // Use the canonical query route so Vercel serves the SPA entry
-      // and the admin section parser selects the leaderboard deterministically.
-      window.location.assign('/admin?section=income-leaderboard');
-      return;
-    }
+    // Keep navigation inside the existing React app. A hard location
+    // change reloads the app and can reset the selected admin section.
     onSelectPage(page);
   };
 
