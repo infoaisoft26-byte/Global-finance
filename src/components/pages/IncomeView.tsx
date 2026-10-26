@@ -181,11 +181,11 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       }
     },
     {
-      key: 'sponsor',
-      header: 'Sponsor',
-      render: () => (
-        <span className="text-xs text-slate-300">
-          {profile?.sponsorName || profile?.sponsorId || '—'}
+      key: 'sourceReferralCode',
+      header: 'GF ID (Through)',
+      render: (item) => (
+        <span className="font-mono text-cyan-300 text-xs font-semibold">
+          {String(item.metadata?.sourceReferralCode || item.metadata?.referredUserReferralCode || item.metadata?.sourceUserReferralCode || '—')}
         </span>
       )
     },
