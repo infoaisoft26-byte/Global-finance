@@ -17,9 +17,23 @@ function resolveConnectionString() {
 }
 
 export function getPool() {
-  const connectionString = resolveConnectionString();
-  if (!connectionString) {
+  const rawConnectionString = resolveConnectionString();
+  if (!rawConnectionString) {
     throw new Error('Database connection URL is not configured');
+  }
+
+  // Use the standard WHATWG URL parser and explicitly request full certificate
+  // and hostname verification for Neon. Do not set rejectUnauthorized:false:
+  // that disables TLS certificate verification.
+  let connectionString = rawConnectionString;
+  try {
+    const parsed = new URL(rawConnectionString);
+    if (parsed.hostname === 'neon.tech' || parsed.hostname.endsWith('.neon.tech')) {
+      parsed.searchParams.set('sslmode', 'verify-full');
+      connectionString = parsed.toString();
+    }
+  } catch {
+    throw new Error('Database connection URL is invalid');
   }
 
   if (!pool) {
@@ -28,7 +42,6 @@ export function getPool() {
       max: 5,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
-      ssl: connectionString.includes('neon.tech') ? { rejectUnauthorized: false } : undefined,
     });
   }
 
