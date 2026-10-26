@@ -58,8 +58,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const { profile, logout, isSubAdmin } = useAuth();
 
   const handleNav = (page: ActivePage) => {
-    onSelectPage(page);
     onCloseMobile();
+    // Force a real route transition for the leaderboard so stale SPA state
+    // cannot leave the content pane on Admin Dashboard.
+    if (page === 'admin-income-leaderboard') {
+      window.location.assign('/admin/income-leaderboard');
+      return;
+    }
+    onSelectPage(page);
   };
 
   return (
