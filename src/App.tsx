@@ -35,6 +35,7 @@ import { AdminUserDetail } from './components/pages/admin/AdminUserDetail.tsx';
 import { AdminKyc } from './components/pages/admin/AdminKyc.tsx';
 import { AdminTickets } from './components/pages/admin/AdminTickets.tsx';
 import { AdminReports } from './components/pages/admin/AdminReports.tsx';
+import { AdminIncomeLeaderboard } from './components/pages/admin/AdminIncomeLeaderboard.tsx';
 import { AdminPackages } from './components/pages/admin/AdminPackages.tsx';
 import { AdminPackageActivations } from './components/pages/admin/AdminPackageActivations.tsx';
 import { AdminTransactions } from './components/pages/admin/AdminTransactions.tsx';
@@ -63,6 +64,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     kyc: 'admin-kyc',
     tickets: 'admin-tickets',
     reports: 'admin-reports',
+    'income-leaderboard': 'admin-income-leaderboard',
     packages: 'admin-packages',
     'package-activations': 'admin-package-activations',
     'usdt-recharge': 'admin-usdt-recharge',
@@ -331,6 +333,8 @@ const MainLayout: React.FC = () => {
         return <AdminTickets />;
       case 'admin-reports':
         return <AdminReports />;
+      case 'admin-income-leaderboard':
+        return <AdminIncomeLeaderboard />;
       case 'admin-packages':
         return <AdminPackages />;
       case 'admin-audit':
