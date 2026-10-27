@@ -350,8 +350,10 @@ export async function applyActivationIncome(client,{activationId,userId,amount,p
     rate=levelRate(level, rates);
     if(rate<=0) continue;
 
-    // Joining and retopup payouts use their own schedules and retain level eligibility checks.
-    if(level > 0 && !(await hasRequiredActiveDirectReferrals(client, u.id, level))) continue;
+    // Level is determined by the sponsor chain. Do not require an upline to have
+    // the same number of direct referrals as their level; that incorrectly blocks
+    // otherwise eligible L2-L15 payouts. Active status, active package and cap
+    // eligibility are enforced by the recipient checks in this engine.
 
     const incomeType=packageType==='fd'
       ? (first ? (level===1 ? 'fd_joining_referral' : 'fd_joining_level') : (level===1 ? 'fd_retopup_referral' : 'fd_retopup_level'))
@@ -409,9 +411,9 @@ export async function runDailyIncome(client,businessDate) {
       const level=Number(u.level), rate=levelRate(level, rates);
       if(rate<=0) continue;
 
-      // Level qualification requires a cumulative count of active direct referrals:
-      // L1=1, L2=2, ... L15=15. Qualification is checked at each credit event.
-      if(!(await hasRequiredActiveDirectReferrals(client, u.id, level))) continue;
+      // Do not gate an upline's generation payout on their own direct-count.
+      // Generation comes from the recursive sponsor chain; credit() still enforces
+      // active package, cap headroom, and idempotency before any wallet/ledger credit.
 
       if(await credit(client,{
         eventKey:key,
