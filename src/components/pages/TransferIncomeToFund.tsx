@@ -251,13 +251,13 @@ export const TransferIncomeToFund: React.FC = () => {
               <span>Accounting Protection</span>
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
-              The transfer checks the live Neon wallet balance and moves both wallet balances in one atomic database transaction.
+              Your available balance is checked before the transfer, and the amount is moved securely between your wallets.
             </p>
             <ul className="text-[11px] text-slate-400 space-y-2 list-disc list-inside">
               <li>0% administrative charges.</li>
               <li>Fund balance updates immediately for package activation.</li>
-              <li>Immutable debit and credit journal entries are recorded together.</li>
-              <li>Retry-safe reference prevents duplicate transfer credit.</li>
+              <li>A record of the completed transfer is maintained.</li>
+              <li>Transfer references help prevent duplicate processing.</li>
             </ul>
           </div>
         </div>
