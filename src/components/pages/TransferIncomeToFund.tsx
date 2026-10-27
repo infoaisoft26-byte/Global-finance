@@ -15,7 +15,7 @@ import type { TransactionRequest, SystemSettings } from '../../types/index.ts';
 export const TransferIncomeToFund: React.FC = () => {
   const { user, profile, wallet, refreshWallet } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [amount, setAmount] = useState<number>(500);
+  const [amount, setAmount] = useState<number>(0);
   const [transferring, setTransferring] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -209,8 +209,8 @@ export const TransferIncomeToFund: React.FC = () => {
                   min={settings?.minIncomeTransfer || 100}
                   max={settings?.maxIncomeTransfer || 200000}
                   step="0.00000001"
-                  value={amount}
-                  onChange={(e) => setAmount(Number(e.target.value))}
+                  value={amount > 0 ? amount : ''}
+                  onChange={(e) => setAmount(e.target.value === '' ? 0 : Number(e.target.value))}
                   required
                   className="w-full pl-14 pr-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
                 />
@@ -218,11 +218,11 @@ export const TransferIncomeToFund: React.FC = () => {
             </div>
             <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 text-xs text-slate-300 flex items-center justify-between">
               <span>Debit from Available Balance:</span>
-              <span className="font-mono text-rose-400 font-bold">-USDT {amount.toFixed(8)}</span>
+              <span className="font-mono text-rose-400 font-bold">{amount > 0 ? `-USDT ${amount.toFixed(8)}` : "Enter amount"}</span>
             </div>
             <div className="p-3 rounded-xl bg-[#060b1c] border border-blue-500/20 text-xs text-slate-300 flex items-center justify-between">
               <span>Credit to Available Fund:</span>
-              <span className="font-mono text-emerald-400 font-bold">+USDT {amount.toFixed(8)}</span>
+              <span className="font-mono text-emerald-400 font-bold">{amount > 0 ? `+USDT ${amount.toFixed(8)}` : "Enter amount"}</span>
             </div>
             <button
               type="submit"
