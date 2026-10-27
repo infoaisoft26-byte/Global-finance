@@ -159,10 +159,7 @@ export default async function handler(req,res) {
   for (const r of levelsQ.rows) {
     const level=Number(r.level||0);
     const amount=Number(r.total_income||0);
-    const row={
-      level,creditCount:Number(r.credit_count||0),totalIncome:amount,
-      lastCreditAt:r.last_credit_at
-    };
+    const row={level,creditCount:Number(r.credit_count||0),totalIncome:amount,lastCreditAt:r.last_credit_at};
     if (!byUser.has(r.user_id)) byUser.set(r.user_id,[]);
     byUser.get(r.user_id).push(row);
     if(level>=1&&level<=15){
@@ -181,17 +178,14 @@ export default async function handler(req,res) {
     const levelRows=(byUser.get(u.id)||[]).sort((a,b)=>a.level-b.level);
     return {
       userId:u.id,name:u.name||'Member',email:u.email||'',gfId:u.referral_code||'',
-      status:u.status||'',
-      totalInvested:Number(inv.total_invested||0),
-      investmentCount:Number(inv.investment_count||0),
-      lastInvestmentAt:inv.last_investment_at||null,
+      status:u.status||'',totalInvested:Number(inv.total_invested||0),
+      investmentCount:Number(inv.investment_count||0),lastInvestmentAt:inv.last_investment_at||null,
       levels:levelRows.filter(x=>x.level>=1&&x.level<=15),
       levelIncomeTotal:levelRows.reduce((sum,x)=>sum+x.totalIncome,0)
     };
   }).sort((a,b)=>b.totalInvested-a.totalInvested||a.name.localeCompare(b.name));
   const levels=levelTotals.map(x=>({
-    level:x.level,totalIncome:x.totalIncome,creditCount:x.creditCount,
-    memberCount:x.memberIds.size
+    level:x.level,totalIncome:x.totalIncome,creditCount:x.creditCount,memberCount:x.memberIds.size
   }));
   return {
     generatedAt:new Date().toISOString(),
@@ -204,8 +198,7 @@ export default async function handler(req,res) {
       creditedMembers:new Set(levelsQ.rows.filter(r=>Number(r.level)>=1&&Number(r.level)<=15).map(r=>r.user_id)).size,
       unassignedIncome
     },
-    levels,
-    members
+    levels,members
   };
 }
 
