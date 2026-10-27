@@ -279,7 +279,7 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
   const recipientUser=(await client.query('SELECT id,name,email,referral_code FROM users WHERE id=$1 LIMIT 1',[recipient])).rows[0];
   const ledgerId='LED-'+id;
   const metadata={
-    sourceUserId:source,referredUserId:source,referredUserName:sourceUser?.name||null,
+    sourceUserId:source,sourceReferralCode:sourceUser?.referral_code||null,referredUserId:source,referredUserName:sourceUser?.name||null,
     referredUserEmail:sourceUser?.email||null,referrerUserId:recipient,
     referrerReferralCode:recipientUser?.referral_code||null,referralLevel:level,level,
     percentage:rate,commissionPercentage:rate,referralAmount:allowed,requestedAmount:requested,
