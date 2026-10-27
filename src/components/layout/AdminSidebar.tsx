@@ -43,6 +43,7 @@ const items: Array<{ page: ActivePage; label: string; icon: React.ComponentType<
   { page: 'admin-reports', label: 'Reports', icon: FileBarChart2 },
   { page: 'admin-income-leaderboard', label: 'Income Leaderboard', icon: Trophy },
   { page: 'admin-website-feedback', label: 'Website Reviews', icon: MessageSquare },
+  { page: 'admin-website-survey', label: 'Survey Responses', icon: ClipboardList },
   { page: 'admin-audit', label: 'Audit Logs', icon: ShieldCheck },
   { page: 'admin-offer-poster', label: 'Offer Poster', icon: Megaphone },
   { page: 'admin-brochure', label: 'Brochure PDF', icon: FileText },

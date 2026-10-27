@@ -7,6 +7,7 @@ import { Footer } from './components/layout/Footer.tsx';
 import { AuthScreen } from './components/auth/AuthScreen.tsx';
 import { AdminLoginScreen } from './components/auth/AdminLoginScreen.tsx';
 import { ProfileKycModal } from './components/modals/ProfileKycModal.tsx';
+import { WebsiteSurveyPopup } from './components/modals/WebsiteSurveyPopup.tsx';
 import { DirectTeam } from './components/pages/DirectTeam.tsx';
 import { TeamList } from './components/pages/TeamList.tsx';
 import { getSystemSettings } from './services/settingsService.ts';
@@ -49,6 +50,8 @@ const AdminBrochure = lazy(() => import('./components/pages/admin/AdminBrochure.
 const BrochureDownload = lazy(() => import('./components/pages/BrochureDownload.tsx').then(m => ({ default: m.BrochureDownload })));
 const AdminAudit = lazy(() => import('./components/pages/admin/AdminAudit.tsx').then(m => ({ default: m.AdminAudit })));
 const AdminSettingsPage = lazy(() => import('./components/pages/admin/AdminSettingsPage.tsx').then(m => ({ default: m.AdminSettingsPage })));
+const AdminWebsiteSurvey = lazy(() => import('./components/pages/admin/AdminWebsiteSurvey.tsx').then(m => ({ default: m.AdminWebsiteSurvey })));
+const AdminWebsiteFeedback = lazy(() => import('./components/pages/admin/AdminWebsiteFeedback.tsx').then(m => ({ default: m.AdminWebsiteFeedback })));
 
 class PageErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -80,7 +83,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     'user-detail': 'admin-user-detail', kyc: 'admin-kyc', tickets: 'admin-tickets',
     reports: 'admin-reports', packages: 'admin-packages',
     'package-activations': 'admin-package-activations', 'usdt-recharge': 'admin-usdt-recharge',
-    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster', brochure: 'admin-brochure'
+    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster', brochure: 'admin-brochure', 'website-survey': 'admin-website-survey'
   };
   if (requested && routes[requested]) return routes[requested];
   const normalized = pathname.replace(/\/+$/, '') || '/admin';
@@ -264,6 +267,8 @@ const MainLayout: React.FC = () => {
       case 'admin-packages': return <AdminPackages />;
       case 'admin-audit': return <AdminAudit />;
       case 'admin-settings': return <AdminSettingsPage />;
+      case 'admin-website-feedback': return <AdminWebsiteFeedback />;
+      case 'admin-website-survey': return <AdminWebsiteSurvey />;
       default: return isAdminEntry ? <AdminDashboardFast onNavigate={navigateToPage} /> : <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
     }
   };
@@ -291,6 +296,7 @@ const MainLayout: React.FC = () => {
       </div>
 
       {!isAdminEntry && <SupportAiChat />}
+      {!isAdminEntry && <WebsiteSurveyPopup />}
       {!isAdminEntry && <ProfileKycModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} onNavigateToKyc={() => { setShowProfileModal(false); setActivePage('kyc'); }} />}
     </div>
   );

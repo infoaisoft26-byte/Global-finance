@@ -404,5 +404,6 @@ export type ActivePage =
   | 'admin-audit'
   | 'admin-settings'
   | 'admin-website-feedback'
+  | 'admin-website-survey'
   | 'admin-offer-poster'
   | 'admin-brochure';
