@@ -10,7 +10,7 @@ import type { TransactionRequest, SystemSettings } from '../../types/index.ts';
 export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
   const { user, profile, wallet, refreshWallet } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [amount, setAmount] = useState<number>(10);
+  const [amount, setAmount] = useState<number>(0.5);
   const [walletAddress, setWalletAddress] = useState('');
   const [userNote, setUserNote] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
@@ -105,7 +105,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
   const handleSendOtp = async () => {
     if (!isWithdrawalEnabled || !isWithinWithdrawalWindow()) { showWithdrawalWindowPopup(); return; }
     if (!user) { setErrorMsg('Please sign in again.'); return; }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress.trim()) || !Number.isFinite(amount) || amount < 2) { setErrorMsg('Enter a valid amount and BEP20 address first.'); return; }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress.trim()) || !Number.isFinite(amount) || amount < 0.5) { setErrorMsg('Enter a valid amount and BEP20 address first.'); return; }
     setSendingOtp(true); setErrorMsg(''); setSuccessMsg('');
     try { const result = await requestTransactionOtp(user, otpPayload()); setOtpId(result.otpId); setOtpCode(''); setOtpVerified(false); setSuccessMsg('Email OTP sent to ' + result.maskedEmail + '. It expires in 10 minutes.'); }
     catch (err: any) { setErrorMsg(err?.message || 'Unable to send email OTP.'); } finally { setSendingOtp(false); }
@@ -127,8 +127,8 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
       return;
     }
 
-    if (!Number.isFinite(amount) || amount < 2) {
-      setErrorMsg('Minimum withdrawal amount is 2 USDT.');
+    if (!Number.isFinite(amount) || amount < 0.5) {
+      setErrorMsg('Minimum withdrawal amount is 0.50 USDT.');
       return;
     }
 
@@ -234,7 +234,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
 
       <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-3 text-xs">
         <Clock className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-        <div><strong className="font-semibold block">Daily withdrawal window</strong><span>10:30 AM – 3:30 PM IST • Minimum 2 USDT</span><span className="block mt-1">After submission, the amount is reserved immediately. Admin approval and processing target: within 24 hours. If rejected, the reserved amount is refunded to your available balance.</span></div>
+        <div><strong className="font-semibold block">Daily withdrawal window</strong><span>10:30 AM – 3:30 PM IST • Minimum 0.50 USDT</span><span className="block mt-1">After submission, the amount is reserved immediately. Admin approval and processing target: within 24 hours. If rejected, the reserved amount is refunded to your available balance.</span></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -251,7 +251,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
             <div>
               <label className="block text-xs font-semibold mb-1">Withdrawal Amount (USDT) *</label>
               <div className="relative">
-                <input type="number" min="2" step="0.000001" value={amount} onChange={(e) => { setAmount(Number(e.target.value)); setOtpVerified(false); }} required className="w-full pr-16 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 font-mono text-sm focus:outline-none focus:border-cyan-500" />
+                <input type="number" min="0.5" step="0.000001" value={amount} onChange={(e) => { setAmount(Number(e.target.value)); setOtpVerified(false); }} required className="w-full pr-16 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 font-mono text-sm focus:outline-none focus:border-cyan-500" />
                 <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold">USDT</span>
               </div>
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-slate-700">
