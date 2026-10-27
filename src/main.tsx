@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './AppOptimized.tsx';
 import { OFFICIAL_GLOBAL_FINANCE_LOGO } from './assets/officialGlobalFinanceLogo.ts';
 import './index.css';
+import './styles/blackGoldTheme.css';
 import './styles/dashboardHeroContrast.css';
 import './styles/globalBrandLogo.css';
 
