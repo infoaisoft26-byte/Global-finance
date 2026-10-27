@@ -1,0 +1,33 @@
+/* Black + Gold luxury theme for the isolated second-site branch only. */
+:root {
+  color-scheme: dark;
+  --bg-primary: #080808;
+  --bg-secondary: #11100d;
+  --bg-card: #15130f;
+  --gold: #d4af37;
+  --gold-bright: #f4d675;
+  --gold-muted: #9d7d24;
+  --text-primary: #f7f3e8;
+  --text-muted: #b6ad98;
+}
+html, body, #root { min-height: 100%; background: #080808; color: #f7f3e8; }
+body { background-image: radial-gradient(ellipse at top right, rgba(212,175,55,.09), transparent 38%); }
+#root .bg-\[\#070b19\], #root .bg-\[\#091129\], #root .bg-\[\#060b1c\] { background-color: #090909 !important; }
+#root [class*="bg-blue-"], #root [class*="bg-cyan-"], #root [class*="bg-indigo-"] { background-color: #b89126 !important; }
+#root [class*="from-blue-"], #root [class*="from-cyan-"], #root [class*="from-indigo-"] { --tw-gradient-from: #f4d675 var(--tw-gradient-from-position) !important; }
+#root [class*="to-blue-"], #root [class*="to-cyan-"], #root [class*="to-indigo-"] { --tw-gradient-to: #8a6b18 var(--tw-gradient-to-position) !important; }
+#root [class*="text-cyan-"], #root [class*="text-blue-"], #root [class*="text-indigo-"] { color: #e2bd50 !important; }
+#root [class*="border-blue-"], #root [class*="border-cyan-"], #root [class*="border-indigo-"] { border-color: rgba(212,175,55,.36) !important; }
+#root [class*="shadow-cyan-"], #root [class*="shadow-blue-"] { --tw-shadow-color: rgba(212,175,55,.14) !important; }
+#root .text-white { color: #fffaf0; }
+#root [class*="bg-slate-"], #root [class*="bg-gray-"] { background-color: #15130f; }
+#root [class*="border-slate-"], #root [class*="border-gray-"] { border-color: rgba(212,175,55,.18); }
+#root button, #root a { transition: border-color .18s ease, background-color .18s ease, color .18s ease, transform .18s ease; }
+#root button[class*="bg-blue-"], #root button[class*="bg-cyan-"], #root button[class*="bg-indigo-"] { color: #090909 !important; font-weight: 700; }
+#root button[class*="bg-blue-"]:hover, #root button[class*="bg-cyan-"]:hover, #root button[class*="bg-indigo-"]:hover { background-color: #f4d675 !important; }
+#root input, #root select, #root textarea { background-color: #0d0c0a; color: #fffaf0; border-color: rgba(212,175,55,.32); }
+#root input:focus, #root select:focus, #root textarea:focus { outline-color: #d4af37; border-color: #d4af37; }
+#root table thead, #root th { color: #f4d675; }
+#root .gf-opening-screen { background: #080808; }
+#root .gf-opening-title { color: #f4d675; letter-spacing: .18em; }
+#root .gf-opening-tagline { color: #b6ad98; }
