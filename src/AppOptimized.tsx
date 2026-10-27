@@ -51,6 +51,7 @@ const BrochureDownload = lazy(() => import('./components/pages/BrochureDownload.
 const AdminAudit = lazy(() => import('./components/pages/admin/AdminAudit.tsx').then(m => ({ default: m.AdminAudit })));
 const AdminSettingsPage = lazy(() => import('./components/pages/admin/AdminSettingsPage.tsx').then(m => ({ default: m.AdminSettingsPage })));
 const AdminWebsiteSurvey = lazy(() => import('./components/pages/admin/AdminWebsiteSurvey.tsx').then(m => ({ default: m.AdminWebsiteSurvey })));
+const AdminWebsiteFeedback = lazy(() => import('./components/pages/admin/AdminWebsiteFeedback.tsx').then(m => ({ default: m.AdminWebsiteFeedback })));
 
 class PageErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -82,7 +83,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     'user-detail': 'admin-user-detail', kyc: 'admin-kyc', tickets: 'admin-tickets',
     reports: 'admin-reports', packages: 'admin-packages',
     'package-activations': 'admin-package-activations', 'usdt-recharge': 'admin-usdt-recharge',
-    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster', brochure: 'admin-brochure', 'website-survey': 'admin-website-feedback'
+    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster', brochure: 'admin-brochure', 'website-survey': 'admin-website-survey'
   };
   if (requested && routes[requested]) return routes[requested];
   const normalized = pathname.replace(/\/+$/, '') || '/admin';
@@ -266,7 +267,8 @@ const MainLayout: React.FC = () => {
       case 'admin-packages': return <AdminPackages />;
       case 'admin-audit': return <AdminAudit />;
       case 'admin-settings': return <AdminSettingsPage />;
-      case 'admin-website-feedback': return <AdminWebsiteSurvey />;
+      case 'admin-website-feedback': return <AdminWebsiteFeedback />;
+      case 'admin-website-survey': return <AdminWebsiteSurvey />;
       default: return isAdminEntry ? <AdminDashboardFast onNavigate={navigateToPage} /> : <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
     }
   };
