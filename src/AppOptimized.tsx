@@ -50,6 +50,7 @@ const AdminBrochure = lazy(() => import('./components/pages/admin/AdminBrochure.
 const BrochureDownload = lazy(() => import('./components/pages/BrochureDownload.tsx').then(m => ({ default: m.BrochureDownload })));
 const AdminAudit = lazy(() => import('./components/pages/admin/AdminAudit.tsx').then(m => ({ default: m.AdminAudit })));
 const AdminSettingsPage = lazy(() => import('./components/pages/admin/AdminSettingsPage.tsx').then(m => ({ default: m.AdminSettingsPage })));
+const AdminWebsiteSurvey = lazy(() => import('./components/pages/admin/AdminWebsiteSurvey.tsx').then(m => ({ default: m.AdminWebsiteSurvey })));
 
 class PageErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -265,6 +266,7 @@ const MainLayout: React.FC = () => {
       case 'admin-packages': return <AdminPackages />;
       case 'admin-audit': return <AdminAudit />;
       case 'admin-settings': return <AdminSettingsPage />;
+      case 'admin-website-feedback': return <AdminWebsiteSurvey />;
       default: return isAdminEntry ? <AdminDashboardFast onNavigate={navigateToPage} /> : <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
     }
   };
