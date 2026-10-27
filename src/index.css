@@ -794,3 +794,51 @@ html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-team .grid > div::
   .gf-member-dashboard .gf-dashboard-hero > div:last-child { width: 100%; }
   .gf-member-dashboard .gf-dashboard-hero > div:last-child button { flex: 1 1 45%; justify-content: center; }
 }
+
+
+/* Final dark-mode text contrast fix.
+ * Legacy pages sometimes use dark-ink utilities on dark cards, making labels
+ * disappear when members switch themes. Keep the member workspace readable
+ * without changing the intentional white/dark text on colored action buttons.
+ */
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(.text-slate-900,.text-slate-800,.text-gray-900,.text-gray-800,.text-zinc-900,.text-neutral-900,.text-black) {
+  color: #f1f5f9 !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(input,select,textarea,option) {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button,a)[class*="bg-amber-"], 
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button,a)[class*="bg-yellow-"] {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button,a)[class*="bg-amber-"] *,
+html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:has(> aside[class*="border-blue-500/20"]) main :is(button,a)[class*="bg-yellow-"] * {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+/* Survey popup is deliberately a light card in both themes: lock its ink,
+ * option labels and form fields to readable colors so global theme rules
+ * cannot wash text out or make it inherit a dark-page color. */
+.gf-survey-card {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  color-scheme: light;
+}
+.gf-survey-card :is(h2,h3,p,label,legend,span,button,textarea) {
+  text-shadow: none;
+}
+.gf-survey-card :is(.text-slate-900,.text-slate-800,.text-slate-700,.text-slate-600,.text-slate-500) {
+  -webkit-text-fill-color: currentColor;
+}
+.gf-survey-card textarea {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+.gf-survey-card textarea::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
