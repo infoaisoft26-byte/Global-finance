@@ -12,7 +12,7 @@ export const P2PTransfer: React.FC = () => {
   const [recipientCode, setRecipientCode] = useState('');
   const [recipientInfo, setRecipientInfo] = useState<{ name: string; referralCode: string } | null>(null);
   const [checkingRecipient, setCheckingRecipient] = useState(false);
-  const [amount, setAmount] = useState<number>(100);
+  const [amount, setAmount] = useState<number>(0);
   const [userNote, setUserNote] = useState('');
   const [transferring, setTransferring] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -216,7 +216,7 @@ export const P2PTransfer: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">Transfer Amount (USDT) <span className="text-rose-400">*</span></label>
-              <input type="number" min={settings?.minP2p || 1} max={settings?.maxP2p || 1000000} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} required className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono text-sm focus:outline-none focus:border-cyan-400" />
+              <input type="number" min={settings?.minP2p || 1} max={settings?.maxP2p || 1000000} step="0.01" value={amount > 0 ? amount : ''} onChange={(e) => setAmount(e.target.value === '' ? 0 : Number(e.target.value))} required className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono text-sm focus:outline-none focus:border-cyan-400" />
             </div>
 
             <div>
