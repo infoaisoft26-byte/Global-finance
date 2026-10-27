@@ -832,7 +832,8 @@ html[data-gf-theme="dark"] #root > div.min-h-screen.flex.flex-col.antialiased:ha
   text-shadow: none;
 }
 .gf-survey-card :is(.text-slate-900,.text-slate-800,.text-slate-700,.text-slate-600,.text-slate-500) {
-  -webkit-text-fill-color: currentColor;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
 }
 .gf-survey-card textarea {
   color: #0f172a !important;
