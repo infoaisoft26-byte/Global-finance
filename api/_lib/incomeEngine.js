@@ -377,7 +377,7 @@ export async function runDailyIncome(client,businessDate) {
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_BUSINESS_DATE');
   // Expired activations must transition out of active status even if a prior daily run was missed.
   await client.query(`UPDATE package_activations SET status='matured' WHERE status='active' AND (expires_at AT TIME ZONE 'Asia/Kolkata')::date < $1::date`,[date]);
-  const {rows}=await client.query(`SELECT pa.* FROM package_activations pa JOIN users u ON u.id=pa.user_id
+  const {rows}=await client.query(`SELECT pa.*,COALESCE(u.referral_code,'') AS source_referral_code FROM package_activations pa JOIN users u ON u.id=pa.user_id
     WHERE pa.status='active' AND u.status='active'
       AND COALESCE(u.referral_status,'active')='active'
       AND (pa.activated_at AT TIME ZONE 'Asia/Kolkata')::date<=$1::date
@@ -424,7 +424,7 @@ export async function runDailyIncome(client,businessDate) {
         rate,
         base:creditedRoiBase,
         amount:pct(creditedRoiBase,rate),
-        description:`Daily level L${level} (${rate}%) calculated on ROI ${creditedRoiBase.toFixed(2)} USDT from ${a.user_id}`,
+        description:`Daily level L${level} (${rate}%) calculated on ROI ${creditedRoiBase.toFixed(2)} USDT from ${a.source_referral_code || a.user_id}`,
         businessDate:date,
         countInDailyTotals:true
       })) levelCredits++;
