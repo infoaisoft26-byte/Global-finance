@@ -720,13 +720,70 @@ export default async function handler(req,res){
         return json(res,503,{configured:false,error:'Recharge setup is incomplete. The Binance BEP20 address and BSC verification settings must be configured by the site administrator before deposits can be accepted.'});
       }
       if(scope==='ledger'){
-        const q=admin
+        // Merge the legacy transaction collection with the live ledger. Current
+        // wallet activity is written to the relational ledger, so reading only
+        // the legacy collection made real member transactions appear missing.
+        const transactionsById = new Map();
+        const firestoreQuery = admin
           ? getFirestoreAdmin().collection('transactions').limit(1000)
           : getFirestoreAdmin().collection('transactions').where('userId','==',actor.id).limit(500);
-        const snap=await q.get();
-        const transactions=snap.docs
-          .map(d=>({id:d.id,...(d.data()||{})}))
-          .sort((a,b)=>new Date(iso(b.createdAt)).getTime()-new Date(iso(a.createdAt)).getTime());
+        const firestoreSnap = await firestoreQuery.get();
+        for (const d of firestoreSnap.docs) {
+          const row = d.data() || {};
+          transactionsById.set(String(row.id || d.id), { id:d.id, ...row });
+        }
+
+        try {
+          const pool = getPool();
+          const result = admin
+            ? await pool.query(
+                `SELECT id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,
+                        sender_user_id,recipient_user_id,status,metadata,created_at
+                   FROM ledger_transactions
+                  ORDER BY created_at DESC
+                  LIMIT 1000`
+              )
+            : await pool.query(
+                `SELECT id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,
+                        sender_user_id,recipient_user_id,status,metadata,created_at
+                   FROM ledger_transactions
+                  WHERE user_id::text=$1 OR sender_user_id::text=$1 OR recipient_user_id::text=$1
+                  ORDER BY created_at DESC
+                  LIMIT 500`,
+                [actor.id]
+              );
+
+          for (const row of result.rows) {
+            const id = String(row.id);
+            transactionsById.set(id, {
+              id,
+              userId: String(row.user_id || ''),
+              type: String(row.type || 'transaction'),
+              category: String(row.category || ''),
+              flow: String(row.flow || ''),
+              amount: Number(row.amount || 0),
+              fee: Number(row.fee || 0),
+              netAmount: Number(row.net_amount ?? row.amount ?? 0),
+              description: String(row.description || ''),
+              referenceId: String(row.reference_id || ''),
+              senderUserId: row.sender_user_id == null ? undefined : String(row.sender_user_id),
+              recipientUserId: row.recipient_user_id == null ? undefined : String(row.recipient_user_id),
+              status: String(row.status || 'completed'),
+              metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : {},
+              createdAt: iso(row.created_at),
+            });
+          }
+        } catch (ledgerError) {
+          // Keep legacy history available during a temporary database outage.
+          console.error('Relational transaction history lookup failed:', ledgerError instanceof Error ? ledgerError.message : ledgerError);
+        }
+
+        const transactions = [...transactionsById.values()]
+          .filter(t => admin || String(t.userId || '') === String(actor.id) ||
+            String(t.senderUserId || '') === String(actor.id) ||
+            String(t.recipientUserId || '') === String(actor.id))
+          .sort((a,b)=>new Date(iso(b.createdAt)).getTime()-new Date(iso(a.createdAt)).getTime())
+          .slice(0, admin ? 1000 : 500);
         return json(res,200,{transactions});
       }
       if(scope==='admin'&&!admin) return json(res,403,{error:'Admin access required'});
