@@ -7,6 +7,7 @@ import { Footer } from './components/layout/Footer.tsx';
 import { AuthScreen } from './components/auth/AuthScreen.tsx';
 import { AdminLoginScreen } from './components/auth/AdminLoginScreen.tsx';
 import { ProfileKycModal } from './components/modals/ProfileKycModal.tsx';
+import { WebsiteSurveyPopup } from './components/modals/WebsiteSurveyPopup.tsx';
 import { DirectTeam } from './components/pages/DirectTeam.tsx';
 import { TeamList } from './components/pages/TeamList.tsx';
 import { getSystemSettings } from './services/settingsService.ts';
@@ -291,6 +292,7 @@ const MainLayout: React.FC = () => {
       </div>
 
       {!isAdminEntry && <SupportAiChat />}
+      {!isAdminEntry && <WebsiteSurveyPopup />}
       {!isAdminEntry && <ProfileKycModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} onNavigateToKyc={() => { setShowProfileModal(false); setActivePage('kyc'); }} />}
     </div>
   );
