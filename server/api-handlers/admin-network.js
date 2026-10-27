@@ -32,20 +32,11 @@ async function financeReport(pool) {
 
 
 async function incomeLeaderboard(pool) {
-  // Only actually credited income-ledger credits count. Pending/rejected/failed
-  // rows and wallet debits are deliberately excluded.
   const { rows } = await pool.query(`
     WITH eligible AS (
       SELECT
-        l.id,
-        l.user_id,
-        l.type,
-        l.amount,
-        l.net_amount,
-        l.status,
-        l.created_at,
-        l.metadata,
-        l.description,
+        l.id, l.user_id, l.type, l.amount, l.net_amount, l.status,
+        l.created_at, l.metadata, l.description,
         CASE
           WHEN COALESCE(
             NULLIF(l.metadata->>'level',''),
@@ -140,13 +131,8 @@ export default async function handler(req,res) {
           'basic_retopup_level','fd_retopup_level'
         )
     )
-    SELECT
-      e.user_id,
-      u.name,
-      u.email,
-      u.referral_code,
-      e.level_no AS level,
-      COUNT(*)::int AS credit_count,
+    SELECT e.user_id, u.name, u.email, u.referral_code,
+      e.level_no AS level, COUNT(*)::int AS credit_count,
       COALESCE(SUM(COALESCE(NULLIF(e.net_amount,0),e.amount)),0)::numeric AS total_income,
       MAX(e.created_at) AS last_credit_at
     FROM eligible e
@@ -154,7 +140,7 @@ export default async function handler(req,res) {
     GROUP BY e.user_id,u.name,u.email,u.referral_code,e.level_no
     ORDER BY e.level_no ASC,total_income DESC,u.name ASC
   `);
-  const rowsWithNumbers = rows.map(r => ({
+  const members = rows.map(r => ({
     userId:r.user_id,
     name:r.name || 'Member',
     email:r.email || '',
@@ -166,25 +152,25 @@ export default async function handler(req,res) {
   }));
   const levels = Array.from({length:15},(_,i)=>{
     const level=i+1;
-    const members=rowsWithNumbers.filter(r=>r.level===level);
+    const group=members.filter(r=>r.level===level);
     return {
       level,
-      totalIncome:members.reduce((sum,r)=>sum+r.totalIncome,0),
-      creditCount:members.reduce((sum,r)=>sum+r.creditCount,0),
-      memberCount:members.length
+      totalIncome:group.reduce((sum,r)=>sum+r.totalIncome,0),
+      creditCount:group.reduce((sum,r)=>sum+r.creditCount,0),
+      memberCount:group.length
     };
   });
-  const unassigned=rowsWithNumbers.filter(r=>r.level<1 || r.level>15);
+  const unassigned=members.filter(r=>r.level<1 || r.level>15);
   return {
     generatedAt:new Date().toISOString(),
     summary:{
       totalLevelIncome:levels.reduce((sum,r)=>sum+r.totalIncome,0),
       totalCredits:levels.reduce((sum,r)=>sum+r.creditCount,0),
-      creditedMembers:new Set(rowsWithNumbers.filter(r=>r.level>=1&&r.level<=15).map(r=>r.userId)).size,
+      creditedMembers:new Set(members.filter(r=>r.level>=1&&r.level<=15).map(r=>r.userId)).size,
       unassignedIncome:unassigned.reduce((sum,r)=>sum+r.totalIncome,0)
     },
     levels,
-    members:rowsWithNumbers
+    members
   };
 }
 
