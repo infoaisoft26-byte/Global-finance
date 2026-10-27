@@ -1,5 +1,6 @@
 const handlers = {
   "admin-network": () => import("../server/api-handlers/admin-network.js"),
+  "admin-income-leaderboard": () => import("../server/api-handlers/admin-income-leaderboard.js"),
   "admin-p2p-report": () => import("../server/api-handlers/admin-p2p-report.js"),
   "admin-user-detail": () => import("../server/api-handlers/admin-user-detail.js"),
   "website-feedback": () => import("../server/api-handlers/website-feedback.js"),
