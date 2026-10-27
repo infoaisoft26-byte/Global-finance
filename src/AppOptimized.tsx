@@ -82,7 +82,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
     'user-detail': 'admin-user-detail', kyc: 'admin-kyc', tickets: 'admin-tickets',
     reports: 'admin-reports', packages: 'admin-packages',
     'package-activations': 'admin-package-activations', 'usdt-recharge': 'admin-usdt-recharge',
-    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster', brochure: 'admin-brochure'
+    audit: 'admin-audit', settings: 'admin-settings', 'offer-poster': 'admin-offer-poster', brochure: 'admin-brochure', 'website-survey': 'admin-website-feedback'
   };
   if (requested && routes[requested]) return routes[requested];
   const normalized = pathname.replace(/\/+$/, '') || '/admin';
