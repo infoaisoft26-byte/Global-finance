@@ -182,12 +182,18 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
     },
     {
       key: 'sourceReferralCode',
-      header: 'GF ID (Through)',
-      render: (item) => (
-        <span className="font-mono text-cyan-300 text-xs font-semibold">
-          {String(item.metadata?.sourceReferralCode || item.metadata?.referredUserReferralCode || item.metadata?.sourceUserReferralCode || '—')}
-        </span>
-      )
+      header: 'From (Name / GF ID)',
+      render: (item) => {
+        const metadata = item.metadata || {};
+        const sourceName = metadata.sourceName || metadata.sourceUserName || metadata.referredUserName || metadata.fromName || '';
+        const sourceGfId = metadata.sourceReferralCode || metadata.referredUserReferralCode || metadata.sourceUserReferralCode || metadata.fromReferralCode || '';
+        return (
+          <div className="flex flex-col gap-0.5 min-w-[100px]">
+            <span className="text-xs text-slate-100 font-semibold">{String(sourceName || '—')}</span>
+            <span className="font-mono text-cyan-300 text-[11px] font-semibold">{String(sourceGfId || 'GF ID unavailable')}</span>
+          </div>
+        );
+      }
     },
     {
       key: 'date',
