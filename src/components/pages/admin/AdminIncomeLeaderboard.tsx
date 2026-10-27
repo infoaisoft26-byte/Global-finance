@@ -33,7 +33,7 @@ export const AdminIncomeLeaderboard:React.FC=()=>{
     setRefreshing(true);setError('');
     try{
       const token=await user.getIdToken();
-      const response=await fetch('/api/admin-network?mode=income-leaderboard',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+      const response=await fetch('/api/admin-income-leaderboard',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Unable to load investment leaderboard.');
       setReport(data);
