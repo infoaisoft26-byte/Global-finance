@@ -1,22 +1,85 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Crown, Medal, Trophy, RefreshCw, Search, Users, TrendingUp } from 'lucide-react';
+import { Download, RefreshCw, Trophy, Users, Wallet, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext.tsx';
 
-type Member = {id:string;name:string;referralCode:string;sponsorId:string;status:string;role:string;totalCredited:number;totalIncome:number;referralIncome:number;levelIncome:number;directCount:number;totalDownline:number};
-const money=(v:number)=>Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-const initials=(n:string)=>String(n||'Member').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
+type LevelSummary = { level:number; totalIncome:number; creditCount:number; memberCount:number };
+type MemberRow = { userId:string; name:string; email:string; gfId:string; level:number; creditCount:number; totalIncome:number; lastCreditAt:string|null };
+type Report = {
+  generatedAt:string;
+  summary:{ totalLevelIncome:number; totalCredits:number; creditedMembers:number; unassignedIncome:number };
+  levels:LevelSummary[];
+  members:MemberRow[];
+};
+const money=(value:unknown)=>Number(value||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:8});
+const dateTime=(value?:string|null)=>value?new Date(value).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'—';
+
 export const AdminIncomeLeaderboard:React.FC=()=>{
- const {user}=useAuth(); const [members,setMembers]=useState<Member[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState(''); const [search,setSearch]=useState(''); const [rootId,setRootId]=useState(''); const [tab,setTab]=useState<'overall'|'network'>('overall'); const [level,setLevel]=useState('all');
- const load=async()=>{if(!user)return;setLoading(true);setError('');try{const token=await user.getIdToken();const res=await fetch('/api/admin-network?mode=network',{headers:{Authorization:'Bearer '+token},cache:'no-store'});const body=await res.json().catch(()=>({}));if(!res.ok)throw new Error(body.error||'Unable to load leaderboard');const rows=(body.members||[]).filter((m:Member)=>m.role==='user'&&m.status!=='deleted');setMembers(rows);if(!rootId&&rows.length)setRootId([...rows].sort((a:Member,b:Member)=>b.totalIncome-a.totalIncome)[0].referralCode);}catch(e:any){setError(e?.message||'Unable to load leaderboard');}finally{setLoading(false);}};
- useEffect(()=>{void load();},[user?.uid]); const ranked=useMemo(()=>[...members].sort((a,b)=>b.totalIncome-a.totalIncome),[members]); const total=ranked.reduce((s,m)=>s+Number(m.totalIncome||0),0);
- const hierarchy=useMemo(()=>{if(!rootId)return [] as Array<Member&{networkLevel:number}>;const map=new Map<string,Member[]>();members.forEach(m=>{if(m.sponsorId){const k=m.sponsorId.toUpperCase();if(!map.has(k))map.set(k,[]);map.get(k)!.push(m);}});const out:Array<Member&{networkLevel:number}>=[];const seen=new Set<string>();let queue=(map.get(rootId.toUpperCase())||[]).map(m=>({...m,networkLevel:1}));while(queue.length){const next:Array<Member&{networkLevel:number}>=[];for(const m of queue){if(seen.has(m.id)||m.networkLevel>15)continue;seen.add(m.id);out.push(m);next.push(...(map.get(m.referralCode.toUpperCase())||[]).map(x=>({...x,networkLevel:m.networkLevel+1})));}queue=next;}return out.sort((a,b)=>a.networkLevel-b.networkLevel||b.totalCredited-a.totalCredited);},[members,rootId]);
- const rows=useMemo(()=>{const source=tab==='overall'?ranked:hierarchy.filter(m=>level==='all'||m.networkLevel===Number(level));const q=search.trim().toLowerCase();return q?source.filter(m=>[m.name,m.referralCode,m.sponsorId].some(x=>String(x||'').toLowerCase().includes(q))):source;},[ranked,hierarchy,tab,level,search]);const top=ranked.slice(0,3);
- return <div className="space-y-6"><div className="flex flex-col md:flex-row md:items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-amber-300"><Trophy className="w-5 h-5"/><span className="text-[10px] uppercase tracking-[.22em] font-bold">Performance Center</span></div><h1 className="text-2xl sm:text-3xl font-black text-white mt-2">Income Leaderboard</h1><p className="text-xs text-slate-400 mt-1">Verified income ledger • Network levels 1–15</p></div><button onClick={()=>void load()} disabled={loading} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-xs font-bold"><RefreshCw className={loading?'w-4 h-4 animate-spin':'w-4 h-4'}/>Refresh data</button></div>
- {error&&<div className="rounded-xl p-3 border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs">{error}</div>}
- <div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><div className="rounded-2xl border border-amber-400/25 bg-gradient-to-br from-amber-500/15 to-[#0a1025] p-4"><div className="text-xs text-amber-200 flex gap-2"><Users className="w-4 h-4"/>Members</div><div className="text-2xl font-black text-white mt-3">{members.length}</div></div><div className="rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/10 to-[#0a1025] p-4"><div className="text-xs text-cyan-200 flex gap-2"><TrendingUp className="w-4 h-4"/>Total credited income</div><div className="text-2xl font-black text-white mt-3">{money(total)} <span className="text-xs text-slate-400">USDT</span></div></div><div className="rounded-2xl border border-violet-400/25 bg-gradient-to-br from-violet-500/10 to-[#0a1025] p-4"><div className="text-xs text-violet-200">Highest earner</div><div className="text-lg font-black text-white mt-3 truncate">{ranked[0]?.name||'—'}</div><div className="text-[10px] text-cyan-300 mt-1">{ranked[0]?.referralCode||'No records yet'}</div></div></div>
- <div className="grid grid-cols-1 md:grid-cols-3 gap-3">{top.map((m,i)=><div key={m.id} className={'relative overflow-hidden rounded-2xl border p-4 transition-all duration-500 hover:-translate-y-1 '+(i===0?'md:order-2 md:pb-7 border-amber-300/50 bg-gradient-to-br from-amber-400/20 to-[#090e20]':i===1?'md:order-1 border-slate-300/25 bg-[#0a1025]':'md:order-3 border-orange-400/25 bg-[#0a1025]')}><div className="flex justify-between text-[10px] uppercase tracking-widest text-slate-400">{i===0?'Champion':i===1?'Runner up':'Top performer'}{i===0?<Crown className="w-5 h-5 text-amber-300 animate-bounce"/>:<Medal className="w-5 h-5 text-slate-300"/>}</div><div className="flex items-center gap-3 mt-4"><div className="w-11 h-11 rounded-2xl bg-amber-300 text-slate-950 flex items-center justify-center font-black">{initials(m.name)}</div><div className="min-w-0"><div className="text-sm font-bold text-white truncate">{m.name||'Member'}</div><div className="text-[10px] text-cyan-300 font-mono">{m.referralCode}</div></div></div><div className="mt-4 text-2xl font-black text-white">{money(m.totalIncome)} <span className="text-[10px] text-slate-400">USDT</span></div><div className="h-1.5 bg-white/5 rounded-full mt-3 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-cyan-400 animate-pulse" style={{width:(ranked[0]?.totalIncome?Math.max(4,m.totalIncome/ranked[0].totalIncome*100):0)+'%'}}/></div></div>)}</div>
- <div className="rounded-2xl border border-blue-500/20 bg-[#090f22] p-4 sm:p-5 space-y-4"><div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3"><div><h2 className="font-bold text-white">Member rankings</h2><p className="text-[10px] text-slate-500 mt-1">Ranked from completed income-wallet credit ledger entries.</p></div><div className="flex gap-2"><button onClick={()=>setTab('overall')} className={'px-3 py-2 rounded-xl text-xs font-bold '+(tab==='overall'?'bg-cyan-500 text-slate-950':'bg-[#101a35] text-slate-300')}>All top earners</button><button onClick={()=>setTab('network')} className={'px-3 py-2 rounded-xl text-xs font-bold '+(tab==='network'?'bg-cyan-500 text-slate-950':'bg-[#101a35] text-slate-300')}>Level-wise network</button></div></div>
- {tab==='network'&&<div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><label className="text-[10px] text-slate-400">Network root member<select value={rootId} onChange={e=>setRootId(e.target.value)} className="mt-1 block w-full rounded-xl bg-[#060b1a] border border-blue-500/25 px-3 py-2.5 text-xs text-white">{ranked.map(m=><option key={m.id} value={m.referralCode}>{m.referralCode+' — '+m.name}</option>)}</select></label><label className="text-[10px] text-slate-400">Network level<select value={level} onChange={e=>setLevel(e.target.value)} className="mt-1 block w-full rounded-xl bg-[#060b1a] border border-blue-500/25 px-3 py-2.5 text-xs text-white"><option value="all">All levels (1–15)</option>{Array.from({length:15},(_,i)=><option key={i+1} value={String(i+1)}>Level {i+1}</option>)}</select></label></div>}
- <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name or GF ID…" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#060b1a] border border-blue-500/20 text-white text-xs outline-none focus:border-cyan-400/50"/></div>
- <div className="overflow-x-auto rounded-xl border border-blue-500/10"><table className="w-full min-w-[720px] text-xs"><thead className="bg-[#060b1a] text-slate-400"><tr><th className="p-3 text-left">Rank</th><th className="p-3 text-left">Member</th>{tab==='network'&&<th className="p-3 text-left">Level</th>}<th className="p-3 text-right">Total income</th><th className="p-3 text-right">Referral income</th><th className="p-3 text-right">Level income</th><th className="p-3 text-left">Sponsor ID</th></tr></thead><tbody>{loading?<tr><td colSpan={tab==='network'?7:6} className="p-10 text-center text-slate-400">Loading verified income data…</td></tr>:rows.map((m:any,i:number)=><tr key={m.id} className="border-t border-blue-500/10 hover:bg-cyan-500/[0.04] transition-colors"><td className="p-3"><span className={'inline-flex min-w-8 h-8 items-center justify-center rounded-lg font-black '+(i===0?'bg-amber-300/20 text-amber-200':'bg-[#111b36] text-slate-300')}>{i+1}</span></td><td className="p-3"><div className="font-bold text-white">{m.name||'Member'}</div><div className="text-[10px] text-cyan-300 font-mono mt-1">{m.referralCode}</div></td>{tab==='network'&&<td className="p-3"><span className="px-2 py-1 rounded-md bg-violet-500/10 border border-violet-400/20 text-violet-200">Level {m.networkLevel}</span></td>}<td className="p-3 text-right font-mono font-bold text-emerald-300">{money(m.totalCredited)}</td><td className="p-3 text-right font-mono text-slate-300">{money(m.referralIncome)}</td><td className="p-3 text-right font-mono text-slate-300">{money(m.levelIncome)}</td><td className="p-3 text-cyan-300 font-mono">{m.sponsorId||'—'}</td></tr>)}</tbody></table>{!loading&&!rows.length&&<div className="p-8 text-center text-xs text-slate-500">No matching members found.</div>}</div><div className="text-[10px] text-slate-500">Showing {rows.length} members. Network levels are calculated from the selected root member's sponsor chain, up to 15 levels.</div></div></div>;
+  const {user}=useAuth();
+  const [report,setReport]=useState<Report|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState('');
+  const [search,setSearch]=useState('');
+  const [levelFilter,setLevelFilter]=useState('all');
+
+  const load=async()=>{
+    if(!user)return;
+    setLoading(true);setError('');
+    try{
+      const token=await user.getIdToken();
+      const response=await fetch('/api/admin-network?mode=income-leaderboard',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Unable to load income leaderboard.');
+      setReport(data);
+    }catch(e){
+      setError(e instanceof Error?e.message:'Unable to load income leaderboard.');
+    }finally{setLoading(false);}
+  };
+  useEffect(()=>{void load();},[user?.uid]);
+
+  const rows=useMemo(()=>{
+    const q=search.trim().toLowerCase();
+    return (report?.members||[])
+      .filter(r=>levelFilter==='all'||String(r.level)===levelFilter)
+      .filter(r=>!q||[r.name,r.email,r.gfId,r.userId,String(r.level)].some(v=>String(v||'').toLowerCase().includes(q)))
+      .sort((a,b)=>b.totalIncome-a.totalIncome);
+  },[report,search,levelFilter]);
+
+  const exportCsv=()=>{
+    const headers=['Rank','Level','GF ID','Member Name','Email','Total Income USDT','Credit Count','Last Credit'];
+    const csv=[headers.join(','),...rows.map((r,i)=>[i+1,r.level||'Unassigned',r.gfId,r.name,r.email,r.totalIncome,r.creditCount,r.lastCreditAt||''].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','))].join('\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+    const a=document.createElement('a');a.href=url;a.download='global-finance-income-leaderboard-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);
+  };
+  const summary=report?.summary;
+  return <section className="space-y-6">
+    <header className="flex flex-col gap-3 border-b border-blue-500/20 pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="flex items-center gap-2"><Trophy className="h-5 w-5 text-amber-400"/><h1 className="text-xl font-extrabold text-white">Income Leaderboard</h1></div>
+        <p className="mt-1 text-xs text-slate-400">Level 1–15 totals are calculated from completed income-ledger credits only. Pending, rejected and failed records are excluded.</p>
+        {report?.generatedAt&&<p className="mt-1 text-[10px] text-cyan-300">Last refreshed: {dateTime(report.generatedAt)} · Manual refresh</p>}
+      </div>
+      <div className="flex gap-2">
+        <button onClick={exportCsv} disabled={!rows.length} className="flex items-center gap-2 rounded-xl border border-blue-500/30 bg-[#0e173a] px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><Download className="h-4 w-4"/>Export CSV</button>
+        <button onClick={()=>void load()} disabled={loading} className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><RefreshCw className={'h-4 w-4 '+(loading?'animate-spin':'')}/>Refresh</button>
+      </div>
+    </header>
+    {error&&<div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200"><AlertCircle className="h-4 w-4 shrink-0"/><span>{error}</span></div>}
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="rounded-2xl border border-amber-500/25 bg-[#091129] p-4"><Trophy className="mb-2 h-4 w-4 text-amber-300"/><p className="text-xs text-slate-400">Total Level Income</p><p className="mt-1 text-xl font-extrabold text-white">{money(summary?.totalLevelIncome)} USDT</p></div>
+      <div className="rounded-2xl border border-cyan-500/25 bg-[#091129] p-4"><Wallet className="mb-2 h-4 w-4 text-cyan-300"/><p className="text-xs text-slate-400">Completed Credits</p><p className="mt-1 text-xl font-extrabold text-white">{Number(summary?.totalCredits||0).toLocaleString('en-US')}</p></div>
+      <div className="rounded-2xl border border-emerald-500/25 bg-[#091129] p-4"><Users className="mb-2 h-4 w-4 text-emerald-300"/><p className="text-xs text-slate-400">Members with Level Income</p><p className="mt-1 text-xl font-extrabold text-white">{Number(summary?.creditedMembers||0).toLocaleString('en-US')}</p></div>
+      <div className="rounded-2xl border border-violet-500/25 bg-[#091129] p-4"><AlertCircle className="mb-2 h-4 w-4 text-violet-300"/><p className="text-xs text-slate-400">Level Not Identified</p><p className="mt-1 text-xl font-extrabold text-white">{money(summary?.unassignedIncome)} USDT</p><p className="mt-1 text-[10px] text-slate-500">Not included in Level 1–15 totals</p></div>
+    </div>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      {(report?.levels||Array.from({length:15},(_,i)=>({level:i+1,totalIncome:0,creditCount:0,memberCount:0}))).map(item=><button key={item.level} onClick={()=>setLevelFilter(String(item.level))} className={'rounded-xl border p-3 text-left transition-colors '+(levelFilter===String(item.level)?'border-amber-400/60 bg-amber-500/10':'border-blue-500/20 bg-[#091129] hover:border-blue-400/40')}><p className="text-xs font-bold text-amber-300">Level {item.level}</p><p className="mt-1 break-words text-sm font-extrabold text-white">{money(item.totalIncome)} USDT</p><p className="mt-1 text-[10px] text-slate-400">{item.memberCount} members · {item.creditCount} credits</p></button>)}
+    </div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search GF ID, name, email..." className="w-full rounded-xl border border-blue-500/30 bg-[#060b1c] px-3 py-2 text-sm text-white placeholder:text-slate-500 sm:max-w-md"/>
+      <div className="flex gap-2"><select value={levelFilter} onChange={e=>setLevelFilter(e.target.value)} className="rounded-xl border border-blue-500/30 bg-[#060b1c] px-3 py-2 text-xs text-white"><option value="all">All levels</option>{Array.from({length:15},(_,i)=><option key={i+1} value={String(i+1)}>Level {i+1}</option>)}<option value="0">Level not identified</option></select><button onClick={()=>{setLevelFilter('all');setSearch('');}} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200">Clear</button></div>
+    </div>
+    <div className="overflow-x-auto rounded-2xl border border-blue-500/20 bg-[#091129]">
+      {loading?<div className="p-10 text-center text-sm text-slate-400">Loading verified income credits…</div>:rows.length===0?<div className="p-10 text-center text-sm text-slate-400">No completed level-income credits match this filter.</div>:<table className="w-full min-w-[850px] text-left text-xs"><thead className="bg-[#060b1c] text-slate-400"><tr><th className="p-3">Rank</th><th className="p-3">Level</th><th className="p-3">Member</th><th className="p-3">GF ID</th><th className="p-3 text-right">Income (USDT)</th><th className="p-3 text-right">Credits</th><th className="p-3">Last credit</th></tr></thead><tbody>{rows.map((r,i)=><tr key={r.userId+'-'+r.level} className="border-t border-blue-500/10 hover:bg-white/[0.02]"><td className="p-3 font-bold text-amber-300">#{i+1}</td><td className="p-3 text-slate-200">{r.level>=1&&r.level<=15?'Level '+r.level:'Unidentified'}</td><td className="p-3"><p className="font-bold text-white">{r.name}</p><p className="mt-1 text-[10px] text-slate-400">{r.email||r.userId}</p></td><td className="p-3 font-mono text-cyan-300">{r.gfId||'—'}</td><td className="p-3 text-right font-mono font-bold text-emerald-300">{money(r.totalIncome)}</td><td className="p-3 text-right text-slate-200">{r.creditCount}</td><td className="p-3 text-slate-400">{dateTime(r.lastCreditAt)}</td></tr>)}</tbody></table>}
+    </div>
+    <p className="text-[10px] leading-5 text-slate-500">Amounts reflect eligible credited ledger records returned by the server. Credits without a stored Level 1–15 identifier are shown as unidentified rather than guessed.</p>
+  </section>;
 };
