@@ -49,8 +49,12 @@ export async function ensureIncomeSchema(client) {
     migration_key VARCHAR(120) PRIMARY KEY, completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
   const capMigration = await client.query(`INSERT INTO income_cap_migrations(migration_key)
     VALUES('initial-ledger-reconciliation-v1') ON CONFLICT(migration_key) DO NOTHING RETURNING migration_key`);
-  if (capMigration.rowCount === 1) {
-    // Reconcile old counters from completed ledger credits; ledger and wallet balances are immutable.
+  const pendingCapReconciliation = await client.query(
+    'SELECT 1 FROM package_activations WHERE cap_reconciled=FALSE LIMIT 1'
+  );
+  if (capMigration.rowCount === 1 || pendingCapReconciliation.rowCount > 0) {
+    // Reconcile old and newly-created activation counters from completed ledger credits;
+    // run whenever new activations remain unreconciled. Ledger and wallet balances are immutable.
     await client.query(`WITH users_to_reconcile AS (
         SELECT DISTINCT user_id FROM package_activations WHERE cap_reconciled=FALSE
       ),
