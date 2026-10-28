@@ -83,7 +83,7 @@ export const P2PTransfer: React.FC = () => {
       return;
     }
 
-    const minP2p = Number(settings?.minP2p || 1);
+    const minP2p = 0.5;
     const maxP2p = Number(settings?.maxP2p || 1000000);
     if (!Number.isFinite(amount) || amount <= 0) {
       setErrorMsg('Enter a valid transfer amount.');
@@ -182,7 +182,7 @@ export const P2PTransfer: React.FC = () => {
         <div className="lg:col-span-7 rounded-2xl bg-[#091129] border border-blue-500/25 p-5 sm:p-6 shadow-xl space-y-5">
           <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-cyan-400" /><span>Initiate Member Transfer</span></h3>
-            <span className="text-[11px] text-cyan-400 font-mono font-semibold">Min: {settings?.minP2p || 1} • Max: {settings?.maxP2p || 1000000} USDT</span>
+            <span className="text-[11px] text-cyan-400 font-mono font-semibold">Min: 0.5 • Max: {settings?.maxP2p || 1000000} USDT</span>
           </div>
 
           {errorMsg && <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" /><span>{errorMsg}</span></div>}
@@ -216,7 +216,7 @@ export const P2PTransfer: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">Transfer Amount (USDT) <span className="text-rose-400">*</span></label>
-              <input type="number" min={settings?.minP2p || 1} max={settings?.maxP2p || 1000000} step="0.01" value={amount > 0 ? amount : ''} onChange={(e) => setAmount(e.target.value === '' ? 0 : Number(e.target.value))} required className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono text-sm focus:outline-none focus:border-cyan-400" />
+              <input type="number" min={0.5} max={settings?.maxP2p || 1000000} step="0.01" value={amount > 0 ? amount : ''} onChange={(e) => setAmount(e.target.value === '' ? 0 : Number(e.target.value))} required className="w-full px-3.5 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/30 text-white font-mono text-sm focus:outline-none focus:border-cyan-400" />
             </div>
 
             <div>
