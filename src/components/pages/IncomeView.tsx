@@ -196,6 +196,29 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
       }
     },
     {
+      key: 'level',
+      header: 'Level',
+      render: (item) => {
+        const metadata = item.metadata || {};
+        const level = Number(metadata.level ?? metadata.referralLevel ?? metadata.levelNumber ?? 0);
+        return <span className="text-xs font-semibold text-violet-300">{level >= 1 && level <= 15 ? `L${level}` : '—'}</span>;
+      }
+    },
+    {
+      key: 'rate',
+      header: 'Rate',
+      render: (item) => {
+        const metadata = item.metadata || {};
+        const rate = Number(metadata.percentage ?? metadata.commissionPercentage ?? 0);
+        return <span className="text-xs font-semibold text-cyan-300">{rate > 0 ? `${rate}%` : '—'}</span>;
+      }
+    },
+    {
+      key: 'ledgerRef',
+      header: 'Ledger Ref',
+      render: (item) => <span title={String(item.referenceId || item.id || '')} className="font-mono text-[11px] text-slate-300">{String(item.referenceId || item.id || '—')}</span>
+    },
+    {
       key: 'date',
       header: 'Date',
       render: (item) => (
