@@ -403,75 +403,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       </div>
 
-      {/* Referral Link & Viral Invitation Card */}
-      <div className="gf-dashboard-referral p-4 sm:p-5 rounded-xl bg-[#091129]/90 border border-cyan-500/25 shadow-lg backdrop-blur-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-300">
-              Your Referral Link (GF Format)
-            </div>
-            <div className="text-xs sm:text-sm font-mono text-cyan-400 truncate max-w-md">
-              {referralUrl || 'Referral link unavailable until your Member ID is assigned'}
-            </div>
-            <div className="mt-1 text-[10px] text-slate-500">
-              Referral ID: <span className="font-mono text-cyan-300">{referralCode || '—'}</span>
-              {profile?.sponsorId && <> · Referred by: <span className="font-mono text-slate-300">{profile.sponsorId}</span> <span className="text-slate-500">({profile.sponsorName || 'Sponsor name unavailable'})</span></>}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={handleCopyLink}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 text-xs font-medium transition-colors"
-          >
-            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? 'Copied Link' : 'Copy Referral URL'}</span>
-          </button>
-
-          <button
-            onClick={handleCopyCode}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111d46] hover:bg-[#17275d] border border-blue-500/30 text-slate-200 text-xs font-medium transition-colors"
-          >
-            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-            <span>Copy ID: {referralCode}</span>
-          </button>
-
-          <button
-            onClick={() => setShowQrModal(true)}
-            title="Show QR Code"
-            className="p-1.5 rounded-lg bg-[#111d46] hover:bg-[#17275d] border border-blue-500/30 text-cyan-400"
-          >
-            <QrCode className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ACCOUNT DETAILS */}
-      <div className="gf-dashboard-account grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
-          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor ID</div>
-          <div className="mt-1 font-mono text-sm font-bold text-cyan-300">{profile?.sponsorId || '—'}</div>
-        </div>
-        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
-          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor Name</div>
-          <div className="mt-1 text-sm font-semibold text-white truncate">{profile?.sponsorName || '—'}</div>
-        </div>
-        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Primary Mobile</div>
-          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.phone || '—'}</div>
-        </div>
-        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Second Mobile</div>
-          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.secondPhone || 'Not added'}</div>
-        </div>
-      </div>
-
       {/* PRIMARY STATS ROW: Basic Package & FD Package */}
-      <div className="gf-dashboard-packages order-first grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="gf-dashboard-packages grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* Basic Package Card */}
         <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-cyan-500/40 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
@@ -547,6 +480,73 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           </div>
           {capError && <div className="mt-2 text-[10px] text-rose-300">{capError}</div>}
           <div className="mt-1 text-[10px] text-slate-500">{capLastUpdated ? `Updated ${capLastUpdated.toLocaleTimeString()}` : 'Waiting for first package sync'} · refreshes every 15 sec</div>
+        </div>
+      </div>
+
+      {/* Referral Link & Viral Invitation Card */}
+      <div className="gf-dashboard-referral p-4 sm:p-5 rounded-xl bg-[#091129]/90 border border-cyan-500/25 shadow-lg backdrop-blur-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-300">
+              Your Referral Link (GF Format)
+            </div>
+            <div className="text-xs sm:text-sm font-mono text-cyan-400 truncate max-w-md">
+              {referralUrl || 'Referral link unavailable until your Member ID is assigned'}
+            </div>
+            <div className="mt-1 text-[10px] text-slate-500">
+              Referral ID: <span className="font-mono text-cyan-300">{referralCode || '—'}</span>
+              {profile?.sponsorId && <> · Referred by: <span className="font-mono text-slate-300">{profile.sponsorId}</span> <span className="text-slate-500">({profile.sponsorName || 'Sponsor name unavailable'})</span></>}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleCopyLink}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 text-xs font-medium transition-colors"
+          >
+            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedLink ? 'Copied Link' : 'Copy Referral URL'}</span>
+          </button>
+
+          <button
+            onClick={handleCopyCode}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111d46] hover:bg-[#17275d] border border-blue-500/30 text-slate-200 text-xs font-medium transition-colors"
+          >
+            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+            <span>Copy ID: {referralCode}</span>
+          </button>
+
+          <button
+            onClick={() => setShowQrModal(true)}
+            title="Show QR Code"
+            className="p-1.5 rounded-lg bg-[#111d46] hover:bg-[#17275d] border border-blue-500/30 text-cyan-400"
+          >
+            <QrCode className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* ACCOUNT DETAILS */}
+      <div className="gf-dashboard-account grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor ID</div>
+          <div className="mt-1 font-mono text-sm font-bold text-cyan-300">{profile?.sponsorId || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor Name</div>
+          <div className="mt-1 text-sm font-semibold text-white truncate">{profile?.sponsorName || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Primary Mobile</div>
+          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.phone || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Second Mobile</div>
+          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.secondPhone || 'Not added'}</div>
         </div>
       </div>
 
