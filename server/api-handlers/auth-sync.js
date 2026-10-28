@@ -139,11 +139,19 @@ export default async function handler(req,res){
       // Enforce one primary mobile number per member account.
       // Firestore transaction reads make concurrent registrations conflict/retry.
       if(phone){
-        const phoneMatches=await transaction.get(db.collection('users').where('phone','==',phone));
-        if(phoneMatches.docs.some(doc=>doc.id!==uid)){
-          const error=new Error('This mobile number is already registered. One mobile number can have only one Global Finance ID. Please sign in to the existing account.');
-          error.statusCode=400;
-          throw error;
+        const phoneCandidates=new Set([phone]);
+        if(country==='IN' && /^\\d{10}$/.test(phone)){
+          phoneCandidates.add('91'+phone);
+          phoneCandidates.add('+91'+phone);
+          phoneCandidates.add('+ '+phone);
+        }
+        for(const candidate of phoneCandidates){
+          const phoneMatches=await transaction.get(db.collection('users').where('phone','==',candidate));
+          if(phoneMatches.docs.some(doc=>doc.id!==uid)){
+            const error=new Error('This mobile number is already registered. One mobile number can have only one Global Finance ID. Please sign in to the existing account.');
+            error.statusCode=400;
+            throw error;
+          }
         }
       }
 
