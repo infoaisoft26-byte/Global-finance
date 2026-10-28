@@ -143,7 +143,6 @@ export default async function handler(req,res){
         if(country==='IN' && /^\\d{10}$/.test(phone)){
           phoneCandidates.add('91'+phone);
           phoneCandidates.add('+91'+phone);
-          phoneCandidates.add('+ '+phone);
         }
         for(const candidate of phoneCandidates){
           const phoneMatches=await transaction.get(db.collection('users').where('phone','==',candidate));
