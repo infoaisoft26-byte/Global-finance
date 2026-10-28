@@ -12,24 +12,11 @@ const DEFAULT_COMMISSION_RATES = Object.freeze({
 const levelRate = (level, rates) => Number(rates?.[Number(level)] ?? 0);
 
 async function getCommissionRates(kind) {
+  // These are the explicitly approved income schedules. Do not let legacy
+  // Firestore rate documents silently override them with stale percentages.
+  // Joining: L1 5%; Retopup: L1 1%, L2-L15 0.25%; ROI level: L1 5%, L2-L15 1%.
   const defaults = DEFAULT_COMMISSION_RATES[kind] || DEFAULT_COMMISSION_RATES.roi;
-  const settingKey = kind === 'roi' ? 'roiLevelCommissionRates' : `${kind}CommissionRates`;
-  try {
-    const db = getFirestoreAdmin();
-    const snap = await db.collection('system').doc('settings').get();
-    const stored = snap.exists ? snap.data()?.[settingKey] : null;
-    const rates = {};
-    for (let level = 1; level <= MAX_LEVEL; level++) {
-      const value = Number(stored?.[level] ?? defaults[level]);
-      rates[level] = Number.isFinite(value) && value >= 0 && value <= 100
-        ? value
-        : defaults[level];
-    }
-    return rates;
-  } catch (error) {
-    console.error(`Unable to load ${kind} commission rates; using defaults:`, error instanceof Error ? error.message : error);
-    return { ...defaults };
-  }
+  return { ...defaults };
 }
 const money = (v) => Number(Number(v || 0).toFixed(2));
 const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100);
