@@ -470,6 +470,86 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       </div>
 
+      {/* PRIMARY STATS ROW: Basic Package & FD Package */}
+      <div className="gf-dashboard-packages grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        {/* Basic Package Card */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-cyan-500/40 transition-all">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Basic Package
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-cyan-400">
+              <Package className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
+            {formatUsdt(wallet?.basicPackageActive)}
+          </div>
+          <div className="mt-4 pt-3 border-t border-blue-500/15 flex items-center justify-between text-xs">
+            <span className="text-slate-400">Active Daily ROI Plan</span>
+            <button
+              onClick={() => onNavigate('basic-package')}
+              className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform"
+            >
+              Activate <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* FD Package Card */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-amber-500/40 transition-all">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              FD Package
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <Layers className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
+            {formatUsdt(wallet?.fdPackageActive)}
+          </div>
+          <div className="mt-4 pt-3 border-t border-blue-500/15 flex items-center justify-between text-xs">
+            <span className="text-slate-400">Fixed Deposit Lock Plan</span>
+            <button
+              onClick={() => onNavigate('fd-package')}
+              className="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform"
+            >
+              Activate <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Live 5X Cap summary — based on this member's recorded package activations */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#082b3a] via-[#091129] to-[#101744] border border-cyan-400/50 shadow-xl shadow-cyan-950/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-cyan-400/10 blur-2xl pointer-events-none" />
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">Live 5X Capping</span>
+            <span className={`flex items-center gap-1.5 text-[10px] font-bold ${capStatusLabel === 'ID INACTIVE' ? 'text-rose-300' : capStatusLabel === 'SYNC PENDING' ? 'text-amber-300' : 'text-emerald-300'}`}><span className={`w-1.5 h-1.5 rounded-full ${capStatusLabel === 'ID INACTIVE' ? 'bg-rose-400' : capStatusLabel === 'SYNC PENDING' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} /> {capStatusLabel}</span>
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
+            {capLoading ? 'Loading…' : displayedInvestment > 0 ? formatUsdt(displayedRemainingCap) : 'Awaiting plan sync'}
+          </div>
+          <div className="mt-1 text-xs text-cyan-100/80">
+            {capHasActivationRows ? `Remaining eligible cap across ${capCycles.length} recorded plan(s)` : displayedInvestment > 0 ? 'Estimated from current wallet package balances; plan-cycle records still need syncing' : 'No package activation records or active package balance returned for this account'}
+          </div>
+          <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 border-t border-cyan-300/15 pt-3">
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Recorded investment</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(displayedInvestment)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Total 5X cap</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(displayedCapLimit)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Counted income</div><div className="mt-1 text-sm font-bold text-white">{capHasActivationRows && capSummary.unreconciled > 0 ? 'Pending' : formatUsdt(capSummary.counted)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Remaining cap</div><div className="mt-1 text-sm font-bold text-emerald-200">{capHasActivationRows && capSummary.unreconciled > 0 ? 'Pending' : formatUsdt(displayedRemainingCap)}</div></div>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="text-[10px] text-slate-400">{capError ? 'Could not refresh package data' : capHasActivationRows && capSummary.unreconciled > 0 ? 'Historical cap reconciliation pending' : capHasActivationRows ? 'Verified from recorded package activations and ledger credits' : displayedInvestment > 0 ? 'Wallet fallback estimate — activation sync pending' : 'Package history syncs automatically'}</span>
+            <button onClick={refreshCapStatus} disabled={capRefreshing} className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold text-cyan-200 disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${capRefreshing ? 'animate-spin' : ''}`} /> Refresh</button>
+          </div>
+          {capError && <div className="mt-2 text-[10px] text-rose-300">{capError}</div>}
+          <div className="mt-1 text-[10px] text-slate-500">{capLastUpdated ? `Updated ${capLastUpdated.toLocaleTimeString()}` : 'Waiting for first package sync'} · refreshes every 15 sec</div>
+        </div>
+      </div>
+
       {/* BALANCE SUMMARY SECTION */}
       <div className="gf-dashboard-balance">
         <div className="flex items-center justify-between mb-3">
@@ -586,86 +666,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <div className="text-base font-extrabold text-teal-200 font-mono tracking-tight tabular-nums">{formatUsdt(incomeLedger.length ? actualIncomeTotals.level : wallet?.totalLevelIncome)}</div>
             <p className="mt-2 text-[10px] text-slate-400">Credited level commissions</p>
           </div>
-        </div>
-      </div>
-
-      {/* PRIMARY STATS ROW: Basic Package & FD Package */}
-      <div className="gf-dashboard-packages grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {/* Basic Package Card */}
-        <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-cyan-500/40 transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Basic Package
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-cyan-400">
-              <Package className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
-            {formatUsdt(wallet?.basicPackageActive)}
-          </div>
-          <div className="mt-4 pt-3 border-t border-blue-500/15 flex items-center justify-between text-xs">
-            <span className="text-slate-400">Active Daily ROI Plan</span>
-            <button
-              onClick={() => onNavigate('basic-package')}
-              className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform"
-            >
-              Activate <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* FD Package Card */}
-        <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-amber-500/40 transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              FD Package
-            </span>
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-              <Layers className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
-            {formatUsdt(wallet?.fdPackageActive)}
-          </div>
-          <div className="mt-4 pt-3 border-t border-blue-500/15 flex items-center justify-between text-xs">
-            <span className="text-slate-400">Fixed Deposit Lock Plan</span>
-            <button
-              onClick={() => onNavigate('fd-package')}
-              className="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform"
-            >
-              Activate <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* Live 5X Cap summary — based on this member's recorded package activations */}
-        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#082b3a] via-[#091129] to-[#101744] border border-cyan-400/50 shadow-xl shadow-cyan-950/20 relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-cyan-400/10 blur-2xl pointer-events-none" />
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">Live 5X Capping</span>
-            <span className={`flex items-center gap-1.5 text-[10px] font-bold ${capStatusLabel === 'ID INACTIVE' ? 'text-rose-300' : capStatusLabel === 'SYNC PENDING' ? 'text-amber-300' : 'text-emerald-300'}`}><span className={`w-1.5 h-1.5 rounded-full ${capStatusLabel === 'ID INACTIVE' ? 'bg-rose-400' : capStatusLabel === 'SYNC PENDING' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} /> {capStatusLabel}</span>
-          </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
-            {capLoading ? 'Loading…' : displayedInvestment > 0 ? formatUsdt(displayedRemainingCap) : 'Awaiting plan sync'}
-          </div>
-          <div className="mt-1 text-xs text-cyan-100/80">
-            {capHasActivationRows ? `Remaining eligible cap across ${capCycles.length} recorded plan(s)` : displayedInvestment > 0 ? 'Estimated from current wallet package balances; plan-cycle records still need syncing' : 'No package activation records or active package balance returned for this account'}
-          </div>
-          <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 border-t border-cyan-300/15 pt-3">
-            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Recorded investment</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(displayedInvestment)}</div></div>
-            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Total 5X cap</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(displayedCapLimit)}</div></div>
-            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Counted income</div><div className="mt-1 text-sm font-bold text-white">{capHasActivationRows && capSummary.unreconciled > 0 ? 'Pending' : formatUsdt(capSummary.counted)}</div></div>
-            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Remaining cap</div><div className="mt-1 text-sm font-bold text-emerald-200">{capHasActivationRows && capSummary.unreconciled > 0 ? 'Pending' : formatUsdt(displayedRemainingCap)}</div></div>
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <span className="text-[10px] text-slate-400">{capError ? 'Could not refresh package data' : capHasActivationRows && capSummary.unreconciled > 0 ? 'Historical cap reconciliation pending' : capHasActivationRows ? 'Verified from recorded package activations and ledger credits' : displayedInvestment > 0 ? 'Wallet fallback estimate — activation sync pending' : 'Package history syncs automatically'}</span>
-            <button onClick={refreshCapStatus} disabled={capRefreshing} className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold text-cyan-200 disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${capRefreshing ? 'animate-spin' : ''}`} /> Refresh</button>
-          </div>
-          {capError && <div className="mt-2 text-[10px] text-rose-300">{capError}</div>}
-          <div className="mt-1 text-[10px] text-slate-500">{capLastUpdated ? `Updated ${capLastUpdated.toLocaleTimeString()}` : 'Waiting for first package sync'} · refreshes every 15 sec</div>
         </div>
       </div>
 
