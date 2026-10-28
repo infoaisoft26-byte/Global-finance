@@ -34,7 +34,7 @@ async function p2pSettings(client = getPool()) {
   return {
     enabled: data.p2pEnabled !== false,
     requireKyc: data.requireKycForP2p === true,
-    min: Number.isFinite(Number(data.minP2p)) ? Number(data.minP2p) : 1,
+    min: 0.5,
     max: Number.isFinite(Number(data.maxP2p)) ? Number(data.maxP2p) : 1000000,
   };
 }
