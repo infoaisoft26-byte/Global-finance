@@ -10,6 +10,14 @@ export const TeamList: React.FC = () => {
   const [allMembers, setAllMembers] = useState<DownlineMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [levelFilter, setLevelFilter] = useState('all');
+
+  const filteredMembers = allMembers.filter(member => {
+    const statusMatches = statusFilter === 'all' || (statusFilter === 'active' ? member.status === 'active' : member.status !== 'active');
+    const levelMatches = levelFilter === 'all' || Number(member.level) === Number(levelFilter);
+    return statusMatches && levelMatches;
+  });
 
   const loadTeamList = async () => {
     if (!profile) return;
@@ -53,7 +61,17 @@ export const TeamList: React.FC = () => {
     {
       key: 'name',
       header: 'Member Name',
-      render: item => <span className="text-xs font-semibold text-white">{item.name}</span>
+      render: item => <span className="text-xs font-semibold text-white">{item.name || '—'}</span>
+    },
+    {
+      key: 'email',
+      header: 'Email Address',
+      render: item => <span className="text-xs text-slate-300 break-all">{item.email || 'Not provided'}</span>
+    },
+    {
+      key: 'phone',
+      header: 'Mobile No',
+      render: item => item.phone ? <a href={`tel:${item.phone}`} className="text-xs text-cyan-300 underline underline-offset-2">{item.phone}</a> : <span className="text-xs text-slate-500">Not provided</span>
     },
     {
       key: 'joinDate',
@@ -86,6 +104,8 @@ export const TeamList: React.FC = () => {
     { header: 'Date', accessor: item => formatDate(item.joinDate) },
     { header: 'Id', accessor: item => item.referralCode },
     { header: 'Name', accessor: item => item.name },
+    { header: 'Email', accessor: item => item.email || '' },
+    { header: 'Mobile', accessor: item => item.phone || '' },
     { header: 'Referral Id', accessor: item => item.sponsorId || '' },
     { header: 'Level', accessor: item => item.level },
     { header: 'DOA', accessor: item => formatDate(item.joinDate) },
@@ -123,11 +143,29 @@ export const TeamList: React.FC = () => {
           <span className="text-xs text-slate-500">Multilevel affiliate hierarchy</span>
         </div>
         {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-blue-500/20 bg-[#091129]/90 p-4">
+          <label className="text-xs font-semibold text-slate-300 space-y-1">
+            <span>Member Status</span>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')} className="w-full rounded-lg border border-blue-500/30 bg-[#0e1738] px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400">
+              <option value="all">All Members</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive (including suspended)</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-slate-300 space-y-1">
+            <span>Downline Level</span>
+            <select value={levelFilter} onChange={e => setLevelFilter(e.target.value)} className="w-full rounded-lg border border-blue-500/30 bg-[#0e1738] px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400">
+              <option value="all">All Levels (1–15)</option>
+              {Array.from({ length: 15 }, (_, i) => i + 1).map(level => <option key={level} value={String(level)}>Level {level}</option>)}
+            </select>
+          </label>
+          <p className="sm:col-span-2 text-xs text-slate-500">Showing {filteredMembers.length} of {allMembers.length} network members. Member details load from your registered downline records; use Refresh to reload latest data.</p>
+        </div>
         <DataTable
           title="Downline Team List"
           columns={columns}
           pdfColumns={pdfColumns}
-          data={allMembers}
+          data={filteredMembers}
           onRefresh={loadTeamList}
           isLoading={loading}
           emptyMessage="No downline team members found for your referral network."
