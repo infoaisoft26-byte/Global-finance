@@ -309,6 +309,29 @@ export const IncomeView: React.FC<{ page: ActivePage }> = ({ page }) => {
         </div>
       </div>
 
+      {(['basic-level', 'fd-level', 'basic-referral', 'fd-referral'] as ActivePage[]).includes(page) && (
+        <section className="rounded-2xl border border-cyan-500/25 bg-slate-950/80 p-4 sm:p-5 space-y-3">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white">Income Rates & Level Rules</h3>
+            <p className="text-xs text-slate-400 mt-1">These rates are shown for transparency. Income is recorded only when the relevant activity and level-eligibility rules are met.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-blue-500/25 bg-blue-950/30 p-3">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-cyan-300">ROI Level Income</h4>
+              <div className="mt-2 flex items-center justify-between text-sm"><span className="text-slate-300">Level 1</span><strong className="text-white">5%</strong></div>
+              <div className="mt-1 flex items-center justify-between text-sm"><span className="text-slate-300">Levels 2–15</span><strong className="text-white">1% per eligible level</strong></div>
+              <p className="text-[11px] text-slate-400 mt-2">Calculated on eligible recorded ROI income, not the member's total investment.</p>
+            </div>
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/20 p-3">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-emerald-300">Retopup Income</h4>
+              <div className="mt-2 flex items-center justify-between text-sm"><span className="text-slate-300">Level 1</span><strong className="text-white">1%</strong></div>
+              <div className="mt-1 flex items-center justify-between text-sm"><span className="text-slate-300">Levels 2–15</span><strong className="text-white">0.25% per eligible level</strong></div>
+              <p className="text-[11px] text-slate-400 mt-2">Calculated on eligible retopup activity. Actual credits appear in the income ledger.</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Automatic Profit / Loss Snapshot */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
