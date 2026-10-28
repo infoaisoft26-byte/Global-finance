@@ -140,7 +140,7 @@ export default async function handler(req,res){
       // Firestore transaction reads make concurrent registrations conflict/retry.
       if(phone){
         const phoneCandidates=new Set([phone]);
-        if(country==='IN' && /^\\d{10}$/.test(phone)){
+        if(country==='IN' && /^\d{10}$/.test(phone)){
           phoneCandidates.add('91'+phone);
           phoneCandidates.add('+91'+phone);
         }
