@@ -48,7 +48,7 @@ const FIRST_REFERRAL_NUMBER=201;
 function formatReferralCode(number){return `GF${String(number).padStart(6,'0')}`;}
 function generateTransactionPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';let out='';for(let i=0;i<6;i++)out+=chars[crypto.randomInt(0,chars.length)];return out;}
 function hashTransactionPassword(password){const salt=crypto.randomBytes(16).toString('hex');const hash=crypto.scryptSync(password,salt,64).toString('hex');return `${salt}:${hash}`;}
-function normalizePhone(value){const raw=String(value??'').trim();if(!raw)return null;const compact=raw.replace(/[\s()-]/g,'');if(!/^\+?\d{7,15}$/.test(compact))throw new Error('Please enter a valid mobile number.');return compact;}
+function normalizePhone(value,country=''){const raw=String(value??'').trim();if(!raw)return null;const compact=raw.replace(/[\s().-]/g,'');if(!/^\+?\d{7,15}$/.test(compact))throw new Error('Please enter a valid mobile number.');let digits=compact.replace(/\D/g,'');if(String(country||'').toUpperCase()==='IN'){if(digits.startsWith('91')&&digits.length===12)digits=digits.slice(2);if(digits.length!==10)throw new Error('Enter a valid 10-digit Indian mobile number.');}return digits;}
 function asIso(value){return value?.toDate?.()?.toISOString?.() || (value ? String(value) : new Date().toISOString());}
 function mapProfile(data, uid){
   return {uid,name:data.name||'',email:data.email||'',phone:data.phone||undefined,country:data.country||undefined,
@@ -117,8 +117,8 @@ export default async function handler(req,res){
 
     const requestedName=String(body.name||decoded.name||email.split('@')[0]).trim().slice(0,255)||'Global Finance Member';
     const hasPhone=Object.prototype.hasOwnProperty.call(body,'phone');
-    const phone=hasPhone?normalizePhone(body.phone):null;
     const country=Object.prototype.hasOwnProperty.call(body,'country')?String(body.country||'').trim().toUpperCase():null;
+    const phone=hasPhone?normalizePhone(body.phone,country):null;
     if(country&&!/^[A-Z]{2}$/.test(country))return json(res,400,{error:'Please select a valid country.'});
     const sponsorCode=safeSponsor(body.sponsorCode);
     const configuredAdminEmails=Array.from(new Set([String(process.env.ADMIN_EMAIL||'').trim().toLowerCase(),'admin@gf.online','admin@gf.app'].filter(Boolean)));
@@ -135,6 +135,17 @@ export default async function handler(req,res){
       const walletRef=db.collection('wallets').doc(uid);
       const userSnap=await transaction.get(userRef);
       const walletSnap=await transaction.get(walletRef);
+
+      // Enforce one primary mobile number per member account.
+      // Firestore transaction reads make concurrent registrations conflict/retry.
+      if(phone){
+        const phoneMatches=await transaction.get(db.collection('users').where('phone','==',phone));
+        if(phoneMatches.docs.some(doc=>doc.id!==uid)){
+          const error=new Error('This mobile number is already registered. One mobile number can have only one Global Finance ID. Please sign in to the existing account.');
+          error.statusCode=400;
+          throw error;
+        }
+      }
 
       if(userSnap.exists){
         const current=userSnap.data()||{};
