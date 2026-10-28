@@ -551,7 +551,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       </div>
 
       {/* BALANCE SUMMARY SECTION */}
-      <div className="gf-dashboard-balance">
+      <div className="gf-dashboard-balance order-last">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
             Balance Summary
