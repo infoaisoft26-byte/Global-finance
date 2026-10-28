@@ -98,6 +98,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     (teamMembers?.some(member => Number(member.level) === item.level) ?? false) || item.amount > 0
   );
   const totalRetopupLevelIncome = retopupLevelSummary.reduce((sum, item) => sum + item.amount, 0);
+  const roiLevelSummary = useMemo(() => {
+    const levels = Array.from({ length: 15 }, (_, index) => ({
+      level: index + 1,
+      rate: index === 0 ? 5 : 1,
+      amount: 0,
+    }));
+    for (const t of incomeLedger) {
+      if (t.flow !== 'credit' || !['completed', 'approved', 'credited'].includes(String(t.status || '').toLowerCase())) continue;
+      const type = String(t.type || '').toLowerCase();
+      if (!['basic_level', 'fd_level'].includes(type)) continue;
+      const metadata = (t.metadata && typeof t.metadata === 'object' ? t.metadata : {}) as Record<string, unknown>;
+      const level = Number(metadata.level ?? metadata.levelNumber);
+      if (!Number.isInteger(level) || level < 1 || level > 15) continue;
+      const amount = Number(t.netAmount || t.amount || 0);
+      if (Number.isFinite(amount)) levels[level - 1].amount += amount;
+    }
+    return levels;
+  }, [incomeLedger]);
+  const totalRoiLevelIncome = roiLevelSummary.reduce((sum, item) => sum + item.amount, 0);
+
 
   const actualIncomeTotals = useMemo(() => {
     const result = { total: 0, referral: 0, basicReferral: 0, fdReferral: 0, level: 0, roi: 0, salary: 0, bonus: 0, other: 0 };
@@ -628,6 +648,46 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           </div>
         </div>
       </div>
+
+      {/* Member-visible income rates and actual level credits */}
+      <section className="rounded-2xl border border-cyan-500/25 bg-[#091129]/90 p-4 sm:p-5 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold uppercase tracking-wide text-white">Level-wise Income Details</h3>
+            <p className="text-xs text-slate-400 mt-1">Actual credited amounts from your income ledger. Levels with no credited entry remain 0.00.</p>
+          </div>
+          <button type="button" onClick={handleIncomeRefresh} disabled={incomeRefreshing} className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-300 disabled:opacity-50">
+            <RefreshCw className={`w-3.5 h-3.5 ${incomeRefreshing ? 'animate-spin' : ''}`} /> Refresh income
+          </button>
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-teal-500/20 bg-slate-950/40 p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-teal-300">ROI Level Income</h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">L1: 5% · L2–L15: 1% each</p>
+              </div>
+              <div className="text-right"><div className="text-[10px] text-slate-400">Total credited</div><div className="font-mono text-sm font-bold text-white">{formatUsdt(totalRoiLevelIncome)}</div></div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {roiLevelSummary.map(item => <div key={item.level} className="rounded-lg border border-teal-500/15 bg-[#0b1430] p-2 flex items-center justify-between gap-2"><div><div className="text-[10px] text-slate-300">Level {item.level}</div><div className="text-[10px] text-teal-300">{item.rate}%</div></div><div className="text-xs font-bold font-mono text-white text-right">{formatUsdt(item.amount)}</div></div>)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-violet-500/20 bg-slate-950/40 p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-violet-300">Retopup Income</h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">L1: 1% · L2–L15: 0.25% each</p>
+              </div>
+              <div className="text-right"><div className="text-[10px] text-slate-400">Total credited</div><div className="font-mono text-sm font-bold text-white">{formatUsdt(totalRetopupLevelIncome)}</div></div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {retopupLevelSummary.map(item => <div key={item.level} className="rounded-lg border border-violet-500/15 bg-[#0b1430] p-2 flex items-center justify-between gap-2"><div><div className="text-[10px] text-slate-300">Level {item.level}</div><div className="text-[10px] text-violet-300">{item.rate}%</div></div><div className="text-xs font-bold font-mono text-white text-right">{formatUsdt(item.amount)}</div></div>)}
+            </div>
+          </div>
+        </div>
+        <p className="text-[11px] text-slate-500">Rates describe the configured schedule, not a guaranteed return. Credits require eligible activity and appear here after they are recorded in your ledger.</p>
+      </section>
 
       {/* TEAM SUMMARY SECTION */}
       <div className="gf-dashboard-team">
