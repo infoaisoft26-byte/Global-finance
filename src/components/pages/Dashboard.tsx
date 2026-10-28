@@ -329,7 +329,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   };
 
   return (
-    <div className="gf-member-dashboard space-y-6">
+    <div className="gf-member-dashboard flex flex-col space-y-6">
       {showOffer && offerPoster && (
         <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="relative w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl bg-[#091129] border border-cyan-500/30 shadow-2xl shadow-cyan-950/40">
@@ -471,7 +471,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
       </div>
 
       {/* PRIMARY STATS ROW: Basic Package & FD Package */}
-      <div className="gf-dashboard-packages grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="gf-dashboard-packages order-first grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* Basic Package Card */}
         <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-cyan-500/40 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
