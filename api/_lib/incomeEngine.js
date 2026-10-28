@@ -141,6 +141,9 @@ export async function ensureIncomeSchema(client) {
   const precisionMigration = await client.query(`INSERT INTO income_precision_migrations(migration_key)
     VALUES('usdt-income-six-decimals-v1') ON CONFLICT(migration_key) DO NOTHING RETURNING migration_key`);
   if (precisionMigration.rowCount === 1) {
+    // This view casts balances to six decimals but depends on the underlying columns.
+    // Recreate it around the one-time type change, then restore its existing grants.
+    await client.query('DROP VIEW IF EXISTS admin_finance_overview');
     await client.query(`ALTER TABLE ledger_transactions
       ALTER COLUMN amount TYPE NUMERIC(20,6) USING amount::NUMERIC(20,6),
       ALTER COLUMN net_amount TYPE NUMERIC(20,6) USING net_amount::NUMERIC(20,6)`);
@@ -166,6 +169,31 @@ export async function ensureIncomeSchema(client) {
       ALTER COLUMN fd_total_roi_income TYPE NUMERIC(20,6) USING fd_total_roi_income::NUMERIC(20,6),
       ALTER COLUMN fd_total_level_income TYPE NUMERIC(20,6) USING fd_total_level_income::NUMERIC(20,6),
       ALTER COLUMN total_salary TYPE NUMERIC(20,6) USING total_salary::NUMERIC(20,6)`);
+    await client.query(`CREATE VIEW admin_finance_overview AS
+      SELECT u.id AS user_id,u.email,u.name,u.referral_code,u.sponsor_id,u.status AS user_status,u.kyc_status,
+        COALESCE(w.fund_wallet,0::numeric)::numeric(18,6) AS fund_wallet_usdt,
+        COALESCE(w.income_wallet,0::numeric)::numeric(18,6) AS income_wallet_usdt,
+        COALESCE(w.total_income,0::numeric)::numeric(18,6) AS total_income_usdt,
+        COALESCE(w.total_withdrawal,0::numeric)::numeric(18,6) AS total_withdrawal_usdt,
+        COALESCE(w.basic_package_active,0::numeric)::numeric(18,6) AS basic_package_active_usdt,
+        COALESCE(w.fd_package_active,0::numeric)::numeric(18,6) AS fd_package_active_usdt,
+        COALESCE(r.pending_count,0::bigint)::integer AS pending_recharge_count,
+        COALESCE(r.pending_usdt,0::numeric)::numeric(18,6) AS pending_recharge_usdt,
+        COALESCE(a.active_packages,0::bigint)::integer AS active_package_count,
+        COALESCE(a.active_principal,0::numeric)::numeric(18,6) AS active_package_principal_usdt,
+        COALESCE(i.distribution_count,0::bigint)::integer AS income_distribution_count,
+        COALESCE(i.distributed_usdt,0::numeric)::numeric(18,6) AS recorded_income_distributions_usdt
+      FROM users u
+      LEFT JOIN wallets w ON w.user_id::text=u.id::text
+      LEFT JOIN LATERAL (SELECT COUNT(*) FILTER (WHERE x.status::text='pending') AS pending_count,
+        COALESCE(SUM(x.amount_usdt) FILTER (WHERE x.status::text='pending'),0::numeric) AS pending_usdt
+        FROM usdt_bep20_recharges x WHERE x.user_id::text=u.id::text) r ON TRUE
+      LEFT JOIN LATERAL (SELECT COUNT(*) FILTER (WHERE p.status::text='active') AS active_packages,
+        COALESCE(SUM(p.amount) FILTER (WHERE p.status::text='active'),0::numeric) AS active_principal
+        FROM package_activations p WHERE p.user_id::text=u.id::text) a ON TRUE
+      LEFT JOIN LATERAL (SELECT COUNT(*) AS distribution_count,COALESCE(SUM(d.amount),0::numeric) AS distributed_usdt
+        FROM income_distributions d WHERE d.recipient_user_id::text=u.id::text) i ON TRUE`);
+    await client.query('GRANT SELECT, INSERT, UPDATE, DELETE ON admin_finance_overview TO authenticated');
   }
   await client.query(`CREATE INDEX IF NOT EXISTS idx_income_distributions_recipient ON income_distributions(recipient_user_id,created_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_income_events_type_date ON income_events(event_type,business_date)`);
