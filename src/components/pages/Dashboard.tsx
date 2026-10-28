@@ -550,124 +550,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       </div>
 
-      {/* BALANCE SUMMARY SECTION */}
-      <div className="gf-dashboard-balance order-last">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
-            Balance Summary
-          </h3>
-          <span className="text-xs text-slate-500">Real-time ledger synchronized</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Available Fund */}
-          <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">Available Fund</span>
-              <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
-                <Wallet className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight tabular-nums">
-              {formatUsdt(wallet?.fundWallet)}
-            </div>
-            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between">
-              <span>Deposit wallet</span>
-              <button 
-                onClick={() => onNavigate('recharge')} 
-                className="text-cyan-400 hover:underline"
-              >
-                Add Fund
-              </button>
-            </div>
-          </div>
-
-          {/* Available Balance */}
-          <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">Available Balance</span>
-              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-                <CreditCard className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-emerald-400 font-mono tracking-tight tabular-nums">
-              {formatUsdt(wallet?.incomeWallet)}
-            </div>
-            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between">
-              <span>Income wallet</span>
-              <button 
-                onClick={() => onNavigate('fund-withdrawal')} 
-                className="text-emerald-400 hover:underline"
-              >
-                Withdraw
-              </button>
-            </div>
-          </div>
-
-          {/* Total Income */}
-          <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">Total Income</span>
-              <button type="button" onClick={handleIncomeRefresh} disabled={incomeRefreshing} aria-label="Refresh income totals" title="Refresh income totals" className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 disabled:opacity-50">
-                <RefreshCw className={`w-4 h-4 ${incomeRefreshing ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-indigo-300 font-mono tracking-tight tabular-nums">
-              {formatUsdt(incomeLedger.length ? actualIncomeTotals.total : wallet?.totalIncome)}
-            </div>
-            <div className="mt-3 text-[11px] text-slate-400">
-              Cumulative earnings
-            </div>
-          </div>
-
-          {/* Total Withdrawal */}
-          <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">Total Withdrawal</span>
-              <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400">
-                <ArrowDownLeft className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-rose-300 font-mono tracking-tight tabular-nums">
-              {formatUsdt(wallet?.totalWithdrawal)}
-            </div>
-            <div className="mt-3 text-[11px] text-slate-400">
-              Net payout executed
-            </div>
-          </div>
-
-          {/* Compact retopup and level-income summaries, styled like the package cards. */}
-          <div className="p-4 rounded-xl bg-[#091129]/90 border border-violet-500/25 shadow-lg backdrop-blur-md">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">Retopup Income</span>
-              <span className="text-[10px] text-slate-400">Total</span>
-            </div>
-            <div className="text-base font-extrabold text-violet-200 font-mono tracking-tight tabular-nums">{formatUsdt(totalRetopupLevelIncome)}</div>
-            {eligibleRetopupLevels.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {eligibleRetopupLevels.map((item) => (
-                  <div key={item.level} className="flex items-center gap-1.5 rounded-md border border-violet-500/20 bg-[#0b1430] px-2 py-1">
-                    <span className="text-[10px] font-semibold text-slate-300">L{item.level}</span>
-                    <span className="text-[10px] text-cyan-300">{item.rate}%</span>
-                    <span className="text-[10px] font-bold text-white font-mono">{formatUsdt(item.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-2 text-[10px] text-slate-400">Eligible levels appear automatically when your team qualifies.</p>
-            )}
-          </div>
-
-          <div className="p-4 rounded-xl bg-[#091129]/90 border border-teal-500/25 shadow-lg backdrop-blur-md">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-300">Total Level Income</span>
-              <ListOrdered className="w-4 h-4 text-teal-300" />
-            </div>
-            <div className="text-base font-extrabold text-teal-200 font-mono tracking-tight tabular-nums">{formatUsdt(incomeLedger.length ? actualIncomeTotals.level : wallet?.totalLevelIncome)}</div>
-            <p className="mt-2 text-[10px] text-slate-400">Credited level commissions</p>
-          </div>
-        </div>
-      </div>
 
       {/* Member-visible income rates and actual level credits */}
       <section className="rounded-2xl border border-cyan-500/25 bg-[#091129]/90 p-4 sm:p-5 shadow-xl space-y-4">
@@ -930,6 +812,125 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
                 {formatUsdt(wallet?.totalSalary)}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* BALANCE SUMMARY SECTION */}
+      <div className="gf-dashboard-balance">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">
+            Balance Summary
+          </h3>
+          <span className="text-xs text-slate-500">Real-time ledger synchronized</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Available Fund */}
+          <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">Available Fund</span>
+              <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                <Wallet className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight tabular-nums">
+              {formatUsdt(wallet?.fundWallet)}
+            </div>
+            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Deposit wallet</span>
+              <button 
+                onClick={() => onNavigate('recharge')} 
+                className="text-cyan-400 hover:underline"
+              >
+                Add Fund
+              </button>
+            </div>
+          </div>
+
+          {/* Available Balance */}
+          <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">Available Balance</span>
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                <CreditCard className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-emerald-400 font-mono tracking-tight tabular-nums">
+              {formatUsdt(wallet?.incomeWallet)}
+            </div>
+            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Income wallet</span>
+              <button 
+                onClick={() => onNavigate('fund-withdrawal')} 
+                className="text-emerald-400 hover:underline"
+              >
+                Withdraw
+              </button>
+            </div>
+          </div>
+
+          {/* Total Income */}
+          <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">Total Income</span>
+              <button type="button" onClick={handleIncomeRefresh} disabled={incomeRefreshing} aria-label="Refresh income totals" title="Refresh income totals" className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 disabled:opacity-50">
+                <RefreshCw className={`w-4 h-4 ${incomeRefreshing ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-indigo-300 font-mono tracking-tight tabular-nums">
+              {formatUsdt(incomeLedger.length ? actualIncomeTotals.total : wallet?.totalIncome)}
+            </div>
+            <div className="mt-3 text-[11px] text-slate-400">
+              Cumulative earnings
+            </div>
+          </div>
+
+          {/* Total Withdrawal */}
+          <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">Total Withdrawal</span>
+              <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400">
+                <ArrowDownLeft className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-rose-300 font-mono tracking-tight tabular-nums">
+              {formatUsdt(wallet?.totalWithdrawal)}
+            </div>
+            <div className="mt-3 text-[11px] text-slate-400">
+              Net payout executed
+            </div>
+          </div>
+
+          {/* Compact retopup and level-income summaries, styled like the package cards. */}
+          <div className="p-4 rounded-xl bg-[#091129]/90 border border-violet-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">Retopup Income</span>
+              <span className="text-[10px] text-slate-400">Total</span>
+            </div>
+            <div className="text-base font-extrabold text-violet-200 font-mono tracking-tight tabular-nums">{formatUsdt(totalRetopupLevelIncome)}</div>
+            {eligibleRetopupLevels.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {eligibleRetopupLevels.map((item) => (
+                  <div key={item.level} className="flex items-center gap-1.5 rounded-md border border-violet-500/20 bg-[#0b1430] px-2 py-1">
+                    <span className="text-[10px] font-semibold text-slate-300">L{item.level}</span>
+                    <span className="text-[10px] text-cyan-300">{item.rate}%</span>
+                    <span className="text-[10px] font-bold text-white font-mono">{formatUsdt(item.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-[10px] text-slate-400">Eligible levels appear automatically when your team qualifies.</p>
+            )}
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#091129]/90 border border-teal-500/25 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-300">Total Level Income</span>
+              <ListOrdered className="w-4 h-4 text-teal-300" />
+            </div>
+            <div className="text-base font-extrabold text-teal-200 font-mono tracking-tight tabular-nums">{formatUsdt(incomeLedger.length ? actualIncomeTotals.level : wallet?.totalLevelIncome)}</div>
+            <p className="mt-2 text-[10px] text-slate-400">Credited level commissions</p>
           </div>
         </div>
       </div>
