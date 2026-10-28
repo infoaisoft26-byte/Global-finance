@@ -83,7 +83,7 @@ export const DirectTeam: React.FC = () => {
       header: 'Status',
       render: item => (
         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${item.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.status === 'suspended' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-          {item.status || 'inactive'}
+          {item.status === 'active' ? 'Active' : 'Inactive'}
         </span>
       )
     }
@@ -96,7 +96,7 @@ export const DirectTeam: React.FC = () => {
     { header: 'Mobile', accessor: item => item.phone || '' },
     { header: 'Email', accessor: item => item.email || '' },
     { header: 'DOA', accessor: item => formatDate(item.joinDate) },
-    { header: 'Activation', accessor: item => item.status || 'inactive' }
+    { header: 'Activation', accessor: item => item.status === 'active' ? 'Active' : 'Inactive' }
   ];
 
   return (
@@ -142,7 +142,7 @@ export const DirectTeam: React.FC = () => {
                   <div className="font-bold text-slate-900 break-words">{item.name || 'Member'}</div>
                   <div className="text-xs text-blue-700 font-mono mt-0.5">{item.referralCode || '—'}</div>
                 </div>
-                <span className={`text-[11px] font-semibold rounded-full px-2 py-1 capitalize ${item.status === 'active' ? 'bg-emerald-50 text-emerald-700' : item.status === 'suspended' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-700'}`}>{item.status || 'inactive'}</span>
+                <span className={`text-[11px] font-semibold rounded-full px-2 py-1 capitalize ${item.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{item.status || 'inactive'}</span>
               </div>
               <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 text-sm">
                 <div className="flex items-start gap-2 text-slate-700"><Phone className="w-4 h-4 mt-0.5 text-blue-700 shrink-0" /><span className="text-xs text-slate-500 w-16 shrink-0">Mobile</span>{item.phone ? <a href={`tel:${item.phone}`} className="font-semibold text-blue-700 underline underline-offset-2 break-all">{item.phone}</a> : <span className="text-slate-500">Not provided</span>}</div>
