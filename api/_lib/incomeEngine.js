@@ -427,6 +427,51 @@ export async function runDailyIncome(client,businessDate) {
   const rates = await getCommissionRates('roi');
   const date=businessDate || previousIndiaBusinessDate();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('INVALID_BUSINESS_DATE');
+  // Idempotent recovery for missing level distributions on recorded ROI events.
+  // Initial scope is limited to the seven members reported by support.
+  // Base is the actually credited source ROI (not invested principal); credit()
+  // checks active package/cap eligibility and uses a deterministic idempotency key.
+  const repairCodes = new Set(['GF000231','GF000269','GF000247','GF000228','GF000206','GF000205','GF000273']);
+  const repairEvents = await client.query(`
+    SELECT e.event_key,e.source_user_id,e.business_date,d.amount AS credited_roi,
+           d.income_type AS source_roi_type
+      FROM income_events e
+      JOIN income_distributions d
+        ON d.event_key=e.event_key AND d.recipient_user_id=e.source_user_id
+       AND d.level=0 AND d.income_type IN ('basic_roi','fd_roi')
+     WHERE e.event_type='daily_roi'
+       AND e.business_date >= ($1::date - INTERVAL '13 days')::date
+       AND e.business_date <= $1::date
+       AND d.amount>0
+     ORDER BY e.business_date,e.event_key
+  `, [date]);
+  let repairedLevelCredits = 0;
+  for (const event of repairEvents.rows) {
+    const ups = await uplines(client, event.source_user_id);
+    for (const u of ups) {
+      if (!repairCodes.has(String(u.referral_code || '').toUpperCase())) continue;
+      if (u.status !== 'active' || u.referral_status === 'inactive') continue;
+      const level = Number(u.level);
+      const rate = levelRate(level, rates);
+      if (rate <= 0) continue;
+      const incomeType = event.source_roi_type === 'fd_roi' ? 'fd_level' : 'basic_level';
+      const repaired = await credit(client, {
+        eventKey: event.event_key,
+        recipient: u.id,
+        source: event.source_user_id,
+        incomeType,
+        level,
+        rate,
+        base: Number(event.credited_roi),
+        amount: pct(Number(event.credited_roi), rate),
+        description: `Reconciled daily level L${level} (${rate}%) from recorded ROI event ${event.event_key}`,
+        businessDate: event.business_date,
+        countInDailyTotals: true
+      });
+      if (Number(repaired) > 0) repairedLevelCredits++;
+    }
+  }
+
   // Expired activations must transition out of active status even if a prior daily run was missed.
   await client.query(`UPDATE package_activations SET status='matured' WHERE status='active' AND (expires_at AT TIME ZONE 'Asia/Kolkata')::date < $1::date`,[date]);
   const {rows}=await client.query(`SELECT pa.*,COALESCE(u.referral_code,'') AS source_referral_code FROM package_activations pa JOIN users u ON u.id=pa.user_id
