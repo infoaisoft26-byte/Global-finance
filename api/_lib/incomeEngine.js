@@ -18,7 +18,8 @@ async function getCommissionRates(kind) {
   const defaults = DEFAULT_COMMISSION_RATES[kind] || DEFAULT_COMMISSION_RATES.roi;
   return { ...defaults };
 }
-const money = (v) => Number(Number(v || 0).toFixed(2));
+// Keep sub-cent USDT commissions (e.g. 1% of 0.10 = 0.001) instead of rounding them to zero.
+const money = (v) => Number(Number(v || 0).toFixed(6));
 const pct = (base, rate) => money((Number(base || 0) * Number(rate || 0)) / 100);
 
 export async function ensureIncomeSchema(client) {
@@ -134,6 +135,38 @@ export async function ensureIncomeSchema(client) {
     ledger_id VARCHAR(64) NOT NULL UNIQUE REFERENCES ledger_transactions(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(event_key,recipient_user_id,income_type,level))`);
+  // One-time precision migration: USDT income commissions need six decimals.
+  await client.query(`CREATE TABLE IF NOT EXISTS income_precision_migrations(
+    migration_key VARCHAR(120) PRIMARY KEY, completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  const precisionMigration = await client.query(`INSERT INTO income_precision_migrations(migration_key)
+    VALUES('usdt-income-six-decimals-v1') ON CONFLICT(migration_key) DO NOTHING RETURNING migration_key`);
+  if (precisionMigration.rowCount === 1) {
+    await client.query(`ALTER TABLE ledger_transactions
+      ALTER COLUMN amount TYPE NUMERIC(20,6) USING amount::NUMERIC(20,6),
+      ALTER COLUMN net_amount TYPE NUMERIC(20,6) USING net_amount::NUMERIC(20,6)`);
+    await client.query(`ALTER TABLE income_distributions
+      ALTER COLUMN base_amount TYPE NUMERIC(20,6) USING base_amount::NUMERIC(20,6),
+      ALTER COLUMN amount TYPE NUMERIC(20,6) USING amount::NUMERIC(20,6)`);
+    await client.query(`ALTER TABLE income_events
+      ALTER COLUMN base_amount TYPE NUMERIC(20,6) USING base_amount::NUMERIC(20,6)`);
+    await client.query(`ALTER TABLE package_activations
+      ALTER COLUMN total_earned TYPE NUMERIC(20,6) USING total_earned::NUMERIC(20,6),
+      ALTER COLUMN credited_total TYPE NUMERIC(20,6) USING credited_total::NUMERIC(20,6)`);
+    await client.query(`ALTER TABLE wallets
+      ALTER COLUMN income_wallet TYPE NUMERIC(20,6) USING income_wallet::NUMERIC(20,6),
+      ALTER COLUMN total_income TYPE NUMERIC(20,6) USING total_income::NUMERIC(20,6),
+      ALTER COLUMN referral_income TYPE NUMERIC(20,6) USING referral_income::NUMERIC(20,6),
+      ALTER COLUMN today_roi_income TYPE NUMERIC(20,6) USING today_roi_income::NUMERIC(20,6),
+      ALTER COLUMN today_level_income TYPE NUMERIC(20,6) USING today_level_income::NUMERIC(20,6),
+      ALTER COLUMN total_roi_income TYPE NUMERIC(20,6) USING total_roi_income::NUMERIC(20,6),
+      ALTER COLUMN total_level_income TYPE NUMERIC(20,6) USING total_level_income::NUMERIC(20,6),
+      ALTER COLUMN fd_referral_income TYPE NUMERIC(20,6) USING fd_referral_income::NUMERIC(20,6),
+      ALTER COLUMN fd_today_roi_income TYPE NUMERIC(20,6) USING fd_today_roi_income::NUMERIC(20,6),
+      ALTER COLUMN fd_today_level_income TYPE NUMERIC(20,6) USING fd_today_level_income::NUMERIC(20,6),
+      ALTER COLUMN fd_total_roi_income TYPE NUMERIC(20,6) USING fd_total_roi_income::NUMERIC(20,6),
+      ALTER COLUMN fd_total_level_income TYPE NUMERIC(20,6) USING fd_total_level_income::NUMERIC(20,6),
+      ALTER COLUMN total_salary TYPE NUMERIC(20,6) USING total_salary::NUMERIC(20,6)`);
+  }
   await client.query(`CREATE INDEX IF NOT EXISTS idx_income_distributions_recipient ON income_distributions(recipient_user_id,created_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_income_events_type_date ON income_events(event_type,business_date)`);
 }
