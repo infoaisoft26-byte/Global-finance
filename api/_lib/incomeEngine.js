@@ -5,7 +5,7 @@ const MAX_LEVEL = 15;
 
 // Separate schedules prevent joining, retopup and ROI-level income from sharing rates.
 const DEFAULT_COMMISSION_RATES = Object.freeze({
-  joining: Object.freeze({1:5,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0,13:0,14:0,15:0}),
+  joining: Object.freeze({1:5,2:0.25,3:0.25,4:0.25,5:0.25,6:0.25,7:0.25,8:0.25,9:0.25,10:0.25,11:0.25,12:0.25,13:0.25,14:0.25,15:0.25}),
   retopup: Object.freeze({1:1,2:0.25,3:0.25,4:0.25,5:0.25,6:0.25,7:0.25,8:0.25,9:0.25,10:0.25,11:0.25,12:0.25,13:0.25,14:0.25,15:0.25}),
   roi: Object.freeze({1:5,2:1,3:1,4:1,5:1,6:1,7:1,8:1,9:1,10:1,11:1,12:1,13:1,14:1,15:1}),
 });
