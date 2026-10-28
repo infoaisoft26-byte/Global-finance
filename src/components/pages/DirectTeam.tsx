@@ -10,6 +10,13 @@ export const DirectTeam: React.FC = () => {
   const [members, setMembers] = useState<DownlineMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
+  const filteredMembers = members.filter(member => {
+    if (statusFilter === 'all') return true;
+    const isActive = member.status === 'active';
+    return statusFilter === 'active' ? isActive : !isActive;
+  });
 
   const referralCode = profile?.referralCode || '';
   const referralUrl = typeof window !== 'undefined' && referralCode
@@ -127,14 +134,29 @@ export const DirectTeam: React.FC = () => {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold text-slate-900">Direct Member Details</h3>
-          <span className="text-xs text-slate-500">Level 1 only</span>
+          <span className="text-xs text-slate-500">Level 1 only · {filteredMembers.length} shown</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-3">
+          <label className="text-xs font-semibold text-slate-700 space-y-1">
+            <span>Member Status</span>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="all">All Members</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive (including suspended)</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-slate-700 space-y-1">
+            <span>Downline Level</span>
+            <select value="1" disabled className="w-full rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700"><option value="1">Level 1 — Direct Team</option></select>
+          </label>
         </div>
 
         {/* Mobile-first cards keep each member's phone number visible without horizontal table scrolling. */}
         <div className="md:hidden space-y-3">
           {loading && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">Loading direct team…</div>}
-          {!loading && members.length === 0 && <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">No direct team members found yet.</div>}
-          {members.map(item => (
+          {!loading && filteredMembers.length === 0 && <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">No direct team members found yet.</div>}
+          {filteredMembers.map(item => (
             <article key={item.userId || item.id || item.referralCode} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center shrink-0"><UserRound className="w-5 h-5" /></div>
@@ -158,7 +180,7 @@ export const DirectTeam: React.FC = () => {
             title="Direct Team"
             columns={columns}
             pdfColumns={pdfColumns}
-            data={members}
+            data={filteredMembers}
             onRefresh={loadDirectTeam}
             isLoading={loading}
             emptyMessage="No direct team members found. Share your referral link above to grow your network!"
