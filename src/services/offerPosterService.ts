@@ -43,7 +43,7 @@ export async function uploadOfferPosterImage(file: File): Promise<string> {
 export async function uploadOfferPosterVideo(file: File): Promise<string> {
  const user=auth.currentUser; if(!user) throw new Error('Authentication required');
  if(file.type!=='video/mp4') throw new Error('Please select an MP4 video.');
- if(file.size>2*1024*1024) throw new Error('MP4 must be 2 MB or smaller for direct Neon upload. Please compress it.');
+ if(file.size>3*1024*1024) throw new Error('MP4 must be 3 MB or smaller for direct Neon upload. Please compress it.');
  const token=await user.getIdToken(); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';
  for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
  const response=await fetch('/api/offer-poster-image',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({fileName:file.name,contentType:'video/mp4',data:btoa(binary)})});
