@@ -47,7 +47,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
     loadData();
   }, [profile?.uid]);
 
-  const feePercent = settings?.withdrawalFeePercent || 5;
+  const feePercent = 5;
   const feeAmount = Number(((amount * feePercent) / 100).toFixed(6));
   const netPayout = Number((amount - feeAmount).toFixed(6));
   const isWithdrawalEnabled = settings?.withdrawalEnabled ?? true;
