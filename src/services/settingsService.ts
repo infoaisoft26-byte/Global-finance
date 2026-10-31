@@ -31,7 +31,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   withdrawalWindowEnd: '15:30',
   withdrawalTimezone: 'Asia/Kolkata',
   maxWithdrawal: 1000000,
-  withdrawalFeePercent: 0,
+  withdrawalFeePercent: 5,
   basicPackageEnabled: true,
   fdPackageEnabled: true,
   packageActivationApprovalRequired: true,
@@ -71,6 +71,7 @@ const normalizeSettings = (stored: Partial<SystemSettings> & Record<string, any>
   fdPackageEnabled: true,
   rechargeEnabled: false,
   withdrawalEnabled: true,
+  withdrawalFeePercent: 5,
   // Withdrawals use registered-email OTP plus admin approval; KYC is not required for this flow.
   requireKycForWithdrawal: false
 } as SystemSettings);
