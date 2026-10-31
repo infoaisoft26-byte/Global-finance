@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Megaphone, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
-import { disableOfferPoster, getActiveOfferPoster, saveOfferPoster, uploadOfferPosterImage, type OfferPoster } from '../../../services/offerPosterService.ts';
+import { disableOfferPoster, getActiveOfferPoster, saveOfferPoster, uploadOfferPosterImage, uploadOfferPosterVideo, type OfferPoster } from '../../../services/offerPosterService.ts';
 
 export const AdminOfferPoster: React.FC = () => {
   const [poster, setPoster] = useState<OfferPoster | null>(null);
   const [title, setTitle] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [posterSeconds, setPosterSeconds] = useState(5);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const imageUrlRef = useRef('');
   const titleRef = useRef('');
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -29,13 +32,13 @@ export const AdminOfferPoster: React.FC = () => {
       setPoster(current);
       setLocalPreviewUrl('');
       if (current) {
-        setTitle(current.title); titleRef.current = current.title; setImageUrl(current.imageUrl); imageUrlRef.current = current.imageUrl; setDescription(current.description);
+        setTitle(current.title); titleRef.current = current.title; setImageUrl(current.imageUrl); imageUrlRef.current = current.imageUrl; setVideoUrl(current.videoUrl || ''); setPosterSeconds(current.posterSeconds || 5); setDescription(current.description);
         setCtaLabel(current.ctaLabel); setCtaUrl(current.ctaUrl);
         setStartAt(current.startAt ? current.startAt.slice(0,16) : '');
         setEndAt(current.endAt ? current.endAt.slice(0,16) : '');
         setActive(current.active);
       } else {
-        setTitle(''); titleRef.current = ''; setImageUrl(''); imageUrlRef.current = ''; setDescription(''); setCtaLabel(''); setCtaUrl(''); setStartAt(''); setEndAt(''); setActive(true);
+        setTitle(''); titleRef.current = ''; setImageUrl(''); imageUrlRef.current = ''; setVideoUrl(''); setPosterSeconds(5); setDescription(''); setCtaLabel(''); setCtaUrl(''); setStartAt(''); setEndAt(''); setActive(true);
       }
     } catch (e: any) { setError(e?.message || 'Unable to load poster.'); }
     finally { setLoading(false); }
@@ -72,6 +75,7 @@ export const AdminOfferPoster: React.FC = () => {
         id: poster?.id || '',
         title: nextTitle,
         imageUrl: url,
+        videoUrl, posterSeconds,
         description,
         ctaLabel,
         ctaUrl,
@@ -108,7 +112,7 @@ export const AdminOfferPoster: React.FC = () => {
     try {
       const saved = await saveOfferPoster({
         id: poster?.id || '',
-        title: finalTitle, imageUrl: finalImageUrl, description, ctaLabel, ctaUrl,
+        title: finalTitle, imageUrl: finalImageUrl, videoUrl, posterSeconds, description, ctaLabel, ctaUrl,
         startAt: startAt ? new Date(startAt).toISOString() : '',
         endAt: endAt ? new Date(endAt).toISOString() : '',
         active,
@@ -147,6 +151,19 @@ export const AdminOfferPoster: React.FC = () => {
           <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-cyan-300">Poster Content</h3><label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Publish now</label></div>
           <label className="block text-xs text-slate-300">Offer title<input value={title} onChange={e => { titleRef.current = e.target.value; setTitle(e.target.value); }} required maxLength={160} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="e.g. New Member Offer" /></label>
           <label className="block text-xs text-slate-300">Select poster image<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingImage || saving} onChange={handleImageUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Saving image in Neon and publishing poster…" : "Choose an image from your device • PNG, JPG, WEBP or GIF • Max 3 MB"}</p></label>
+          <label className="block text-xs text-slate-300">Select MP4 video (optional)
+            <input type="file" accept="video/mp4,.mp4" disabled={uploadingVideo || saving} onChange={async e => {
+              const input=e.currentTarget; const file=input.files?.[0]; if(!file) return;
+              setUploadingVideo(true); setError(''); setMessage('');
+              try { const url=await uploadOfferPosterVideo(file); setVideoUrl(url); setMessage('MP4 video saved in Neon. Publish to update the member sequence.'); }
+              catch(err) { setError(err instanceof Error ? err.message : 'Unable to upload MP4 video.'); }
+              finally { setUploadingVideo(false); input.value=''; }
+            }} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" />
+            <p className="mt-1 text-[11px] text-slate-500">{uploadingVideo ? 'Saving MP4 in Neon…' : videoUrl ? 'MP4 video uploaded successfully.' : 'MP4 only • Max 2 MB'}</p>
+          </label>
+          <label className="block text-xs text-slate-300">Poster display time (seconds)
+            <input type="number" min="2" max="30" value={posterSeconds} onChange={e=>setPosterSeconds(Math.min(30,Math.max(2,Number(e.target.value)||5)))} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" />
+          </label>
           <label className="block text-xs text-slate-300">Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} maxLength={1000} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="Short offer details..." /></label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block text-xs text-slate-300">Button text<input value={ctaLabel} onChange={e => setCtaLabel(e.target.value)} maxLength={80} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="View Offer" /></label>
@@ -157,7 +174,7 @@ export const AdminOfferPoster: React.FC = () => {
             <label className="block text-xs text-slate-300">End (optional)<input type="datetime-local" value={endAt} onChange={e => setEndAt(e.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" /></label>
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 text-white font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-50"><Save className="w-4 h-4" />{saving ? 'Saving…' : active ? 'Publish Offer Poster' : 'Save Hidden'}</button>
+            <button type="submit" disabled={saving || uploadingImage || uploadingVideo} className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 text-white font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-50"><Save className="w-4 h-4" />{saving ? 'Saving…' : active ? 'Publish Offer Poster' : 'Save Hidden'}</button>
             {poster && poster.active && <button type="button" onClick={() => void hide()} disabled={saving} className="px-4 py-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center gap-2"><EyeOff className="w-4 h-4" />Hide</button>}
           </div>
         </section>
