@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     const contentType = String(body.contentType || '');
     const fileName = String(body.fileName || '').slice(0, 255);
     const encoded = String(body.data || '');
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(contentType)) return json(res, 400, { error: 'Choose a JPG, PNG, WEBP or GIF image.' });
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(contentType) && contentType !== 'video/mp4') return json(res, 400, { error: 'Choose a JPG, PNG, WEBP or GIF image.' });
     if (!encoded || encoded.length > 2_900_000) return json(res, 400, { error: 'Image or MP4 must be within the supported upload size.' });
     const imageData = Buffer.from(encoded, 'base64');
     if (!imageData.length || imageData.length > 2 * 1024 * 1024) return json(res, 400, { error: 'Image or MP4 must be 2 MB or smaller.' });
