@@ -84,6 +84,43 @@ async function actorFromToken(req){
 function requireAdmin(actor){
   if(!['admin','super_admin','administrator'].includes(actor.role) && !adminEmailAllowed(actor.email)) throw new Error('ADMIN_REQUIRED');
 }
+async function suspendForDuplicateTx(actor,txHash,amount,existingTx){
+  const db=getFirestoreAdmin();
+  const now=new Date();
+  const rejectedId='RCH_'+crypto.randomUUID().replaceAll('-','').slice(0,24);
+  const userRef=db.collection('users').doc(actor.id);
+  const fraudRef=db.collection('duplicateDepositAttempts').doc(crypto.createHash('sha256').update(actor.id+':'+txHash).digest('hex'));
+  await db.runTransaction(async t=>{
+    const [userSnap,fraudSnap]=await Promise.all([t.get(userRef),t.get(fraudRef)]);
+    if(!userSnap.exists) throw new Error('ACTIVE_MEMBER_REQUIRED');
+    t.set(userRef,{status:'suspended',suspensionReason:'DUPLICATE_DEPOSIT_TXID',suspendedAt:now,updatedAt:now},{merge:true});
+    if(!fraudSnap.exists){
+      t.set(fraudRef,{
+        userId:actor.id,userName:actor.name,userEmail:actor.email,txHash,
+        attemptedAmountUsdt:String(amount),originalUserId:String(existingTx?.userId||''),
+        originalRechargeId:String(existingTx?.rechargeId||''),originalStatus:String(existingTx?.status||'unknown'),
+        action:'DUPLICATE_TXID_ACCOUNT_SUSPENDED',createdAt:now
+      });
+    }
+    t.set(db.collection('usdtRecharges').doc(rejectedId),{
+      id:rejectedId,userId:actor.id,userName:actor.name,userEmail:actor.email,
+      referralCode:actor.referralCode||'',txHash,amountUsdt:String(amount),
+      status:'rejected',creditUsdt:null,reviewNote:'Rejected automatically: this transaction hash was already submitted. Account suspended for duplicate deposit attempt.',
+      createdAt:now,reviewedAt:now,reviewedBy:'SYSTEM_DUPLICATE_GUARD',
+      ledgerId:null,storage:'firestore',fraudFlag:true
+    });
+    t.set(db.collection('auditLogs').doc(crypto.randomUUID()),{
+      actorUserId:'SYSTEM',actorEmail:null,action:'DUPLICATE_DEPOSIT_TXID_ACCOUNT_SUSPENDED',
+      entityType:'user',entityId:actor.id,
+      metadata:{txHash,attemptedAmountUsdt:String(amount),originalUserId:String(existingTx?.userId||''),originalRechargeId:String(existingTx?.rechargeId||''),rejectedRechargeId:rejectedId},
+      timestamp:now
+    });
+  });
+  // Mirror the suspension to Neon so relational APIs also deny the account.
+  const pool=getPool();
+  await pool.query("UPDATE users SET status='suspended',updated_at=NOW() WHERE id::text=$1 AND role='user'",[actor.id]);
+  return rejectedId;
+}
 async function createRecharge(db,actor,amount,txHash,proofUrl,walletAddress='',walletSignature=''){
   const now=new Date();
   const id='RCH_'+crypto.randomUUID().replaceAll('-','').slice(0,24);
@@ -100,7 +137,7 @@ async function createRecharge(db,actor,amount,txHash,proofUrl,walletAddress='',w
   if(!/^0x[0-9a-f]{40}$/.test(requestDepositAddress)) throw new Error('DEPOSIT_WALLET_NOT_CONFIGURED');
   await db.runTransaction(async t=>{
     const txSnap=await t.get(txRef);
-    if(txSnap.exists) throw new Error(txSnap.data()?.status==='approved'?'ALREADY_CREDITED':'TXID_ALREADY_SUBMITTED');
+    if(txSnap.exists) { const duplicate=new Error('TXID_ALREADY_SUBMITTED'); duplicate.existingTx=txSnap.data()||{}; throw duplicate; }
     const userSnap=await t.get(db.collection('users').doc(actor.id));
     if(!userSnap.exists || userSnap.data()?.status!=='active') throw new Error('ACTIVE_MEMBER_REQUIRED');
     t.set(ref,{
@@ -868,7 +905,16 @@ export default async function handler(req,res){
         return json(res,400,{error:'Payment proof must be a valid HTTPS URL.'});
       const walletAddress=String(body.walletAddress||'').trim();
       const walletSignature=String(body.walletSignature||'').trim();
-      const id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl||null,walletAddress,walletSignature);
+      let id;
+      try{
+        id=await createRecharge(getFirestoreAdmin(),actor,amount,txHash,proofUrl||null,walletAddress,walletSignature);
+      }catch(error){
+        if(String(error?.message||'')==='TXID_ALREADY_SUBMITTED'){
+          const rejectedId=await suspendForDuplicateTx(actor,txHash,amount,error.existingTx||null);
+          return json(res,409,{success:false,status:'rejected',accountStatus:'suspended',id:rejectedId,error:'Duplicate transaction hash detected. Deposit rejected and account suspended. Contact support for review.'});
+        }
+        throw error;
+      }
       let auto={attempted:false,status:'pending',reason:'WALLET_SIGNATURE_REQUIRED'};
       try{
         auto=await autoCreditRecharge({id,actor,txHash,amount,walletAddress,walletSignature});
