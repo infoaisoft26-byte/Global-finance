@@ -403,7 +403,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       </div>
 
-      {/* PRIMARY STATS ROW: Basic Package & FD Package */}
+      {/* PRIMARY STATS ROW: Basic Package, FD Package & 3X Capping — directly below Welcome */}
       <div className="gf-dashboard-packages grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* Basic Package Card */}
         <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-cyan-500/40 transition-all">
@@ -459,7 +459,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#082b3a] via-[#091129] to-[#101744] border border-cyan-400/50 shadow-xl shadow-cyan-950/20 relative overflow-hidden">
           <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-cyan-400/10 blur-2xl pointer-events-none" />
           <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">Live 3x Capping</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">3X Capping</span>
             <span className={`flex items-center gap-1.5 text-[10px] font-bold ${capStatusLabel === 'ID INACTIVE' ? 'text-rose-300' : capStatusLabel === 'SYNC PENDING' ? 'text-amber-300' : 'text-emerald-300'}`}><span className={`w-1.5 h-1.5 rounded-full ${capStatusLabel === 'ID INACTIVE' ? 'bg-rose-400' : capStatusLabel === 'SYNC PENDING' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} /> {capStatusLabel}</span>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
