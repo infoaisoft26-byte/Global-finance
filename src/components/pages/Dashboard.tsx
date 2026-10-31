@@ -455,11 +455,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           </div>
         </div>
 
-        {/* Live 5X Cap summary — based on this member's recorded package activations */}
+        {/* Live 3x Cap summary — based on this member's recorded package activations */}
         <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#082b3a] via-[#091129] to-[#101744] border border-cyan-400/50 shadow-xl shadow-cyan-950/20 relative overflow-hidden">
           <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-cyan-400/10 blur-2xl pointer-events-none" />
           <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">Live 5X Capping</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-200">Live 3x Capping</span>
             <span className={`flex items-center gap-1.5 text-[10px] font-bold ${capStatusLabel === 'ID INACTIVE' ? 'text-rose-300' : capStatusLabel === 'SYNC PENDING' ? 'text-amber-300' : 'text-emerald-300'}`}><span className={`w-1.5 h-1.5 rounded-full ${capStatusLabel === 'ID INACTIVE' ? 'bg-rose-400' : capStatusLabel === 'SYNC PENDING' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} /> {capStatusLabel}</span>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight tabular-nums">
@@ -470,7 +470,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           </div>
           <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 border-t border-cyan-300/15 pt-3">
             <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Recorded investment</div><div className="mt-1 text-sm font-bold text-white">{formatUsdt(displayedInvestment)}</div></div>
-            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Total 5X cap</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(displayedCapLimit)}</div></div>
+            <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Total 3x cap</div><div className="mt-1 text-sm font-bold text-cyan-200">{formatUsdt(displayedCapLimit)}</div></div>
             <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Counted income</div><div className="mt-1 text-sm font-bold text-white">{capHasActivationRows && capSummary.unreconciled > 0 ? 'Pending' : formatUsdt(capSummary.counted)}</div></div>
             <div><div className="text-[10px] uppercase tracking-wider text-slate-400">Remaining cap</div><div className="mt-1 text-sm font-bold text-emerald-200">{capHasActivationRows && capSummary.unreconciled > 0 ? 'Pending' : formatUsdt(displayedRemainingCap)}</div></div>
           </div>
