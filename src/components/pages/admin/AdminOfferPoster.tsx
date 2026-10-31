@@ -159,7 +159,7 @@ export const AdminOfferPoster: React.FC = () => {
               catch(err) { setError(err instanceof Error ? err.message : 'Unable to upload MP4 video.'); }
               finally { setUploadingVideo(false); input.value=''; }
             }} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" />
-            <p className="mt-1 text-[11px] text-slate-500">{uploadingVideo ? 'Saving MP4 in Neon…' : videoUrl ? 'MP4 video uploaded successfully.' : 'MP4 only • Max 3 MB'}</p>
+            <p className="mt-1 text-[11px] text-slate-500">{uploadingVideo ? 'Saving MP4 in Neon…' : videoUrl ? 'MP4 video uploaded successfully.' : 'MP4 only • Max 10 MB'}</p>
           </label>
           <label className="block text-xs text-slate-300">Poster display time (seconds)
             <input type="number" min="2" max="30" value={posterSeconds} onChange={e=>setPosterSeconds(Math.min(30,Math.max(2,Number(e.target.value)||5)))} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" />
