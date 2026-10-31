@@ -47,9 +47,9 @@ export default async function handler(req, res) {
     const fileName = String(body.fileName || '').slice(0, 255);
     const encoded = String(body.data || '');
     if (!/^image\/(jpeg|png|webp|gif)$/.test(contentType)) return json(res, 400, { error: 'Choose a JPG, PNG, WEBP or GIF image.' });
-    if (!encoded || encoded.length > 4_200_000) return json(res, 400, { error: 'Poster image must be 3 MB or smaller.' });
+    if (!encoded || encoded.length > 2_900_000) return json(res, 400, { error: 'Image or MP4 must be within the supported upload size.' });
     const imageData = Buffer.from(encoded, 'base64');
-    if (!imageData.length || imageData.length > 3 * 1024 * 1024) return json(res, 400, { error: 'Poster image must be 3 MB or smaller.' });
+    if (!imageData.length || imageData.length > 2 * 1024 * 1024) return json(res, 400, { error: 'Image or MP4 must be 2 MB or smaller.' });
     const id = crypto.randomUUID();
     await pool.query('INSERT INTO offer_poster_assets (id,file_name,content_type,image_data,created_by) VALUES ($1,$2,$3,$4,$5)',
       [id, fileName, contentType, imageData, decoded.uid]);
