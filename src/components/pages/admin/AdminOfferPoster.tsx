@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Megaphone, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { disableOfferPoster, getActiveOfferPoster, saveOfferPoster, uploadOfferPosterImage, type OfferPoster } from '../../../services/offerPosterService.ts';
 
@@ -6,6 +6,8 @@ export const AdminOfferPoster: React.FC = () => {
   const [poster, setPoster] = useState<OfferPoster | null>(null);
   const [title, setTitle] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const imageUrlRef = useRef('');
+  const titleRef = useRef('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [localPreviewUrl, setLocalPreviewUrl] = useState('');
   const [previewError, setPreviewError] = useState(false);
@@ -27,13 +29,13 @@ export const AdminOfferPoster: React.FC = () => {
       setPoster(current);
       setLocalPreviewUrl('');
       if (current) {
-        setTitle(current.title); setImageUrl(current.imageUrl); setDescription(current.description);
+        setTitle(current.title); titleRef.current = current.title; setImageUrl(current.imageUrl); imageUrlRef.current = current.imageUrl; setDescription(current.description);
         setCtaLabel(current.ctaLabel); setCtaUrl(current.ctaUrl);
         setStartAt(current.startAt ? current.startAt.slice(0,16) : '');
         setEndAt(current.endAt ? current.endAt.slice(0,16) : '');
         setActive(current.active);
       } else {
-        setTitle(''); setImageUrl(''); setDescription(''); setCtaLabel(''); setCtaUrl(''); setStartAt(''); setEndAt(''); setActive(true);
+        setTitle(''); titleRef.current = ''; setImageUrl(''); imageUrlRef.current = ''; setDescription(''); setCtaLabel(''); setCtaUrl(''); setStartAt(''); setEndAt(''); setActive(true);
       }
     } catch (e: any) { setError(e?.message || 'Unable to load poster.'); }
     finally { setLoading(false); }
@@ -59,9 +61,11 @@ export const AdminOfferPoster: React.FC = () => {
       }
 
       // Show the generated URL immediately so it remains visible even if publishing fails.
+      imageUrlRef.current = url;
       setImageUrl(url);
       setLocalPreviewUrl('');
-      const nextTitle = title.trim() || file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Offer Poster';
+      const nextTitle = titleRef.current.trim() || title.trim() || file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Offer Poster';
+      titleRef.current = nextTitle;
       setTitle(nextTitle);
 
       const saved = await saveOfferPoster({
@@ -80,6 +84,7 @@ export const AdminOfferPoster: React.FC = () => {
         throw new Error('The image URL was generated, but the server did not return the saved image link. The URL is still available in the Image URL field; press Publish Offer Poster to retry.');
       }
       setPoster(saved);
+      imageUrlRef.current = saved.imageUrl;
       setImageUrl(saved.imageUrl);
       setLocalPreviewUrl('');
       setActive(true);
@@ -94,16 +99,21 @@ export const AdminOfferPoster: React.FC = () => {
   };
 
   const save = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true); setMessage(''); setError('');
+    e.preventDefault();
+    if (uploadingImage) { setError('Please wait until the image upload finishes.'); return; }
+    const finalTitle = titleRef.current.trim() || title.trim();
+    const finalImageUrl = imageUrlRef.current || imageUrl.trim();
+    if (!finalTitle || !finalImageUrl) { setError('Please select a poster image and enter a title before publishing.'); return; }
+    setSaving(true); setMessage(''); setError('');
     try {
       const saved = await saveOfferPoster({
         id: poster?.id || '',
-        title, imageUrl, description, ctaLabel, ctaUrl,
+        title: finalTitle, imageUrl: finalImageUrl, description, ctaLabel, ctaUrl,
         startAt: startAt ? new Date(startAt).toISOString() : '',
         endAt: endAt ? new Date(endAt).toISOString() : '',
         active,
       });
-      setPoster(saved); setMessage(active ? 'Offer poster published. Logged-in users can now see it.' : 'Poster saved but kept hidden.');
+      setPoster(saved); imageUrlRef.current = saved.imageUrl; setImageUrl(saved.imageUrl); setMessage(active ? 'Offer poster published. Logged-in users can now see it.' : 'Poster saved but kept hidden.');
     } catch (e: any) { setError(e?.message || 'Unable to save poster.'); }
     finally { setSaving(false); }
   };
@@ -135,7 +145,7 @@ export const AdminOfferPoster: React.FC = () => {
       <form onSubmit={save} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-4">
           <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-cyan-300">Poster Content</h3><label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Publish now</label></div>
-          <label className="block text-xs text-slate-300">Offer title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={160} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="e.g. New Member Offer" /></label>
+          <label className="block text-xs text-slate-300">Offer title<input value={title} onChange={e => { titleRef.current = e.target.value; setTitle(e.target.value); }} required maxLength={160} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="e.g. New Member Offer" /></label>
           <label className="block text-xs text-slate-300">Select poster image<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingImage || saving} onChange={handleImageUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Uploading and publishing poster…" : "Choose an image from your device • PNG, JPG, WEBP or GIF • Max 10 MB"}</p></label>
           <label className="block text-xs text-slate-300">Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} maxLength={1000} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="Short offer details..." /></label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
