@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       if (isVideo) res.setHeader('Accept-Ranges', 'bytes');
       const range = req.headers.range;
       if (isVideo && range) {
-        const match = /^bytes=(\\d*)-(\\d*)$/.exec(range);
+        const match = /^bytes=(\d*)-(\d*)$/.exec(range);
         if (!match) { res.statusCode = 416; res.setHeader('Content-Range', `bytes */${data.length}`); return res.end(); }
         const start = match[1] ? Number(match[1]) : Math.max(0, data.length - Number(match[2]));
         const end = match[2] && match[1] ? Math.min(Number(match[2]), data.length - 1) : data.length - 1;
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
     const contentType = String(body.contentType || '');
     const fileName = String(body.fileName || '').slice(0, 255);
     const encoded = String(body.data || '');
-    if (!/^image\\/(jpeg|png|webp|gif)$/.test(contentType)) return json(res, 400, { error: 'Choose a JPG, PNG, WEBP or GIF image.' });
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(contentType)) return json(res, 400, { error: 'Choose a JPG, PNG, WEBP or GIF image.' });
     if (!encoded || encoded.length > Math.ceil(3 * 1024 * 1024 * 4 / 3) + 16) return json(res, 400, { error: 'Selected poster image is too large.' });
     const imageData = Buffer.from(encoded, 'base64');
     if (!imageData.length || imageData.length > 3 * 1024 * 1024) return json(res, 400, { error: 'Poster image must be 3 MB or smaller.' });
