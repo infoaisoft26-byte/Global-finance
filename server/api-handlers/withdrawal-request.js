@@ -31,9 +31,9 @@ export default async function handler(req,res){
   const result=await withTransaction(async client=>{
    const otpQ=await client.query('SELECT * FROM transaction_email_otps WHERE id=$1 AND user_id=$2 AND purpose=$3 FOR UPDATE',[otpId,uid,'withdrawal']);const otp=otpQ.rows[0];
    if(!otp||!otp.verified_at||otp.consumed_at||new Date(otp.expires_at).getTime()<Date.now()||otp.payload_hash!==payloadHash)throw new Error('OTP_REQUIRED_OR_INVALID');
-   const feePercent=Number(settings.withdrawalFeePercent||5);const fee=Number((amount*feePercent/100).toFixed(6));const net=Number((amount-fee).toFixed(6));
+   const feePercent=5;const fee=Number((amount*feePercent/100).toFixed(6));const net=Number((amount-fee).toFixed(6));
    const reference='WTH_'+randomUUID().replaceAll('-','').slice(0,20);const id=randomUUID();const now=new Date().toISOString();
-   const request={id,reference,userId:uid,userEmail:email,userName:user.name||'',userReferralCode:user.referral_code||'',requestType:'withdrawal',sourceWalletType:'income_wallet',destinationWalletType:'external_bank',amountRupees:amount,amountPaise:Math.round(amount*100),feeRupees:fee,feePaise:Math.round(fee*100),netAmountRupees:net,netAmountPaise:Math.round(net*100),status:'pending',userNote:'USDT BEP20: '+walletAddress+(note?'. '+note:''),metadata:{asset:'USDT',network:'BEP20 / BNB Smart Chain',withdrawalType:'usdt_bep20',destinationWalletAddress:walletAddress,destination:'USDT BEP20: '+walletAddress,feeAmountUsdt:fee,netPayoutUsdt:net,walletDebited:true,reservedAmountUsdt:amount,processingTargetHours:24},createdAt:now,updatedAt:now};
+   const request={id,reference,userId:uid,userEmail:email,userName:user.name||'',userReferralCode:user.referral_code||'',requestType:'withdrawal',sourceWalletType:'income_wallet',destinationWalletType:'external_bank',amountRupees:amount,amountPaise:Math.round(amount*100),feeRupees:fee,feePaise:Math.round(fee*100),netAmountRupees:net,netAmountPaise:Math.round(net*100),status:'pending',userNote:'USDT BEP20: '+walletAddress+(note?'. '+note:''),metadata:{asset:'USDT',network:'BEP20 / BNB Smart Chain',withdrawalType:'usdt_bep20',destinationWalletAddress:walletAddress,destination:'USDT BEP20: '+walletAddress,feeAmountUsdt:fee,feePercent,netPayoutUsdt:net,walletDebited:true,reservedAmountUsdt:amount,processingTargetHours:24},createdAt:now,updatedAt:now};
    // Neon is the canonical wallet source used by the member dashboard.
    const walletQ=await client.query('SELECT income_wallet FROM wallets WHERE user_id=$1 FOR UPDATE',[uid]);
    if(!walletQ.rows[0])throw new Error('WALLET_NOT_FOUND');
@@ -54,6 +54,6 @@ export default async function handler(req,res){
    if(requestSnap.exists)throw new Error('WITHDRAWAL_ALREADY_CREATED');
    tx.create(requestRef,result);
   });
-  return json(res,200,{success:true,request:{reference:result.reference,status:result.status},message:'Withdrawal request submitted. Amount reserved from available wallet. Processing target: within 24 hours.'});
+  return json(res,200,{success:true,request:{reference:result.reference,status:result.status,amountUsdt:result.amountRupees,feePercent:5,feeUsdt:result.feeRupees,netPayoutUsdt:result.netAmountRupees},message:'Withdrawal request submitted. Amount reserved from available wallet. Processing target: within 24 hours.'});
  }catch(error){const m=String(error?.message||'');if(m==='OTP_REQUIRED_OR_INVALID')return json(res,403,{error:'Email OTP is missing, expired, already used, or does not match this withdrawal.'});if(m==='INSUFFICIENT_FUNDS')return json(res,409,{error:'Insufficient available USDT balance.'});console.error('withdrawal request failed:',m);return json(res,500,{error:'Withdrawal request could not be submitted. Please try again.'});}
 }
