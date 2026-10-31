@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Megaphone, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertTriangle, ExternalLink, Copy, Check } from 'lucide-react';
+import { Megaphone, Save, Eye, EyeOff, RefreshCw, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { disableOfferPoster, getActiveOfferPoster, saveOfferPoster, uploadOfferPosterImage, type OfferPoster } from '../../../services/offerPosterService.ts';
 
 export const AdminOfferPoster: React.FC = () => {
@@ -7,7 +7,7 @@ export const AdminOfferPoster: React.FC = () => {
   const [title, setTitle] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [copiedImageLink, setCopiedImageLink] = useState(false);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState('');
   const [previewError, setPreviewError] = useState(false);
   const [description, setDescription] = useState('');
   const [ctaLabel, setCtaLabel] = useState('');
@@ -25,6 +25,7 @@ export const AdminOfferPoster: React.FC = () => {
     try {
       const current = await getActiveOfferPoster();
       setPoster(current);
+      setLocalPreviewUrl('');
       if (current) {
         setTitle(current.title); setImageUrl(current.imageUrl); setDescription(current.description);
         setCtaLabel(current.ctaLabel); setCtaUrl(current.ctaUrl);
@@ -48,6 +49,8 @@ export const AdminOfferPoster: React.FC = () => {
     setError('');
     setMessage('');
     setPreviewError(false);
+    const localUrl = URL.createObjectURL(file);
+    setLocalPreviewUrl(localUrl);
     setUploadingImage(true);
     try {
       const url = await uploadOfferPosterImage(file);
@@ -57,6 +60,7 @@ export const AdminOfferPoster: React.FC = () => {
 
       // Show the generated URL immediately so it remains visible even if publishing fails.
       setImageUrl(url);
+      setLocalPreviewUrl('');
       const nextTitle = title.trim() || file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Offer Poster';
       setTitle(nextTitle);
 
@@ -77,8 +81,9 @@ export const AdminOfferPoster: React.FC = () => {
       }
       setPoster(saved);
       setImageUrl(saved.imageUrl);
+      setLocalPreviewUrl('');
       setActive(true);
-      setMessage('Poster image link generated and saved. The poster is published to members.');
+      setMessage('Poster uploaded and published. Members can now see it.');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unable to upload poster image.');
     } finally {
@@ -131,11 +136,7 @@ export const AdminOfferPoster: React.FC = () => {
         <section className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-4">
           <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-cyan-300">Poster Content</h3><label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Publish now</label></div>
           <label className="block text-xs text-slate-300">Offer title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={160} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="e.g. New Member Offer" /></label>
-          <label className="block text-xs text-slate-300">Upload poster image<input type="file" accept="image/*" disabled={uploadingImage || saving} onChange={handleImageUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Uploading image…" : "PNG, JPG, WEBP or GIF • Max 10 MB"}</p></label><label className="block text-xs text-slate-300">Image URL (auto-generated after upload)<input value={imageUrl} onChange={e => setImageUrl(e.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="https://..." /></label>
-          {imageUrl && <div className="flex flex-col sm:flex-row gap-2">
-            <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(imageUrl); setCopiedImageLink(true); window.setTimeout(() => setCopiedImageLink(false), 1800); } catch { setError('Could not copy automatically. Select and copy the image URL above.'); } }} className="flex-1 px-3 py-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-200 text-xs font-bold flex items-center justify-center gap-2"><Copy className="w-4 h-4" />{copiedImageLink ? <><Check className="w-4 h-4" />Image link copied</> : 'Copy Image Link'}</button>
-            <a href={imageUrl} target="_blank" rel="noreferrer" className="px-3 py-2.5 rounded-xl bg-[#0e173a] border border-blue-500/30 text-slate-200 text-xs font-bold flex items-center justify-center gap-2"><ExternalLink className="w-4 h-4" />Open Image Link</a>
-          </div>}
+          <label className="block text-xs text-slate-300">Select poster image<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingImage || saving} onChange={handleImageUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Uploading and publishing poster…" : "Choose an image from your device • PNG, JPG, WEBP or GIF • Max 10 MB"}</p></label>
           <label className="block text-xs text-slate-300">Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} maxLength={1000} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="Short offer details..." /></label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block text-xs text-slate-300">Button text<input value={ctaLabel} onChange={e => setCtaLabel(e.target.value)} maxLength={80} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="View Offer" /></label>
@@ -153,7 +154,7 @@ export const AdminOfferPoster: React.FC = () => {
 
         <section className="p-5 rounded-2xl bg-[#091129] border border-cyan-500/20 space-y-4">
           <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-cyan-300">Live Preview</h3>{poster?.active && <span className="text-[10px] text-emerald-300 flex items-center gap-1"><Eye className="w-3.5 h-3.5" />LIVE</span>}</div>
-          {imageUrl ? <div className="rounded-2xl overflow-hidden border border-blue-500/20 bg-black/20"><img src={imageUrl} alt="Offer poster preview" className="w-full max-h-[520px] object-contain" onLoad={() => setPreviewError(false)} onError={() => setPreviewError(true)} /></div> : <div className="aspect-[4/5] rounded-2xl border border-dashed border-blue-500/20 flex items-center justify-center text-xs text-slate-500">Poster preview will appear here</div>}{previewError && imageUrl && <p className="text-xs text-rose-300">Image URL exists, but the browser could not load the image. Check the link and Firebase Storage access.</p>}
+          {(localPreviewUrl || imageUrl) ? <div className="rounded-2xl overflow-hidden border border-blue-500/20 bg-black/20"><img src={localPreviewUrl || imageUrl} alt="Offer poster preview" className="w-full max-h-[520px] object-contain" onLoad={() => setPreviewError(false)} onError={() => setPreviewError(true)} /></div> : <div className="aspect-[4/5] rounded-2xl border border-dashed border-blue-500/20 flex items-center justify-center text-xs text-slate-500">Select an image to see its preview here</div>}{previewError && (localPreviewUrl || imageUrl) && <p className="text-xs text-rose-300">Preview could not be displayed. Please choose another image.</p>}
           {description && <p className="text-xs text-slate-300 leading-relaxed">{description}</p>}
           {ctaLabel && <div className="inline-flex items-center gap-2 text-xs text-cyan-300"><ExternalLink className="w-3.5 h-3.5" />{ctaLabel}</div>}
         </section>
