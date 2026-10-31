@@ -336,7 +336,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
             <button onClick={() => setShowOffer(false)} className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/70 border border-white/20 text-white text-lg" aria-label="Close offer">×</button>
             <img src={offerPoster.imageUrl} alt={offerPoster.title} className="w-full max-h-[65vh] object-contain bg-black/20" />
             <div className="p-5 space-y-3">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-400">Exclusive Offer</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-400" >Announcement</div>
               <h3 className="text-xl font-extrabold text-white">{offerPoster.title}</h3>
               {offerPoster.description && <p className="text-sm text-slate-300 leading-relaxed">{offerPoster.description}</p>}
               <div className="flex gap-2">
