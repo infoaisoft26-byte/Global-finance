@@ -15,7 +15,7 @@ export const OfferPosterPopup: React.FC = () => {
   const openCta = () => {
     if (!poster.ctaUrl) return;
     const url = poster.ctaUrl.startsWith('/') ? poster.ctaUrl : poster.ctaUrl;
-    if (/^https?:\\/\\//i.test(url)) window.open(url, '_blank', 'noopener,noreferrer');
+    if (/^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener,noreferrer');
     else window.location.assign(url);
   };
   return (
