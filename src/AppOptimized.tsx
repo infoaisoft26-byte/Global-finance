@@ -8,6 +8,7 @@ import { AuthScreen } from './components/auth/AuthScreen.tsx';
 import { AdminLoginScreen } from './components/auth/AdminLoginScreen.tsx';
 import { ProfileKycModal } from './components/modals/ProfileKycModal.tsx';
 import { WebsiteSurveyPopup } from './components/modals/WebsiteSurveyPopup.tsx';
+import { OfferPosterPopup } from './components/modals/OfferPosterPopup.tsx';
 import { DirectTeam } from './components/pages/DirectTeam.tsx';
 import { TeamList } from './components/pages/TeamList.tsx';
 import { getSystemSettings } from './services/settingsService.ts';
@@ -192,7 +193,7 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  if (!user) return isAdminEntry ? <AdminLoginScreen /> : <AuthScreen />;
+  if (!user) return <>{isAdminEntry ? <AdminLoginScreen /> : <AuthScreen />}{!isAdminEntry && <OfferPosterPopup />}</>;
 
   if (isAdminEntry && !isAdmin) {
     return (
@@ -299,6 +300,7 @@ const MainLayout: React.FC = () => {
 
       {!isAdminEntry && <SupportAiChat />}
       {!isAdminEntry && <WebsiteSurveyPopup />}
+      {!isAdminEntry && <OfferPosterPopup />}
       {!isAdminEntry && <ProfileKycModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} onNavigateToKyc={() => { setShowProfileModal(false); setActivePage('kyc'); }} />}
     </div>
   );
