@@ -56,8 +56,8 @@ export const AdminOfferPoster: React.FC = () => {
     setUploadingImage(true);
     try {
       const url = await uploadOfferPosterImage(file);
-      if (typeof url !== 'string' || !url.startsWith('https://')) {
-        throw new Error('Image upload finished, but Firebase did not return a valid image URL. Please check Firebase Storage configuration and permissions.');
+      if (typeof url !== 'string' || !(url.startsWith('/api/offer-poster-image?id=') || url.startsWith('https://'))) {
+        throw new Error('Image upload finished, but Neon did not return a valid image link.');
       }
 
       // Show the generated URL immediately so it remains visible even if publishing fails.
@@ -146,7 +146,7 @@ export const AdminOfferPoster: React.FC = () => {
         <section className="p-5 rounded-2xl bg-[#091129] border border-blue-500/25 space-y-4">
           <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-cyan-300">Poster Content</h3><label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Publish now</label></div>
           <label className="block text-xs text-slate-300">Offer title<input value={title} onChange={e => { titleRef.current = e.target.value; setTitle(e.target.value); }} required maxLength={160} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="e.g. New Member Offer" /></label>
-          <label className="block text-xs text-slate-300">Select poster image<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingImage || saving} onChange={handleImageUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Uploading and publishing poster…" : "Choose an image from your device • PNG, JPG, WEBP or GIF • Max 10 MB"}</p></label>
+          <label className="block text-xs text-slate-300">Select poster image<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingImage || saving} onChange={handleImageUpload} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><p className="mt-1 text-[11px] text-slate-500">{uploadingImage ? "Saving image in Neon and publishing poster…" : "Choose an image from your device • PNG, JPG, WEBP or GIF • Max 3 MB"}</p></label>
           <label className="block text-xs text-slate-300">Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} maxLength={1000} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="Short offer details..." /></label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block text-xs text-slate-300">Button text<input value={ctaLabel} onChange={e => setCtaLabel(e.target.value)} maxLength={80} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#060b1c] border border-blue-500/25 text-white" placeholder="View Offer" /></label>
