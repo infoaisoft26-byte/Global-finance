@@ -36,12 +36,16 @@ function normalize(body = {}) {
   const endAt = body.endAt ? new Date(body.endAt) : null;
   if (!title || !imageUrl) throw new Error('Poster title and image URL are required.');
   let normalizedImageUrl = imageUrl;
-  if (!/^https?:\/\//i.test(normalizedImageUrl)) normalizedImageUrl = `https://${normalizedImageUrl.replace(/^\/+/, '')}`;
-  try {
-    const parsed = new URL(normalizedImageUrl);
-    if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname.includes('.')) throw new Error('invalid image URL');
-    normalizedImageUrl = parsed.toString();
-  } catch { throw new Error('The uploaded image link is invalid. Please select the image again.'); }
+  if (normalizedImageUrl.startsWith('/api/offer-poster-image?id=')) {
+    // Neon stores the image bytes; this same-origin endpoint streams them to the browser.
+  } else {
+    if (!/^https?:\/\//i.test(normalizedImageUrl)) normalizedImageUrl = `https://${normalizedImageUrl.replace(/^\/+/, '')}`;
+    try {
+      const parsed = new URL(normalizedImageUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname.includes('.')) throw new Error('invalid image URL');
+      normalizedImageUrl = parsed.toString();
+    } catch { throw new Error('The uploaded image link is invalid. Please select the image again.'); }
+  }
   if (ctaUrl) { try { new URL(ctaUrl, 'https://globalfinance1.online'); } catch { throw new Error('Please enter a valid offer link.'); } }
   if (startAt && Number.isNaN(startAt.getTime())) throw new Error('Invalid start date.');
   if (endAt && Number.isNaN(endAt.getTime())) throw new Error('Invalid end date.');
