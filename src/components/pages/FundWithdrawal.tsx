@@ -154,7 +154,7 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
       const res = await submitWithdrawalWithOtp(user, { amount, walletAddress: walletAddress.trim(), note: userNote.trim(), otpId });
 
       if (res.success) {
-        setSuccessMsg(`Withdrawal request submitted. ${amount.toFixed(6)} USDT reserved; fee ${feeAmount.toFixed(6)} USDT; estimated payout ${netPayout.toFixed(6)} USDT. If rejected, the full reserved amount is refunded. Reference: ${res.request.reference}`);
+        setSuccessMsg(`Withdrawal request submitted. ${Number(res.request.amountUsdt).toFixed(6)} USDT requested; automatic ${Number(res.request.feePercent).toFixed(2)}% fee ${Number(res.request.feeUsdt).toFixed(6)} USDT; net payout ${Number(res.request.netPayoutUsdt).toFixed(6)} USDT. If rejected, the full reserved amount is refunded. Reference: ${res.request.reference}`);
         setUserNote('');
         setOtpId(''); setOtpCode(''); setOtpVerified(false);
         await refreshWallet();
