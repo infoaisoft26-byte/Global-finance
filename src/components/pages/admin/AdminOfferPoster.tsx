@@ -155,7 +155,34 @@ export const AdminOfferPoster: React.FC = () => {
             <input type="file" accept="video/mp4,.mp4" disabled={uploadingVideo || saving} onChange={async e => {
               const input=e.currentTarget; const file=input.files?.[0]; if(!file) return;
               setUploadingVideo(true); setError(''); setMessage('');
-              try { const url=await uploadOfferPosterVideo(file); setVideoUrl(url); setMessage('MP4 video saved in Neon. Publish to update the member sequence.'); }
+              try {
+                const url = await uploadOfferPosterVideo(file);
+                setVideoUrl(url);
+                const finalTitle = titleRef.current.trim() || title.trim() || 'Offer Poster';
+                const finalImageUrl = imageUrlRef.current || imageUrl.trim();
+                if (!finalImageUrl) throw new Error('Video is uploaded. Please select the poster image before publishing the video sequence.');
+                const saved = await saveOfferPoster({
+                  id: poster?.id || '',
+                  title: finalTitle,
+                  imageUrl: finalImageUrl,
+                  videoUrl: url,
+                  posterSeconds,
+                  description,
+                  ctaLabel,
+                  ctaUrl,
+                  startAt: startAt ? new Date(startAt).toISOString() : '',
+                  endAt: endAt ? new Date(endAt).toISOString() : '',
+                  active: true,
+                });
+                setPoster(saved);
+                setTitle(saved.title);
+                titleRef.current = saved.title;
+                setImageUrl(saved.imageUrl);
+                imageUrlRef.current = saved.imageUrl;
+                setVideoUrl(saved.videoUrl || url);
+                setActive(true);
+                setMessage('MP4 uploaded and automatically published. Members will see the poster, then the video.');
+              }
               catch(err) { setError(err instanceof Error ? err.message : 'Unable to upload MP4 video.'); }
               finally { setUploadingVideo(false); input.value=''; }
             }} className="mt-1 block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" />
