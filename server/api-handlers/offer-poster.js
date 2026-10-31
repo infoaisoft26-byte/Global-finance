@@ -31,7 +31,9 @@ async function ensureTable(pool) {
 function normalize(body = {}) {
   const title = String(body.title || '').trim().slice(0, 160);
   const imageUrl = String(body.imageUrl || '').trim().slice(0, 2000);
-  const videoUrl = String(body.videoUrl || '').trim().slice(0, 2000);\n  const posterSeconds = Math.min(30, Math.max(2, Number(body.posterSeconds) || 5));\n  const description = String(body.description || '').trim().slice(0, 1000);
+  const videoUrl = String(body.videoUrl || '').trim().slice(0, 2000);
+  const posterSeconds = Math.min(30, Math.max(2, Number(body.posterSeconds) || 5));
+  const description = String(body.description || '').trim().slice(0, 1000);
   const ctaLabel = String(body.ctaLabel || '').trim().slice(0, 80);
   const ctaUrl = String(body.ctaUrl || '').trim().slice(0, 2000);
   const startAt = body.startAt ? new Date(body.startAt) : null;
@@ -48,7 +50,8 @@ function normalize(body = {}) {
       normalizedImageUrl = parsed.toString();
     } catch { throw new Error('The uploaded image link is invalid. Please select the image again.'); }
   }
-  if (videoUrl && !videoUrl.startsWith('/api/offer-poster-image?id=')) throw new Error('Invalid video link.');\n  if (ctaUrl) { try { new URL(ctaUrl, 'https://globalfinance1.online'); } catch { throw new Error('Please enter a valid offer link.'); } }
+  if (videoUrl && !videoUrl.startsWith('/api/offer-poster-image?id=')) throw new Error('Invalid video link.');
+  if (ctaUrl) { try { new URL(ctaUrl, 'https://globalfinance1.online'); } catch { throw new Error('Please enter a valid offer link.'); } }
   if (startAt && Number.isNaN(startAt.getTime())) throw new Error('Invalid start date.');
   if (endAt && Number.isNaN(endAt.getTime())) throw new Error('Invalid end date.');
   if (startAt && endAt && startAt >= endAt) throw new Error('End date must be after start date.');
