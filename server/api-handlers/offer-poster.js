@@ -99,8 +99,8 @@ export default async function handler(req, res) {
     await withTransaction(async (client) => {
       if (data.active) await client.query('UPDATE offer_posters SET active=FALSE, updated_at=NOW() WHERE active=TRUE');
       await client.query(`
-        INSERT INTO offer_posters (id,title,image_url,description,cta_label,cta_url,active,start_at,end_at,created_by,updated_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+        INSERT INTO offer_posters (id,title,image_url,video_url,poster_seconds,description,cta_label,cta_url,active,start_at,end_at,created_by,updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
         ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title,image_url=EXCLUDED.image_url,
           video_url=EXCLUDED.video_url,poster_seconds=EXCLUDED.poster_seconds,description=EXCLUDED.description,cta_label=EXCLUDED.cta_label,cta_url=EXCLUDED.cta_url,
           active=EXCLUDED.active,start_at=EXCLUDED.start_at,end_at=EXCLUDED.end_at,updated_at=NOW()
