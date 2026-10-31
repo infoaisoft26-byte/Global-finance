@@ -41,13 +41,38 @@ export async function uploadOfferPosterImage(file: File): Promise<string> {
 }
 
 export async function uploadOfferPosterVideo(file: File): Promise<string> {
- const user=auth.currentUser; if(!user) throw new Error('Authentication required');
- if(file.type!=='video/mp4') throw new Error('Please select an MP4 video.');
- if(file.size>10*1024*1024) throw new Error('MP4 must be 10 MB or smaller for direct Neon upload. Please compress it.');
- const token=await user.getIdToken(); const bytes=new Uint8Array(await file.arrayBuffer()); let binary='';
- for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
- const response=await fetch('/api/offer-poster-image',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({fileName:file.name,contentType:'video/mp4',data:btoa(binary)})});
- const data=await response.json().catch(()=>({})); if(!response.ok||!data.imageUrl) throw new Error(data.error||'Unable to save MP4 video in Neon.'); return data.imageUrl;
+  const user = auth.currentUser;
+  if (!user) throw new Error('Authentication required');
+  if (file.type !== 'video/mp4' && !file.name.toLowerCase().endsWith('.mp4')) throw new Error('Please select an MP4 video.');
+  if (file.size > 10 * 1024 * 1024) throw new Error('MP4 must be 10 MB or smaller. Please compress it.');
+  const token = await user.getIdToken();
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  const chunkSize = 512 * 1024;
+  const totalChunks = Math.ceil(file.size / chunkSize);
+  const initResponse = await fetch('/api/offer-poster-image', {
+    method: 'POST', headers,
+    body: JSON.stringify({ action: 'init', fileName: file.name, totalBytes: file.size, totalChunks }),
+  });
+  const initData = await initResponse.json().catch(() => ({}));
+  if (!initResponse.ok || !initData.uploadId) throw new Error(initData.error || 'Unable to start video upload.');
+  const uploadId = initData.uploadId;
+  for (let index = 0; index < totalChunks; index++) {
+    const bytes = new Uint8Array(await file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize)).arrayBuffer());
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    const response = await fetch('/api/offer-poster-image', {
+      method: 'POST', headers,
+      body: JSON.stringify({ action: 'chunk', uploadId, chunkIndex: index, totalChunks, totalBytes: file.size, fileName: file.name, data: btoa(binary) }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Video upload failed at part ${index + 1} of ${totalChunks}.`);
+  }
+  const completeResponse = await fetch('/api/offer-poster-image', {
+    method: 'POST', headers, body: JSON.stringify({ action: 'complete', uploadId }),
+  });
+  const completeData = await completeResponse.json().catch(() => ({}));
+  if (!completeResponse.ok || !completeData.imageUrl) throw new Error(completeData.error || 'Unable to finish saving video in Neon.');
+  return completeData.imageUrl;
 }
 export async function saveOfferPoster(input: Omit<OfferPoster, 'createdAt' | 'updatedAt'>): Promise<OfferPoster> {
   const response = await fetch('/api/offer-poster', { method: 'POST', headers: await headers(), body: JSON.stringify(input) });
