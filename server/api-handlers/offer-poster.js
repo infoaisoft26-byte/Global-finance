@@ -17,19 +17,21 @@ async function auth(req) {
 async function ensureTable(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS offer_posters (
-      id TEXT PRIMARY KEY, title TEXT NOT NULL, image_url TEXT NOT NULL,
+      id TEXT PRIMARY KEY, title TEXT NOT NULL, image_url TEXT NOT NULL, video_url TEXT NOT NULL DEFAULT '', poster_seconds INTEGER NOT NULL DEFAULT 5,
       description TEXT NOT NULL DEFAULT '', cta_label TEXT NOT NULL DEFAULT '',
       cta_url TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT FALSE,
       start_at TIMESTAMPTZ, end_at TIMESTAMPTZ, created_by TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query("ALTER TABLE offer_posters ADD COLUMN IF NOT EXISTS video_url TEXT NOT NULL DEFAULT ''");
+  await pool.query('ALTER TABLE offer_posters ADD COLUMN IF NOT EXISTS poster_seconds INTEGER NOT NULL DEFAULT 5');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_offer_posters_active ON offer_posters(active, start_at, end_at)');
 }
 function normalize(body = {}) {
   const title = String(body.title || '').trim().slice(0, 160);
   const imageUrl = String(body.imageUrl || '').trim().slice(0, 2000);
-  const description = String(body.description || '').trim().slice(0, 1000);
+  const videoUrl = String(body.videoUrl || '').trim().slice(0, 2000);\n  const posterSeconds = Math.min(30, Math.max(2, Number(body.posterSeconds) || 5));\n  const description = String(body.description || '').trim().slice(0, 1000);
   const ctaLabel = String(body.ctaLabel || '').trim().slice(0, 80);
   const ctaUrl = String(body.ctaUrl || '').trim().slice(0, 2000);
   const startAt = body.startAt ? new Date(body.startAt) : null;
@@ -46,15 +48,15 @@ function normalize(body = {}) {
       normalizedImageUrl = parsed.toString();
     } catch { throw new Error('The uploaded image link is invalid. Please select the image again.'); }
   }
-  if (ctaUrl) { try { new URL(ctaUrl, 'https://globalfinance1.online'); } catch { throw new Error('Please enter a valid offer link.'); } }
+  if (videoUrl && !videoUrl.startsWith('/api/offer-poster-image?id=')) throw new Error('Invalid video link.');\n  if (ctaUrl) { try { new URL(ctaUrl, 'https://globalfinance1.online'); } catch { throw new Error('Please enter a valid offer link.'); } }
   if (startAt && Number.isNaN(startAt.getTime())) throw new Error('Invalid start date.');
   if (endAt && Number.isNaN(endAt.getTime())) throw new Error('Invalid end date.');
   if (startAt && endAt && startAt >= endAt) throw new Error('End date must be after start date.');
-  return { title, imageUrl: normalizedImageUrl, description, ctaLabel, ctaUrl, active: body.active !== false, startAt, endAt };
+  return { title, imageUrl: normalizedImageUrl, videoUrl, posterSeconds, description, ctaLabel, ctaUrl, active: body.active !== false, startAt, endAt };
 }
 function serialize(row) {
   if (!row) return null;
-  return { id: row.id, title: row.title, imageUrl: row.image_url, description: row.description,
+  return { id: row.id, title: row.title, imageUrl: row.image_url, videoUrl: row.video_url || '', posterSeconds: row.poster_seconds || 5, description: row.description,
     ctaLabel: row.cta_label, ctaUrl: row.cta_url, active: row.active,
     startAt: row.start_at ? new Date(row.start_at).toISOString() : '',
     endAt: row.end_at ? new Date(row.end_at).toISOString() : '',
@@ -100,9 +102,9 @@ export default async function handler(req, res) {
         INSERT INTO offer_posters (id,title,image_url,description,cta_label,cta_url,active,start_at,end_at,created_by,updated_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
         ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title,image_url=EXCLUDED.image_url,
-          description=EXCLUDED.description,cta_label=EXCLUDED.cta_label,cta_url=EXCLUDED.cta_url,
+          video_url=EXCLUDED.video_url,poster_seconds=EXCLUDED.poster_seconds,description=EXCLUDED.description,cta_label=EXCLUDED.cta_label,cta_url=EXCLUDED.cta_url,
           active=EXCLUDED.active,start_at=EXCLUDED.start_at,end_at=EXCLUDED.end_at,updated_at=NOW()
-      `, [id,data.title,data.imageUrl,data.description,data.ctaLabel,data.ctaUrl,data.active,data.startAt,data.endAt,decoded.uid]);
+      `, [id,data.title,data.imageUrl,data.videoUrl,data.posterSeconds,data.description,data.ctaLabel,data.ctaUrl,data.active,data.startAt,data.endAt,decoded.uid]);
     });
     await pool.query(`
       INSERT INTO audit_logs (id, actor_user_id, actor_email, action, entity_type, entity_id, metadata)
