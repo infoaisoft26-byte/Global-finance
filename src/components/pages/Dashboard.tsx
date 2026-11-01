@@ -379,7 +379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       )}
       {/* Top Banner & Quick Shortcuts */}
-      <div className="gf-dashboard-hero p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-md flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6">
+      <div className="gf-dashboard-hero p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-[#0b1735] via-[#10254b] to-[#0b3b50] border border-cyan-500/25 shadow-xl shadow-cyan-950/20 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
