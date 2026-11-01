@@ -164,7 +164,7 @@ export const Recharge: React.FC = () => {
     if (!user || verifyingSender || submitting) return;
     const amount = amountUsdt.trim();
     const hash = txHash.trim().toLowerCase();
-    if (!/^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,8})?$/.test(amount) || Number(amount) <= 0) {
+    if (!/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/.test(amount) || Number(amount) <= 0) {
       setError('Enter the exact USDT amount sent.');
       return;
     }
