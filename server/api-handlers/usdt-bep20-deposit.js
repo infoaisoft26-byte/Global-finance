@@ -262,8 +262,8 @@ async function handlePackagePurchase(member, body, res) {
     await client.query(`UPDATE wallets SET fund_wallet=fund_wallet-$2,basic_package_active=basic_package_active+CASE WHEN $3='basic' THEN $2 ELSE 0 END,fd_package_active=fd_package_active+CASE WHEN $3='fd' THEN $2 ELSE 0 END,updated_at=NOW() WHERE user_id=$1`, [member.uid, amount, pkg.type]);
     await client.query(`INSERT INTO package_activations
       (id,user_id,package_id,package_type,package_name,amount,roi_daily_rate,duration_days,total_earned,status,activated_at,expires_at,cap_multiple,cap_amount,credited_total,cap_reconciled,principal_returned,principal_return_amount)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'active',$9,$10,5,$11,0,TRUE,FALSE,0)`,
-      [purchaseId, member.uid, pkg.id, pkg.type, pkg.name, amount, Number(pkg.roi_rate), Number(pkg.duration_days), now, expires, Number((amount*5).toFixed(2))]);
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'active',$9,$10,3,$11,0,TRUE,FALSE,0)`,
+      [purchaseId, member.uid, pkg.id, pkg.type, pkg.name, amount, Number(pkg.roi_rate), Number(pkg.duration_days), now, expires, Number((amount*3).toFixed(2))]);
     // A new verified package investment reactivates this member's earning/referral ID.
     await client.query(`UPDATE users SET referral_status='active' WHERE id=$1 AND status='active'`,[member.uid]);
     await client.query(`INSERT INTO ledger_transactions (id,user_id,type,category,flow,amount,fee,net_amount,description,reference_id,status,metadata) VALUES ($1,$2,'package_purchase','fund_wallet','debit',$3,0,$3,$4,$5,'completed',$6::jsonb)`, [`LED-${purchaseId}`, member.uid, amount, `USDT package purchase: ${pkg.name}`, purchaseId, JSON.stringify({ packageId: pkg.id, packageName: pkg.name, packageType: pkg.type, asset: 'USDT' })]);
