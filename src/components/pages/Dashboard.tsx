@@ -257,7 +257,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
 
   const capSummary = capCycles.reduce((summary, cycle) => {
     const invested = Number(cycle.amount || 0);
-    const cap = Number(cycle.cap_amount ?? invested * 5);
+    const cap = Number(cycle.cap_amount ?? invested * 3);
     const counted = Math.max(0, Number(cycle.credited_total || 0));
     summary.invested += invested;
     summary.totalCap += cap;
@@ -271,7 +271,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
   const walletPackageAmount = Number(wallet?.basicPackageActive || 0) + Number(wallet?.fdPackageActive || 0);
   const capHasActivationRows = capCycles.length > 0;
   const displayedInvestment = capHasActivationRows ? capSummary.invested : walletPackageAmount;
-  const displayedCapLimit = capHasActivationRows ? capSummary.totalCap : walletPackageAmount * 5;
+  const displayedCapLimit = capHasActivationRows ? capSummary.totalCap : walletPackageAmount * 3;
   const displayedRemainingCap = capHasActivationRows ? capSummary.remaining : displayedCapLimit;
   const capStatusLabel = capHasActivationRows && capSummary.unreconciled > 0 ? 'SYNC PENDING' : capReferralStatus === 'inactive' ? 'ID INACTIVE' : capHasActivationRows ? 'ID ACTIVE' : 'SYNC PENDING';
 
