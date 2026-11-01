@@ -31,7 +31,18 @@ export async function ensureIncomeSchema(client) {
     ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS principal_returned BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS principal_return_amount NUMERIC(16,2) NOT NULL DEFAULT 0`);
-  await client.query(`UPDATE package_activations SET cap_amount=ROUND(amount*COALESCE(cap_multiple,5),2) WHERE cap_amount IS NULL`);
+  // One-time migration: apply 3x cap to existing activations without rewriting historical credits.
+  const cap3xMigration = await client.query(`INSERT INTO income_cap_migrations(migration_key)
+    VALUES('global-3x-cap-v1') ON CONFLICT(migration_key) DO NOTHING RETURNING migration_key`);
+  if (cap3xMigration.rowCount === 1) {
+    await client.query(`UPDATE package_activations
+      SET cap_multiple=3, cap_amount=ROUND(amount*3,2),
+          status=CASE WHEN status='active' AND COALESCE(credited_total,0)>=ROUND(amount*3,2)
+                      THEN 'completed' ELSE status END,
+          completed_at=CASE WHEN status='active' AND COALESCE(credited_total,0)>=ROUND(amount*3,2)
+                            THEN COALESCE(completed_at,NOW()) ELSE completed_at END`);
+  }
+  await client.query(`UPDATE package_activations SET cap_multiple=3, cap_amount=ROUND(amount*3,2) WHERE cap_amount IS NULL`);
   await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_status VARCHAR(16) NOT NULL DEFAULT 'active'`);
   await client.query(`CREATE TABLE IF NOT EXISTS income_cap_migrations(
     migration_key VARCHAR(120) PRIMARY KEY, completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
@@ -68,7 +79,7 @@ export async function ensureIncomeSchema(client) {
       ),
       updated AS (
         UPDATE package_activations pa
-        SET cap_amount=a.cap,cap_multiple=5,credited_total=a.tracked,cap_reconciled=TRUE,
+        SET cap_amount=a.cap,cap_multiple=3,credited_total=a.tracked,cap_reconciled=TRUE,
             status=CASE WHEN a.tracked>=a.cap AND pa.status='active' THEN 'completed' ELSE pa.status END,
             completed_at=CASE WHEN a.tracked>=a.cap THEN COALESCE(pa.completed_at,NOW()) ELSE pa.completed_at END
         FROM allocation a WHERE pa.id=a.id AND pa.cap_reconciled=FALSE
@@ -88,7 +99,7 @@ export async function ensureIncomeSchema(client) {
     await client.query(`UPDATE users u SET referral_status=CASE
       WHEN EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id)
        AND NOT EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id
-         AND COALESCE(p.credited_total,0)<COALESCE(p.cap_amount,ROUND(p.amount*5,2)))
+         AND COALESCE(p.credited_total,0)<COALESCE(p.cap_amount,ROUND(p.amount*3,2)))
       THEN 'inactive' ELSE 'active' END
       WHERE EXISTS(SELECT 1 FROM package_activations p WHERE p.user_id=u.id)`);
   }
@@ -264,7 +275,7 @@ async function eventOnce(client, key, type, sourceUserId, activationId, baseAmou
 
 async function refreshReferralStatus(client,userId) {
   const q=await client.query(`SELECT COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE COALESCE(credited_total,0)<COALESCE(cap_amount,ROUND(amount*5,2)))::int AS remaining,
+      COUNT(*) FILTER (WHERE COALESCE(credited_total,0)<COALESCE(cap_amount,ROUND(amount*3,2)))::int AS remaining,
       COUNT(*) FILTER (WHERE cap_reconciled=FALSE)::int AS pending
     FROM package_activations WHERE user_id=$1`,[userId]);
   const total=Number(q.rows[0]?.total||0), remaining=Number(q.rows[0]?.remaining||0), pending=Number(q.rows[0]?.pending||0);
@@ -308,7 +319,7 @@ async function credit(client,{eventKey,recipient,source,incomeType,level=0,rate=
   const allocations=[];
   for(const cycle of cycles) {
     if(left<=0) break;
-    const cap=money(cycle.cap_amount ?? Number(cycle.amount)*5);
+    const cap=money(cycle.cap_amount ?? Number(cycle.amount)*3);
     const already=money(cycle.credited_total||0);
     const headroom=money(Math.max(0,cap-already));
     if(headroom<=0) {
