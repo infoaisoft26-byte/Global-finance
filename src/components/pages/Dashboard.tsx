@@ -398,40 +398,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           </p>
         </div>
 
-        {/* Quick Action Buttons */}
-        <div className="grid grid-cols-2 w-full sm:w-auto sm:flex sm:flex-wrap items-stretch gap-2 sm:gap-3 shrink-0">
-          <button
-            onClick={() => onNavigate('recharge')}
-            className="min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-[11px] sm:text-xs transition-all shadow-lg shadow-emerald-950/40"
-          >
-            <ArrowUpRight className="w-4 h-4" />
-            <span>Recharge Fund</span>
-          </button>
 
-          <button
-            onClick={() => onNavigate('basic-package')}
-            className="min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-[11px] sm:text-xs transition-all shadow-lg shadow-blue-950/40"
-          >
-            <Package className="w-4 h-4" />
-            <span>Basic Package</span>
-          </button>
-
-          <button
-            onClick={() => onNavigate('p2p-transfer')}
-            className="min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl bg-[#111c44] hover:bg-[#16255c] text-cyan-300 font-semibold text-[11px] sm:text-xs border border-blue-500/30 transition-all shadow-sm"
-          >
-            <ArrowDownLeft className="w-4 h-4" />
-            <span>P2P Transfer</span>
-          </button>
-
-          <button
-            onClick={() => onNavigate('fund-withdrawal')}
-            className="min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl bg-[#111c44] hover:bg-[#16255c] text-rose-300 font-semibold text-[11px] sm:text-xs border border-blue-500/30 transition-all shadow-sm"
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>Withdraw</span>
-          </button>
-        </div>
       </div>
 
       {/* PRIMARY STATS ROW: Basic Package, FD Package & 3X Capping — directly below Welcome */}
@@ -440,9 +407,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-cyan-500/40 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Basic Package
-            </span>
+            <div className="flex items-center gap-2"><span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Basic Package</span><span className={Number(wallet?.basicPackageActive || 0) > 0 ? "rounded-full bg-emerald-500/15 px-2 py-1 text-[9px] font-bold text-emerald-300" : "rounded-full bg-slate-500/15 px-2 py-1 text-[9px] font-bold text-slate-400"}>{Number(wallet?.basicPackageActive || 0) > 0 ? "ACTIVE" : "NOT ACTIVE"}</span></div>
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-cyan-400">
               <Package className="w-4 h-4" />
             </div>
@@ -465,9 +430,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         <div className="p-5 sm:p-6 rounded-2xl bg-[#091129]/90 border border-blue-500/30 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-amber-500/40 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              FD Package
-            </span>
+            <div className="flex items-center gap-2"><span className="text-xs font-semibold uppercase tracking-wider text-slate-400">FD Package</span><span className={Number(wallet?.fdPackageActive || 0) > 0 ? "rounded-full bg-emerald-500/15 px-2 py-1 text-[9px] font-bold text-emerald-300" : "rounded-full bg-slate-500/15 px-2 py-1 text-[9px] font-bold text-slate-400"}>{Number(wallet?.fdPackageActive || 0) > 0 ? "ACTIVE" : "NOT ACTIVE"}</span></div>
             <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
               <Layers className="w-4 h-4" />
             </div>
@@ -634,126 +597,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       </div>
 
-      {/* Referral Link & Viral Invitation Card */}
-      <div className="gf-dashboard-referral p-4 sm:p-5 rounded-xl bg-[#091129]/90 border border-cyan-500/25 shadow-lg backdrop-blur-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-300">
-              Your Referral Link (GF Format)
-            </div>
-            <div className="text-xs sm:text-sm font-mono text-cyan-400 truncate max-w-md">
-              {referralUrl || 'Referral link unavailable until your Member ID is assigned'}
-            </div>
-            <div className="mt-1 text-[10px] text-slate-500">
-              Referral ID: <span className="font-mono text-cyan-300">{referralCode || '—'}</span>
-              {profile?.sponsorId && <> · Referred by: <span className="font-mono text-slate-300">{profile.sponsorId}</span> <span className="text-slate-500">({profile.sponsorName || 'Sponsor name unavailable'})</span></>}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={handleCopyLink}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 text-xs font-medium transition-colors"
-          >
-            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? 'Copied Link' : 'Copy Referral URL'}</span>
-          </button>
-
-          <button
-            onClick={handleCopyCode}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111d46] hover:bg-[#17275d] border border-blue-500/30 text-slate-200 text-xs font-medium transition-colors"
-          >
-            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-            <span>Copy ID: {referralCode}</span>
-          </button>
-
-          <button
-            onClick={() => setShowQrModal(true)}
-            title="Show QR Code"
-            className="p-1.5 rounded-lg bg-[#111d46] hover:bg-[#17275d] border border-blue-500/30 text-cyan-400"
-          >
-            <QrCode className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ACCOUNT DETAILS */}
-      <div className="gf-dashboard-account grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
-          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor ID</div>
-          <div className="mt-1 font-mono text-sm font-bold text-cyan-300">{profile?.sponsorId || '—'}</div>
-        </div>
-        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
-          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor Name</div>
-          <div className="mt-1 text-sm font-semibold text-white truncate">{profile?.sponsorName || '—'}</div>
-        </div>
-        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Primary Mobile</div>
-          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.phone || '—'}</div>
-        </div>
-        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Second Mobile</div>
-          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.secondPhone || 'Not added'}</div>
-        </div>
-      </div>
-
-
-      {/* Member-visible income rates and actual level credits */}
-      <section className="rounded-2xl border border-cyan-500/25 bg-[#091129]/90 p-4 sm:p-5 shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <h3 className="text-sm sm:text-base font-extrabold uppercase tracking-wide text-white">Level-wise Income Details</h3>
-            <p className="text-xs text-slate-400 mt-1">Actual credited amounts from your income ledger. Levels with no credited entry remain 0.00.</p>
-          </div>
-          <button type="button" onClick={handleIncomeRefresh} disabled={incomeRefreshing} className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-300 disabled:opacity-50">
-            <RefreshCw className={`w-3.5 h-3.5 ${incomeRefreshing ? 'animate-spin' : ''}`} /> Refresh income
-          </button>
-        </div>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-teal-500/20 bg-slate-950/40 p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-teal-300">ROI Level Income</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">L1: 5% · L2–L15: 1% each</p>
-              </div>
-              <div className="text-right"><div className="text-[10px] text-slate-400">Total credited</div><div className="font-mono text-sm font-bold text-white">{formatUsdt(totalRoiLevelIncome)}</div></div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {roiLevelSummary.map(item => <div key={item.level} className="rounded-lg border border-teal-500/15 bg-[#0b1430] p-2 flex items-center justify-between gap-2"><div><div className="text-[10px] text-slate-300">Level {item.level}</div><div className="text-[10px] text-teal-300">{item.rate}%</div></div><div className="text-xs font-bold font-mono text-white text-right">{formatUsdt(item.amount)}</div></div>)}
-            </div>
-          </div>
-          <div className="rounded-xl border border-amber-500/20 bg-slate-950/40 p-3 sm:p-4 xl:col-span-2">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-amber-300">Joining / First Deposit Level Income</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">L1: 5% · L2–L15: 0.25% each</p>
-              </div>
-              <div className="text-right"><div className="text-[10px] text-slate-400">Total credited</div><div className="font-mono text-sm font-bold text-white">{formatUsdt(totalJoiningLevelIncome)}</div></div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
-              {joiningLevelSummary.map(item => <div key={item.level} className="rounded-lg border border-amber-500/15 bg-[#0b1430] p-2 flex items-center justify-between gap-2"><div><div className="text-[10px] text-slate-300">Level {item.level}</div><div className="text-[10px] text-amber-300">{item.rate}%</div></div><div className="text-xs font-bold font-mono text-white text-right">{formatUsdt(item.amount)}</div></div>)}
-            </div>
-          </div>
-          <div className="rounded-xl border border-violet-500/20 bg-slate-950/40 p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-violet-300">Retopup Income</h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">L1: 1% · L2–L15: 0.25% each</p>
-              </div>
-              <div className="text-right"><div className="text-[10px] text-slate-400">Total credited</div><div className="font-mono text-sm font-bold text-white">{formatUsdt(totalRetopupLevelIncome)}</div></div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {retopupLevelSummary.map(item => <div key={item.level} className="rounded-lg border border-violet-500/15 bg-[#0b1430] p-2 flex items-center justify-between gap-2"><div><div className="text-[10px] text-slate-300">Level {item.level}</div><div className="text-[10px] text-violet-300">{item.rate}%</div></div><div className="text-xs font-bold font-mono text-white text-right">{formatUsdt(item.amount)}</div></div>)}
-            </div>
-          </div>
-        </div>
-        <p className="text-[11px] text-slate-500">Rates describe the configured schedule, not a guaranteed return. Credits require eligible activity and appear here after they are recorded in your ledger.</p>
-      </section>
-
       {/* TEAM SUMMARY SECTION */}
       <div className="gf-dashboard-team">
         <div className="flex items-center justify-between mb-3">
@@ -888,6 +731,137 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
         </div>
       </section>
 
+
+      {/* Referral Link & Viral Invitation Card */}
+      <div className="gf-dashboard-referral p-4 sm:p-5 rounded-xl bg-[#091129]/90 border border-cyan-500/25 shadow-lg backdrop-blur-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-300">
+              Your Referral Link (GF Format)
+            </div>
+            <div className="text-xs sm:text-sm font-mono text-cyan-400 truncate max-w-md">
+              {referralUrl || 'Referral link unavailable until your Member ID is assigned'}
+            </div>
+            <div className="mt-1 text-[10px] text-slate-500">
+              Referral ID: <span className="font-mono text-cyan-300">{referralCode || '—'}</span>
+              {profile?.sponsorId && <> · Referred by: <span className="font-mono text-slate-300">{profile.sponsorId}</span> <span className="text-slate-500">({profile.sponsorName || 'Sponsor name unavailable'})</span></>}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleCopyLink}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 text-xs font-medium transition-colors"
+          >
+            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedLink ? 'Copied Link' : 'Copy Referral URL'}</span>
+          </button>
+
+          <button
+            onClick={handleCopyCode}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111d46] hover:bg-[#17275d] border border-blue-500/30 text-slate-200 text-xs font-medium transition-colors"
+          >
+            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+            <span>Copy ID: {referralCode}</span>
+          </button>
+
+          <button
+            onClick={() => setShowQrModal(true)}
+            title="Show QR Code"
+            className="p-1.5 rounded-lg bg-[#111d46] hover:bg-[#17275d] border border-blue-500/30 text-cyan-400"
+          >
+            <QrCode className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* ACCOUNT DETAILS */}
+      <div className="gf-dashboard-account grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor ID</div>
+          <div className="mt-1 font-mono text-sm font-bold text-cyan-300">{profile?.sponsorId || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-cyan-500/20 shadow-lg">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Sponsor Name</div>
+          <div className="mt-1 text-sm font-semibold text-white truncate">{profile?.sponsorName || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Primary Mobile</div>
+          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.phone || '—'}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-[#091129]/90 border border-blue-500/20 shadow-lg">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500"><Smartphone className="w-3.5 h-3.5 text-cyan-400"/> Second Mobile</div>
+          <div className="mt-1 font-mono text-sm font-semibold text-slate-200">{profile?.secondPhone || 'Not added'}</div>
+        </div>
+      </div>
+
+
+      {/* Member-visible income rates and actual level credits */}
+      <section className="rounded-2xl border border-cyan-500/25 bg-[#091129]/90 p-4 sm:p-5 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold uppercase tracking-wide text-white">Level-wise Income Details</h3>
+            <p className="text-xs text-slate-400 mt-1">Actual credited amounts from your income ledger. Levels with no credited entry remain 0.00.</p>
+          </div>
+          <button type="button" onClick={handleIncomeRefresh} disabled={incomeRefreshing} className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-300 disabled:opacity-50">
+            <RefreshCw className={`w-3.5 h-3.5 ${incomeRefreshing ? 'animate-spin' : ''}`} /> Refresh income
+          </button>
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-teal-500/20 bg-slate-950/40 p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-teal-300">ROI Level Income</h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">L1: 5% · L2–L15: 1% each</p>
+              </div>
+              <div className="text-right"><div className="text-[10px] text-slate-400">Total credited</div><div className="font-mono text-sm font-bold text-white">{formatUsdt(totalRoiLevelIncome)}</div></div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {roiLevelSummary.map(item => <div key={item.level} className="rounded-lg border border-teal-500/15 bg-[#0b1430] p-2 flex items-center justify-between gap-2"><div><div className="text-[10px] text-slate-300">Level {item.level}</div><div className="text-[10px] text-teal-300">{item.rate}%</div></div><div className="text-xs font-bold font-mono text-white text-right">{formatUsdt(item.amount)}</div></div>)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-amber-500/20 bg-slate-950/40 p-3 sm:p-4 xl:col-span-2">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-amber-300">Joining / First Deposit Level Income</h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">L1: 5% · L2–L15: 0.25% each</p>
+              </div>
+              <div className="text-right"><div className="text-[10px] text-slate-400">Total credited</div><div className="font-mono text-sm font-bold text-white">{formatUsdt(totalJoiningLevelIncome)}</div></div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
+              {joiningLevelSummary.map(item => <div key={item.level} className="rounded-lg border border-amber-500/15 bg-[#0b1430] p-2 flex items-center justify-between gap-2"><div><div className="text-[10px] text-slate-300">Level {item.level}</div><div className="text-[10px] text-amber-300">{item.rate}%</div></div><div className="text-xs font-bold font-mono text-white text-right">{formatUsdt(item.amount)}</div></div>)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-violet-500/20 bg-slate-950/40 p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-violet-300">Retopup Income</h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">L1: 1% · L2–L15: 0.25% each</p>
+              </div>
+              <div className="text-right"><div className="text-[10px] text-slate-400">Total credited</div><div className="font-mono text-sm font-bold text-white">{formatUsdt(totalRetopupLevelIncome)}</div></div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {retopupLevelSummary.map(item => <div key={item.level} className="rounded-lg border border-violet-500/15 bg-[#0b1430] p-2 flex items-center justify-between gap-2"><div><div className="text-[10px] text-slate-300">Level {item.level}</div><div className="text-[10px] text-violet-300">{item.rate}%</div></div><div className="text-xs font-bold font-mono text-white text-right">{formatUsdt(item.amount)}</div></div>)}
+            </div>
+          </div>
+        </div>
+        <p className="text-[11px] text-slate-500">Rates describe the configured schedule, not a guaranteed return. Credits require eligible activity and appear here after they are recorded in your ledger.</p>
+      </section>
+
+      {/* QUICK ACTIONS */}
+      <section className="rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-[#0b1735] to-[#10254b] p-4 sm:p-5 shadow-lg">
+        <div className="mb-3"><h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Quick Actions</h3><p className="mt-1 text-xs text-slate-400">Your most-used account shortcuts</p></div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <button onClick={() => onNavigate('recharge')} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-3 text-xs font-bold text-white"><ArrowUpRight className="h-4 w-4" />Recharge</button>
+          <button onClick={() => onNavigate('fund-withdrawal')} className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-3 py-3 text-xs font-bold text-white"><CreditCard className="h-4 w-4" />Withdraw</button>
+          <button onClick={() => onNavigate('direct-team')} className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-3 text-xs font-bold text-white"><Users className="h-4 w-4" />Team</button>
+          <button onClick={() => onNavigate('basic-package')} className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-3 py-3 text-xs font-bold text-white"><Package className="h-4 w-4" />Packages</button>
+        </div>
+      </section>
       {/* TWO COLUMN BREAKDOWN: Basic Income Breakdown & FD Income Breakdown */}
       <div className="gf-dashboard-income grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Basic Income Breakdown */}
