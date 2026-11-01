@@ -45,6 +45,7 @@ const AdminIncomeLeaderboard = lazy(() => import('./components/pages/admin/Admin
 const AdminPackages = lazy(() => import('./components/pages/admin/AdminPackages.tsx').then(m => ({ default: m.AdminPackages })));
 const AdminPackageActivations = lazy(() => import('./components/pages/admin/AdminPackageActivations.tsx').then(m => ({ default: m.AdminPackageActivations })));
 const AdminTransactions = lazy(() => import('./components/pages/admin/AdminTransactionsAccounting.tsx').then(m => ({ default: m.AdminTransactionsAccounting })));
+const AdminWithdrawals = lazy(() => import('./components/pages/admin/AdminWithdrawals.tsx').then(m => ({ default: m.AdminWithdrawals })));
 const AdminP2PReport = lazy(() => import('./components/pages/admin/AdminP2PReport.tsx').then(m => ({ default: m.AdminP2PReport })));
 const AdminUsdtRecharge = lazy(() => import('./components/pages/admin/AdminUsdtRecharge.tsx').then(m => ({ default: m.AdminUsdtRecharge })));
 const AdminOfferPoster = lazy(() => import('./components/pages/admin/AdminOfferPoster.tsx').then(m => ({ default: m.AdminOfferPoster })));
@@ -81,7 +82,7 @@ const adminPageFromPath = (pathname: string, search = ''): ActivePage => {
   const requested = params.get('section');
   const routes: Record<string, ActivePage> = {
     dashboard: 'admin-dashboard', 'p2p-report': 'admin-p2p-report', 'income-leaderboard': 'admin-income-leaderboard',
-    transactions: 'admin-transactions', users: 'admin-users',
+    transactions: 'admin-transactions', withdrawals: 'admin-withdrawals', users: 'admin-users',
     'user-detail': 'admin-user-detail', kyc: 'admin-kyc', tickets: 'admin-tickets',
     reports: 'admin-reports', packages: 'admin-packages',
     'package-activations': 'admin-package-activations', 'usdt-recharge': 'admin-usdt-recharge',
@@ -222,7 +223,7 @@ const MainLayout: React.FC = () => {
   }
 
   const renderContent = () => {
-    if (activePage.startsWith('admin-') && (!isAdmin || (isSubAdmin && !['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports', 'admin-income-leaderboard'].includes(activePage)))) return <div className="p-8 text-center text-rose-300">Access denied. This staff account does not have permission for this section.</div>;
+    if (activePage.startsWith('admin-') && (!isAdmin || (isSubAdmin && !['admin-dashboard', 'admin-kyc', 'admin-tickets', 'admin-transactions', 'admin-withdrawals', 'admin-usdt-recharge', 'admin-package-activations', 'admin-packages', 'admin-reports', 'admin-income-leaderboard'].includes(activePage)))) return <div className="p-8 text-center text-rose-300">Access denied. This staff account does not have permission for this section.</div>;
 
     switch (activePage) {
       case 'dashboard': return <Dashboard onNavigate={setActivePage} onOpenProfile={() => setShowProfileModal(true)} />;
@@ -260,6 +261,7 @@ const MainLayout: React.FC = () => {
       case 'admin-brochure': return <AdminBrochure />;
       case 'brochure': return <BrochureDownload />;
       case 'admin-transactions': return <AdminTransactions />;
+      case 'admin-withdrawals': return <AdminWithdrawals />;
       case 'admin-package-activations': return <AdminPackageActivations />;
       case 'admin-users': return <AdminUsers onSelectUser={(userId) => { setSelectedAdminUserId(userId); setActivePage('admin-user-detail'); }} />;
       case 'admin-user-detail': return <AdminUserDetail userId={selectedAdminUserId} onBack={() => setActivePage('admin-users')} />;
