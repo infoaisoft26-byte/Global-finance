@@ -18,16 +18,22 @@ import {
   RefreshCw,
   ExternalLink,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  WalletCards,
+  Banknote,
+  X
 } from 'lucide-react';
 import { adminGetDashboardMetrics } from '../../../services/financeService.ts';
 import type { ActivePage } from '../../../types/index.ts';
+import { AdminUsdtRecharge } from './AdminUsdtRecharge.tsx';
+import { AdminWithdrawals } from './AdminWithdrawals.tsx';
 
 interface AdminDashboardProps {
   onNavigate: (page: ActivePage) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) => {
+  const [approvalPopup, setApprovalPopup] = useState<'deposit' | 'withdrawal' | null>(null);
   const [metrics, setMetrics] = useState<{
     totalUsers: number;
     activeUsers: number;
@@ -235,6 +241,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <button
+            onClick={() => setApprovalPopup('deposit')}
+            className="p-4 rounded-xl bg-[#0b1433] hover:bg-[#101c48] border border-amber-500/30 hover:border-amber-400/60 text-left transition-all"
+          >
+            <WalletCards className="w-5 h-5 text-amber-300 mb-2" />
+            <span className="text-xs font-bold text-white block">Deposit Approval</span>
+            <span className="text-[10px] text-slate-400">Open requests popup</span>
+          </button>
+          <button
+            onClick={() => setApprovalPopup('withdrawal')}
+            className="p-4 rounded-xl bg-[#0b1433] hover:bg-[#101c48] border border-rose-500/30 hover:border-rose-400/60 text-left transition-all"
+          >
+            <Banknote className="w-5 h-5 text-rose-300 mb-2" />
+            <span className="text-xs font-bold text-white block">Withdrawal Approval</span>
+            <span className="text-[10px] text-slate-400">Open requests popup</span>
+          </button>
+
+          <button
             onClick={() => onNavigate('admin-users')}
             className="p-4 rounded-xl bg-[#0b1433] hover:bg-[#101c48] border border-blue-500/20 hover:border-cyan-400/40 text-left transition-all"
           >
@@ -289,6 +312,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           </button>
         </div>
       </div>
+
+      {approvalPopup && (
+        <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-5" role="dialog" aria-modal="true" aria-label={approvalPopup === 'deposit' ? 'Deposit approval popup' : 'Withdrawal approval popup'} onMouseDown={(e) => { if (e.target === e.currentTarget) setApprovalPopup(null); }}>
+          <div className="relative mt-2 sm:mt-5 w-full max-w-7xl max-h-[92vh] overflow-y-auto rounded-2xl border border-cyan-500/30 bg-[#060b1c] p-3 sm:p-5 shadow-2xl">
+            <div className="sticky top-0 z-10 -mx-3 -mt-3 sm:-mx-5 sm:-mt-5 mb-4 flex items-center justify-between gap-3 border-b border-blue-500/20 bg-[#060b1c]/95 px-4 py-3 backdrop-blur">
+              <div>
+                <h3 className="text-base font-bold text-white">{approvalPopup === 'deposit' ? 'Deposit Approval' : 'Withdrawal Approval'}</h3>
+                <p className="text-[11px] text-slate-400">Review real requests and use the existing approve/reject controls.</p>
+              </div>
+              <button onClick={() => setApprovalPopup(null)} className="rounded-xl border border-slate-600 bg-slate-800 p-2 text-white hover:bg-slate-700" aria-label="Close popup"><X className="h-5 w-5" /></button>
+            </div>
+            {approvalPopup === 'deposit' ? <AdminUsdtRecharge /> : <AdminWithdrawals />}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
