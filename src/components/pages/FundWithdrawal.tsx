@@ -192,15 +192,16 @@ export const FundWithdrawal: React.FC<{ onOpenProfile: () => void }> = () => {
     },
     {
       key: 'netAmountRupees',
-      header: 'Net USDT',
+      header: 'Deduction & Net Payout',
       render: (item) => {
         const meta = (item.metadata || {}) as Record<string, any>;
-        const net = meta.netPayoutUsdt ?? item.netAmountRupees ?? item.amountRupees;
-        const fee = meta.feeAmountUsdt ?? item.feeRupees ?? 0;
+        const requested = Number(item.amountRupees || 0);
+        const fee = Number(meta.feeAmountUsdt ?? item.feeRupees ?? (requested * Number(meta.feePercent ?? 5) / 100));
+        const net = Number(meta.netPayoutUsdt ?? item.netAmountRupees ?? (requested - fee));
         return (
           <div>
-            <span className="font-mono text-xs font-bold block">{Number(net || 0).toFixed(6)} USDT</span>
-            <span className="text-[10px] font-mono">Fee: {Number(fee || 0).toFixed(6)} USDT</span>
+            <span className="font-mono text-xs font-bold block text-emerald-700">Net: {Number(net || 0).toFixed(6)} USDT</span>
+            <span className="text-[10px] font-mono text-rose-600">5% deduction: −{Number(fee || 0).toFixed(6)} USDT</span>
           </div>
         );
       }
