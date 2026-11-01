@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock3, ExternalLink
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { BrowserProvider, Contract, parseUnits } from 'ethers';
+import { BrowserProvider } from 'ethers';
 import { useAuth } from '../../context/AuthContext.tsx';
 import {
   getAutomaticDepositInfo,
@@ -55,10 +55,7 @@ export const Recharge: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [connectedWallet, setConnectedWallet] = useState('');
-  const [connectingWallet, setConnectingWallet] = useState(false);
-  const [walletSending, setWalletSending] = useState(false);
-  const [walletMessage, setWalletMessage] = useState('');
+  const [verifyingSender, setVerifyingSender] = useState(false);
   const [setupMessage, setSetupMessage] = useState('');
   const [amountUsdt, setAmountUsdt] = useState('');
   const [txHash, setTxHash] = useState('');
@@ -163,18 +160,31 @@ export const Recharge: React.FC = () => {
 
   const address = info?.depositAddress || '';
 
-  const connectTrustWallet = async () => {
-    setWalletMessage('');
+  const verifySenderWallet = async () => {
+    if (!user || verifyingSender || submitting) return;
+    const amount = amountUsdt.trim();
+    const hash = txHash.trim().toLowerCase();
+    if (!/^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,8})?$/.test(amount) || Number(amount) <= 0) {
+      setError('Enter the exact USDT amount sent.');
+      return;
+    }
+    if (!/^0x[0-9a-f]{64}$/.test(hash)) {
+      setError('Enter a valid BNB Smart Chain transaction hash.');
+      return;
+    }
+
+    setVerifyingSender(true);
     setError('');
-    setConnectingWallet(true);
+    setSubmitMessage('');
     try {
       const ethereum = getInjectedWalletProvider();
       if (!ethereum) {
-        throw new Error('Wallet connect nahi hua. Mobile par Trust Wallet app ke Browser/DApp section se globalfinance1.online kholein. Desktop par Trust Wallet ya compatible EVM wallet extension enable karke page refresh karein.');
+        throw new Error('Open this website inside Trust Wallet Browser or enable a compatible wallet extension to verify the sender.');
       }
+
       const provider = new BrowserProvider(ethereum);
       await provider.send('eth_requestAccounts', []);
-      const network = await provider.getNetwork();
+      let network = await provider.getNetwork();
       if (network.chainId !== 56n) {
         try {
           await provider.send('wallet_switchEthereumChain', [{ chainId: '0x38' }]);
@@ -191,90 +201,32 @@ export const Recharge: React.FC = () => {
             throw switchError;
           }
         }
+        network = await provider.getNetwork();
       }
-      const signer = await provider.getSigner();
-      setConnectedWallet(await signer.getAddress());
-      setWalletMessage('Trust Wallet connected to BNB Smart Chain.');
-    } catch (err: any) {
-      setError(String(err?.shortMessage || err?.message || 'Could not connect Trust Wallet.'));
-    } finally {
-      setConnectingWallet(false);
-    }
-  };
+      if (network.chainId !== 56n) throw new Error('Please switch your wallet to BNB Smart Chain and try again.');
 
-  const sendUsdtFromWallet = async () => {
-    if (!user || !info?.depositAddress || !info?.contractAddress || !connectedWallet) {
-      setError('Connect Trust Wallet and wait for the verified deposit address and USDT contract to load.');
-      return;
-    }
-    const amount = Number(amountUsdt);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError('Enter a valid USDT amount before sending.');
-      return;
-    }
-    setWalletSending(true);
-    setError('');
-    setWalletMessage('');
-    try {
-      const ethereum = (window as any).ethereum;
-      if (!ethereum) throw new Error('Wallet connection nahi mil raha. Wallet reconnect karke dobara try karein.');
-      const provider = new BrowserProvider(ethereum);
-      const network = await provider.getNetwork();
-      if (network.chainId !== 56n) throw new Error('Switch Trust Wallet to BNB Smart Chain (BEP20) and reconnect.');
       const signer = await provider.getSigner();
-      const signerAddress = await signer.getAddress();
-      if (signerAddress.toLowerCase() !== connectedWallet.toLowerCase()) {
-        setConnectedWallet(signerAddress);
-      }
-      const token = new Contract(info.contractAddress, [
-        'function transfer(address to, uint256 amount) returns (bool)'
-      ], signer);
-      const tx = await token.transfer(info.depositAddress, parseUnits(amountUsdt.trim(), 18));
-      setTxHash(tx.hash);
-      setWalletMessage('Transaction submitted. Waiting for blockchain confirmation…');
-      await tx.wait(1);
-      if (info.mode === 'shared') {
-        const claimMessage = createUsdtDepositClaimMessage(user.uid, tx.hash, amountUsdt.trim(), signerAddress);
-        const walletSignature = await signer.signMessage(claimMessage);
-        const result = await submitUsdtRecharge(user, amountUsdt.trim(), tx.hash, undefined, signerAddress, walletSignature);
-        notifyDepositStatus(String(result?.id || result?.rechargeId || tx.hash), String(result?.status || 'pending'), amountUsdt.trim(), tx.hash);
-        const history = await listUsdtRecharges(user);
-        setRequests(history.requests || []);
-      }
-      setSubmitMessage('Transaction confirmed. Deposit monitoring will verify the token, destination, and amount before any wallet credit.');
-      setWalletMessage('USDT transfer confirmed on BNB Smart Chain.');
-      await manualRefresh();
-    } catch (err: any) {
-      setError(String(err?.shortMessage || err?.message || 'USDT transfer failed. Check wallet funds, BNB gas, and the network.'));
-    } finally {
-      setWalletSending(false);
-    }
-  };
+      const senderAddress = await signer.getAddress();
+      const claimMessage = createUsdtDepositClaimMessage(user.uid, hash, amount, senderAddress);
+      setSubmitMessage('Please approve the verification message in your wallet. This is a signature only; it does not send USDT.');
+      const signature = await signer.signMessage(claimMessage);
 
-  const submitTxid = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!user || submitting) return;
-    setSubmitting(true);
-    setError('');
-    setSubmitMessage('');
-    try {
-      let walletAddress = '';
-      let walletSignature = '';
-      // Wallet connection is intentionally optional/removed from the member UI.
-      // Shared-wallet claims without a sender signature remain pending for admin review;
-      // the server must never auto-credit a shared-address payment without sender proof.
-      const result = await submitUsdtRecharge(user, amountUsdt.trim(), txHash.trim(), undefined, walletAddress, walletSignature);
-      setSubmitMessage(String(result?.message || 'TXID submitted for verification.'));
-      notifyDepositStatus(String(result?.id || result?.rechargeId || txHash.trim()), String(result?.status || 'pending'), amountUsdt.trim(), txHash.trim());
-      if (result?.status === 'approved') await refreshWallet();
+      const result = await submitUsdtRecharge(user, amount, hash, undefined, senderAddress, signature);
+      const status = String(result?.status || 'pending');
+      setSubmitMessage(String(result?.message || 'Sender verified. Blockchain deposit verification is processing.'));
+      notifyDepositStatus(String(result?.id || result?.rechargeId || hash), status, amount, hash);
+      if (status === 'approved') await refreshWallet();
+
+      // A TXID is single-use. Clear it after the server accepts the request to
+      // prevent an accidental second submission from triggering duplicate protection.
       setAmountUsdt('');
       setTxHash('');
       const history = await listUsdtRecharges(user);
       setRequests(history.requests || []);
     } catch (err: any) {
-      setError(String(err?.message || 'Could not submit this TXID. Please check it and retry.'));
+      setError(String(err?.shortMessage || err?.message || 'Sender verification could not be completed.'));
     } finally {
-      setSubmitting(false);
+      setVerifyingSender(false);
     }
   };
 
@@ -422,17 +374,16 @@ export const Recharge: React.FC = () => {
           </div>
           <div className="flex justify-center rounded-xl bg-white p-4"><QRCodeSVG value={address} size={180} level="M" includeMargin /></div>
           <p className="text-xs leading-5 text-amber-200">Only send USDT on BNB Smart Chain (BEP20). Other networks may cause permanent loss.</p>
-          <form onSubmit={submitTxid} className="space-y-3 rounded-xl border border-blue-500/20 bg-[#060d20] p-4">
-            <h4 className="text-sm font-bold text-white">Submit your deposit</h4>
-
-            {/* Trust Wallet connection controls removed as requested. */}
+          <form onSubmit={event => event.preventDefault()} className="space-y-3 rounded-xl border border-blue-500/20 bg-[#060d20] p-4">
+            <h4 className="text-sm font-bold text-white">Verify your deposit</h4>
             <label className="block text-xs text-slate-300">Amount sent (USDT)
               <input required inputMode="decimal" value={amountUsdt} onChange={e => setAmountUsdt(e.target.value)} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 text-sm text-white" placeholder="e.g. 10" />
             </label>
             <label className="block text-xs text-slate-300">Transaction hash / TXID
               <input required minLength={66} maxLength={66} value={txHash} onChange={e => setTxHash(e.target.value.trim())} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 font-mono text-xs text-white" placeholder="0x..." />
             </label>
-            <button type="submit" disabled={submitting} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? 'Submitting TXID…' : 'Submit TXID for verification'}</button>
+            <button type="button" onClick={verifySenderWallet} disabled={verifyingSender || submitting} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{verifyingSender ? 'Verifying sender wallet…' : 'Verify Sender Wallet'}</button>
+            <p className="text-[11px] leading-5 text-slate-400">Your wallet will ask you to sign a verification message. Signing does not transfer funds or give this website access to your wallet.</p>
             {submitMessage && <p className="text-xs text-emerald-300">{submitMessage}</p>}
           </form>
           <div className="space-y-2">
