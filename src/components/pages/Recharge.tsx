@@ -4,11 +4,9 @@ import {
   CheckCircle2, Clock3, ExternalLink
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { BrowserProvider } from 'ethers';
 import { useAuth } from '../../context/AuthContext.tsx';
 import {
   getAutomaticDepositInfo,
-  createUsdtDepositClaimMessage,
   submitUsdtRecharge,
   listUsdtRecharges,
   type UsdtRechargeRequest,
@@ -16,21 +14,6 @@ import {
   type AutomaticUsdtDepositEvent,
 } from '../../services/usdtRechargeService.ts';
 
-function getInjectedWalletProvider(): any {
-  const w = window as any;
-  const candidates = [
-    w.trustwallet?.ethereum,
-    w.ethereum,
-    ...(Array.isArray(w.ethereum?.providers) ? w.ethereum.providers : []),
-  ].filter(Boolean);
-  return candidates.find((provider: any) =>
-    provider?.isTrust ||
-    provider?.isTrustWallet ||
-    provider?.providerInfo?.rdns === 'com.trustwallet.app' ||
-    provider?.isMetaMask ||
-    typeof provider?.request === 'function'
-  ) || null;
-}
 
 function formatUsdt(value: number | string, max = 8) {
   const number = Number(value || 0);
@@ -55,7 +38,6 @@ export const Recharge: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [verifyingSender, setVerifyingSender] = useState(false);
   const [setupMessage, setSetupMessage] = useState('');
   const [amountUsdt, setAmountUsdt] = useState('');
   const [txHash, setTxHash] = useState('');
@@ -160,74 +142,22 @@ export const Recharge: React.FC = () => {
 
   const address = info?.depositAddress || '';
 
-  const verifySenderWallet = async () => {
-    if (!user || verifyingSender || submitting) return;
+  const submitManualRecharge = async () => {
+    if (!user || submitting) return;
     const amount = amountUsdt.trim();
     const hash = txHash.trim().toLowerCase();
-    if (!/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/.test(amount) || Number(amount) <= 0) {
-      setError('Enter the exact USDT amount sent.');
-      return;
-    }
-    if (!/^0x[0-9a-f]{64}$/.test(hash)) {
-      setError('Enter a valid BNB Smart Chain transaction hash.');
-      return;
-    }
-
-    setVerifyingSender(true);
-    setError('');
-    setSubmitMessage('');
+    if (!/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,8})?$/.test(amount) || Number(amount) <= 0) { setError('Enter the exact USDT amount sent.'); return; }
+    if (!/^0x[0-9a-f]{64}$/.test(hash)) { setError('Enter a valid BNB Smart Chain transaction hash.'); return; }
+    setSubmitting(true); setError(''); setSubmitMessage('');
     try {
-      const ethereum = getInjectedWalletProvider();
-      if (!ethereum) {
-        throw new Error('Open this website inside Trust Wallet Browser or enable a compatible wallet extension to verify the sender.');
-      }
-
-      const provider = new BrowserProvider(ethereum);
-      await provider.send('eth_requestAccounts', []);
-      let network = await provider.getNetwork();
-      if (network.chainId !== 56n) {
-        try {
-          await provider.send('wallet_switchEthereumChain', [{ chainId: '0x38' }]);
-        } catch (switchError: any) {
-          if (switchError?.code === 4902) {
-            await provider.send('wallet_addEthereumChain', [{
-              chainId: '0x38',
-              chainName: 'BNB Smart Chain',
-              nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
-              rpcUrls: ['https://bsc-dataseed.binance.org/'],
-              blockExplorerUrls: ['https://bscscan.com/']
-            }]);
-          } else {
-            throw switchError;
-          }
-        }
-        network = await provider.getNetwork();
-      }
-      if (network.chainId !== 56n) throw new Error('Please switch your wallet to BNB Smart Chain and try again.');
-
-      const signer = await provider.getSigner();
-      const senderAddress = await signer.getAddress();
-      const claimMessage = createUsdtDepositClaimMessage(user.uid, hash, amount, senderAddress);
-      setSubmitMessage('Please approve the verification message in your wallet. This is a signature only; it does not send USDT.');
-      const signature = await signer.signMessage(claimMessage);
-
-      const result = await submitUsdtRecharge(user, amount, hash, undefined, senderAddress, signature);
+      const result = await submitUsdtRecharge(user, amount, hash);
       const status = String(result?.status || 'pending');
-      setSubmitMessage(String(result?.message || 'Sender verified. Blockchain deposit verification is processing.'));
+      setSubmitMessage(String(result?.message || 'Request submitted. Admin approval is required before your Fund Wallet is credited.'));
       notifyDepositStatus(String(result?.id || result?.rechargeId || hash), status, amount, hash);
-      if (status === 'approved') await refreshWallet();
-
-      // A TXID is single-use. Clear it after the server accepts the request to
-      // prevent an accidental second submission from triggering duplicate protection.
-      setAmountUsdt('');
-      setTxHash('');
-      const history = await listUsdtRecharges(user);
-      setRequests(history.requests || []);
-    } catch (err: any) {
-      setError(String(err?.shortMessage || err?.message || 'Sender verification could not be completed.'));
-    } finally {
-      setVerifyingSender(false);
-    }
+      setAmountUsdt(''); setTxHash('');
+      const history = await listUsdtRecharges(user); setRequests(history.requests || []);
+    } catch (err: any) { setError(String(err?.message || 'Deposit request could not be submitted.')); }
+    finally { setSubmitting(false); }
   };
 
   const copyAddress = async () => {
@@ -382,8 +312,8 @@ export const Recharge: React.FC = () => {
             <label className="block text-xs text-slate-300">Transaction hash / TXID
               <input required minLength={66} maxLength={66} value={txHash} onChange={e => setTxHash(e.target.value.trim())} className="mt-1 w-full rounded-lg border border-blue-500/25 bg-[#091129] px-3 py-3 font-mono text-xs text-white" placeholder="0x..." />
             </label>
-            <button type="button" onClick={verifySenderWallet} disabled={verifyingSender || submitting} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{verifyingSender ? 'Verifying sender wallet…' : 'Verify Sender Wallet'}</button>
-            <p className="text-[11px] leading-5 text-slate-400">Your wallet will ask you to sign a verification message. Signing does not transfer funds or give this website access to your wallet.</p>
+            <button type="button" onClick={submitManualRecharge} disabled={submitting} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? 'Submitting request…' : 'Submit for Admin Approval'}</button>
+            <p className="text-[11px] leading-5 text-slate-400">Your request stays pending until an admin reviews the transaction. Funds are credited only after verification and approval.</p>
             {submitMessage && <p className="text-xs text-emerald-300">{submitMessage}</p>}
           </form>
           <div className="space-y-2">
