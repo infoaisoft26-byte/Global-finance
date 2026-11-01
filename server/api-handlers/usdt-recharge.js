@@ -915,16 +915,10 @@ export default async function handler(req,res){
         }
         throw error;
       }
-      let auto={attempted:false,status:'pending',reason:'WALLET_SIGNATURE_REQUIRED'};
-      try{
-        auto=await autoCreditRecharge({id,actor,txHash,amount,walletAddress,walletSignature});
-      }catch(error){
-        // Keep the submitted request available for cron retry or emergency admin review.
-        console.error('Immediate USDT auto-credit deferred:',id,error instanceof Error?error.message:error);
-        auto={attempted:true,status:'pending',deferred:'CREDIT_PROCESSING_FAILED'};
-      }
-      const credited=auto.status==='approved';
-      return json(res,201,{success:true,id,status:auto.status||'pending',...auto,message:credited?'USDT verified and credited to your Global Wallet.':walletSignature?'TXID saved. Automatic verification is pending; emergency admin review remains available.':'TXID saved. Connect and sign with the sending wallet for automatic credit, or contact support for emergency review.'});
+      // Keep the original admin-only manual review flow: submitting a TXID
+      // creates a pending request and does not credit the member automatically.
+      // An authorized admin must approve after the server verifies the exact BSC USDT transfer.
+      return json(res,201,{success:true,id,status:'pending',message:'Top-up request submitted. Your deposit will be credited after admin approval and transaction verification.'});
     }
 
     if(body.action==='retry'){
