@@ -157,7 +157,7 @@ export const DirectTeam: React.FC = () => {
           {loading && <div className="py-4 px-3 text-sm text-slate-600">Loading direct team…</div>}
           {!loading && filteredMembers.length === 0 && <div className="py-4 px-3 text-sm text-slate-600">No direct team members found yet.</div>}
           {!loading && filteredMembers.length > 0 && (
-            <table className="w-full min-w-[760px] border-collapse text-left">
+            <table className="w-full min-w-[880px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Name</th>
