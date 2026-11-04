@@ -153,14 +153,14 @@ export const DirectTeam: React.FC = () => {
         </div>
 
         {/* Mobile view is a single horizontal table; swipe sideways to see every column. */}
-        <div className="md:hidden w-full overflow-x-auto overscroll-x-contain rounded-lg border-y border-slate-200 bg-white">
+        <div className="md:hidden w-full min-w-0 overflow-x-auto overscroll-x-contain bg-transparent">
           {loading && <div className="py-4 px-3 text-sm text-slate-600">Loading direct team…</div>}
           {!loading && filteredMembers.length === 0 && <div className="py-4 px-3 text-sm text-slate-600">No direct team members found yet.</div>}
           {!loading && filteredMembers.length > 0 && (
-            <table className="w-full min-w-[880px] border-collapse text-left">
+            <table className="w-full min-w-[880px] border-collapse text-left bg-transparent">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Name</th>
+                <tr className="border-b-2 border-slate-300 bg-transparent">
+                  <th className="px-3 py-3 text-xs font-bold text-slate-800 whitespace-nowrap">Name</th>
                   <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">GF ID</th>
                   <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Join Date</th>
                   <th className="px-3 py-3 text-xs font-bold text-slate-700">Email</th>
@@ -168,9 +168,9 @@ export const DirectTeam: React.FC = () => {
                   <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-slate-300">
                 {filteredMembers.map(item => (
-                  <tr key={item.userId || item.id || item.referralCode}>
+                  <tr key={item.userId || item.id || item.referralCode} className="bg-transparent">
                     <td className="px-3 py-3 text-xs font-semibold text-slate-900 whitespace-nowrap">{item.name || '—'}</td>
                     <td className="px-3 py-3 text-xs font-mono font-bold text-blue-700 whitespace-nowrap">{item.referralCode || '—'}</td>
                     <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(item.joinDate)}</td>
