@@ -23,43 +23,61 @@ export const ForexLiveTicker: React.FC = () => {
     ticker.setAttribute('symbols', FOREX_SYMBOLS);
     ticker.setAttribute('direction', 'horizontal');
     ticker.setAttribute('item-size', 'compact');
-    ticker.setAttribute('theme', 'light');
+    ticker.setAttribute('theme', 'dark');
+    ticker.setAttribute('transparent', '');
     ticker.style.display = 'block';
     ticker.style.width = '100%';
+    ticker.appendChild(Object.assign(document.createElement('span'), {
+      textContent: 'Loading live forex market…',
+    }));
     container.appendChild(ticker);
 
     let active = true;
+    let fallbackTimer = 0;
     const showFallback = () => {
-      if (!active || !container.isConnected) return;
-      container.textContent = 'Forex market feed is temporarily unavailable.';
-      container.className = 'w-full py-3 text-center text-xs text-slate-500';
+      if (!active || !container.isConnected || customElements.get('tv-ticker-tape')) return;
+      container.innerHTML = '<div class="flex min-h-[54px] items-center justify-center px-3 text-xs text-slate-300">Live Forex Market · Feed temporarily unavailable</div>';
+    };
+    const waitForWidget = () => {
+      if (customElements.get('tv-ticker-tape')) {
+        window.clearTimeout(fallbackTimer);
+        return;
+      }
+      fallbackTimer = window.setTimeout(showFallback, 10000);
     };
 
-    const existingScript = document.getElementById(TRADINGVIEW_SCRIPT_ID) as HTMLScriptElement | null;
     if (customElements.get('tv-ticker-tape')) {
-      return () => {
-        active = false;
-        ticker.remove();
-      };
-    }
-
-    if (existingScript) {
-      customElements.whenDefined('tv-ticker-tape').catch(showFallback);
+      // The shared TradingView component is already registered.
     } else {
-      const script = document.createElement('script');
-      script.id = TRADINGVIEW_SCRIPT_ID;
-      script.type = 'module';
-      script.src = TRADINGVIEW_SCRIPT_URL;
-      script.async = true;
-      script.onerror = showFallback;
-      document.head.appendChild(script);
+      const existingScript = document.getElementById(TRADINGVIEW_SCRIPT_ID) as HTMLScriptElement | null;
+      if (existingScript) {
+        waitForWidget();
+        customElements.whenDefined('tv-ticker-tape').then(() => window.clearTimeout(fallbackTimer));
+      } else {
+        const script = document.createElement('script');
+        script.id = TRADINGVIEW_SCRIPT_ID;
+        script.type = 'module';
+        script.src = TRADINGVIEW_SCRIPT_URL;
+        script.async = true;
+        script.onload = () => {
+          customElements.whenDefined('tv-ticker-tape').then(() => window.clearTimeout(fallbackTimer));
+        };
+        script.onerror = showFallback;
+        document.head.appendChild(script);
+        fallbackTimer = window.setTimeout(showFallback, 10000);
+      }
     }
 
     return () => {
       active = false;
+      window.clearTimeout(fallbackTimer);
       ticker.remove();
     };
   }, []);
 
-  return <div ref={containerRef} className="w-full min-w-0 overflow-hidden" aria-label="Live forex market prices" />;
+  return (
+    <section className="w-full min-w-0 overflow-hidden rounded-xl border border-cyan-500/20 bg-[#091129] shadow-lg" aria-label="Live forex market">
+      <div ref={containerRef} className="w-full min-w-0 overflow-hidden" />
+    </section>
+  );
 };
