@@ -794,3 +794,24 @@ html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-team .grid > div::
   .gf-member-dashboard .gf-dashboard-hero > div:last-child { width: 100%; }
   .gf-member-dashboard .gf-dashboard-hero > div:last-child button { flex: 1 1 45%; justify-content: center; }
 }
+
+
+/* Keep customer balance cards aligned and evenly sized across dashboard rows. */
+.gf-member-dashboard .gf-dashboard-balance .grid {
+  align-items: stretch;
+}
+.gf-member-dashboard .gf-dashboard-balance .grid > div {
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+@media (max-width: 640px) {
+  .gf-member-dashboard .gf-dashboard-balance .grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: .875rem !important;
+  }
+  .gf-member-dashboard .gf-dashboard-balance .grid > div {
+    min-height: 138px;
+  }
+}
