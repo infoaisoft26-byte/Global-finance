@@ -815,3 +815,81 @@ html[data-gf-theme="dark"] .gf-member-dashboard .gf-dashboard-team .grid > div::
     min-height: 138px;
   }
 }
+
+
+/* ============================================================
+ * GLOBAL FINANCE TYPOGRAPHY SYSTEM
+ * Consistent, comfortable reading sizes across desktop and mobile.
+ * Keep mono styling for IDs and financial figures where explicitly used.
+ * ============================================================ */
+#root {
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+}
+
+#root :is(button, input, select, textarea) {
+  font-family: inherit;
+  letter-spacing: normal;
+}
+
+#root :is(p, li, label, th, td) {
+  line-height: 1.5;
+}
+
+#root :is(h1, h2, h3, h4, h5, h6) {
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* Small helper text was too tiny on some member/admin screens. */
+#root [class~="text-[9px]"],
+#root [class~="text-[10px]"] {
+  font-size: 0.75rem !important;
+  line-height: 1.45 !important;
+}
+
+#root [class~="text-[11px]"],
+#root [class~="text-xs"] {
+  font-size: 0.8125rem !important;
+  line-height: 1.5 !important;
+}
+
+#root [class~="text-sm"] {
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+}
+
+#root :is(input, select, textarea) {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+#root button {
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  #root [class~="text-[9px]"],
+  #root [class~="text-[10px]"] {
+    font-size: 0.75rem !important;
+  }
+
+  #root [class~="text-[11px]"],
+  #root [class~="text-xs"] {
+    font-size: 0.8125rem !important;
+  }
+
+  #root :is(input, select, textarea) {
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #root * {
+    scroll-behavior: auto !important;
+  }
+}
