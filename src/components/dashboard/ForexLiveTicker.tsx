@@ -1,7 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 
-const TRADINGVIEW_SCRIPT_ID = 'gf-tradingview-ticker-tape';
-const TRADINGVIEW_SCRIPT_URL = 'https://widgets.tradingview-widget.com/w/en/tv-ticker-tape.js';
 const FOREX_SYMBOLS = [
   'FX:EURUSD',
   'FX:GBPUSD',
@@ -12,67 +10,37 @@ const FOREX_SYMBOLS = [
   'FX_IDC:USDINR',
 ].join(',');
 
+/**
+ * TradingView's official custom element is registered from index.html.
+ * Rendering the element declaratively avoids dynamically injected script
+ * timing issues and keeps a visible placeholder until the widget upgrades.
+ */
 export const ForexLiveTicker: React.FC = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const ticker = document.createElement('tv-ticker-tape');
-    ticker.setAttribute('symbols', FOREX_SYMBOLS);
-    ticker.setAttribute('direction', 'horizontal');
-    ticker.setAttribute('item-size', 'compact');
-    ticker.setAttribute('theme', 'dark');
-    ticker.setAttribute('transparent', '');
-    // TradingView sizes this web component from its host container.
-    // Keep an explicit height so it cannot collapse to zero in the dashboard.
-    ticker.style.display = 'block';
-    ticker.style.width = '100%';
-    ticker.style.height = '58px';
-    ticker.style.minHeight = '58px';
-    ticker.appendChild(Object.assign(document.createElement('span'), {
-      textContent: 'Loading live forex market…',
-    }));
-    container.appendChild(ticker);
-
-    let active = true;
-    let fallbackTimer = 0;
-    const showFallback = () => {
-      if (!active || !container.isConnected || customElements.get('tv-ticker-tape')) return;
-      container.innerHTML = '<div class="flex h-[58px] min-h-[58px] items-center justify-center px-3 text-xs text-slate-300">Live Forex Market · Feed temporarily unavailable</div>';
-    };
-
-    if (!customElements.get('tv-ticker-tape')) {
-      const existingScript = document.getElementById(TRADINGVIEW_SCRIPT_ID) as HTMLScriptElement | null;
-      if (existingScript) {
-        fallbackTimer = window.setTimeout(showFallback, 10000);
-        customElements.whenDefined('tv-ticker-tape').then(() => window.clearTimeout(fallbackTimer));
-      } else {
-        const script = document.createElement('script');
-        script.id = TRADINGVIEW_SCRIPT_ID;
-        script.type = 'module';
-        script.src = TRADINGVIEW_SCRIPT_URL;
-        script.async = true;
-        script.onload = () => {
-          customElements.whenDefined('tv-ticker-tape').then(() => window.clearTimeout(fallbackTimer));
-        };
-        script.onerror = showFallback;
-        document.head.appendChild(script);
-        fallbackTimer = window.setTimeout(showFallback, 10000);
-      }
-    }
-
-    return () => {
-      active = false;
-      window.clearTimeout(fallbackTimer);
-      ticker.remove();
-    };
-  }, []);
+  const widget = React.createElement(
+    'tv-ticker-tape',
+    {
+      symbols: FOREX_SYMBOLS,
+      direction: 'horizontal',
+      'item-size': 'compact',
+      theme: 'dark',
+      transparent: '',
+      style: { display: 'block', width: '100%', minHeight: '58px' },
+    } as React.HTMLAttributes<HTMLElement> & Record<string, unknown>,
+    React.createElement(
+      'span',
+      { className: 'flex h-[58px] items-center justify-center px-3 text-xs text-slate-300' },
+      'Loading live forex market…',
+    ),
+  );
 
   return (
-    <section className="h-[58px] min-h-[58px] w-full min-w-0 overflow-hidden rounded-xl border border-cyan-500/20 bg-[#091129] shadow-lg" aria-label="Live forex market">
-      <div ref={containerRef} className="h-[58px] min-h-[58px] w-full min-w-0 overflow-hidden" />
+    <section
+      className="relative z-10 block h-[58px] min-h-[58px] w-full min-w-0 overflow-hidden rounded-xl border border-cyan-500/20 bg-[#091129] shadow-lg"
+      aria-label="Live forex market"
+    >
+      <div className="h-[58px] min-h-[58px] w-full min-w-0 overflow-hidden">
+        {widget}
+      </div>
     </section>
   );
 };
