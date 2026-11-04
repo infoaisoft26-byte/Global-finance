@@ -359,6 +359,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
     return `USDT ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}`;
   };
 
+  // Closing balance is the combined currently available balance in both member wallets.
+  const closingUsdtBalance = Number(wallet?.fundWallet || 0) + Number(wallet?.incomeWallet || 0);
+
   return (
     <div className="gf-member-dashboard flex flex-col space-y-6">
       {showOffer && offerPoster && (
@@ -487,7 +490,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
           <span className="text-xs text-slate-500">Real-time ledger synchronized</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
           {/* Available Fund */}
           <div className="p-5 rounded-xl bg-[#091129]/90 border border-blue-500/25 shadow-lg backdrop-blur-md">
             <div className="flex items-center justify-between mb-2">
@@ -529,6 +532,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenProfile 
               >
                 Withdraw
               </button>
+            </div>
+          </div>
+
+          {/* Closing USDT Balance */}
+          <div className="p-5 rounded-xl bg-gradient-to-br from-[#082b3a] to-[#091129] border border-cyan-400/40 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">Closing USDT Balance</span>
+              <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-300">
+                <Wallet className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-extrabold text-cyan-200 font-mono tracking-tight tabular-nums break-words">
+              {formatUsdt(closingUsdtBalance)}
+            </div>
+            <div className="mt-3 border-t border-cyan-500/20 pt-3 text-[11px] text-slate-400">
+              Combined available Fund Wallet + Income Wallet
             </div>
           </div>
 
