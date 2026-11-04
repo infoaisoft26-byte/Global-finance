@@ -157,7 +157,7 @@ export const DirectTeam: React.FC = () => {
           {loading && <div className="py-4 px-3 text-sm text-slate-600">Loading direct team…</div>}
           {!loading && filteredMembers.length === 0 && <div className="py-4 px-3 text-sm text-slate-600">No direct team members found yet.</div>}
           {!loading && filteredMembers.length > 0 && (
-            <table className="w-full min-w-[760px] border-collapse text-left">
+            <table className="w-full min-w-[880px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Name</th>
@@ -165,6 +165,7 @@ export const DirectTeam: React.FC = () => {
                   <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Join Date</th>
                   <th className="px-3 py-3 text-xs font-bold text-slate-700">Email</th>
                   <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Mobile Number</th>
+                  <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -175,6 +176,7 @@ export const DirectTeam: React.FC = () => {
                     <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(item.joinDate)}</td>
                     <td className="px-3 py-3 text-xs text-slate-600 min-w-[220px] break-all">{item.email || 'Not provided'}</td>
                     <td className="px-3 py-3 text-xs whitespace-nowrap">{item.phone ? <a href={'tel:' + item.phone} className="text-blue-700 underline underline-offset-2">{item.phone}</a> : <span className="text-slate-500">Not provided</span>}</td>
+                    <td className="px-3 py-3 text-xs whitespace-nowrap"><span className={item.status === 'active' ? 'inline-flex rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700' : item.status === 'suspended' ? 'inline-flex rounded-full bg-red-50 px-2.5 py-1 font-semibold text-red-700' : 'inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700'}>{item.status === 'active' ? 'Active' : 'Inactive'}</span></td>
                   </tr>
                 ))}
               </tbody>
