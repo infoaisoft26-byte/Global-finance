@@ -25,8 +25,12 @@ export const ForexLiveTicker: React.FC = () => {
     ticker.setAttribute('item-size', 'compact');
     ticker.setAttribute('theme', 'dark');
     ticker.setAttribute('transparent', '');
+    // TradingView sizes this web component from its host container.
+    // Keep an explicit height so it cannot collapse to zero in the dashboard.
     ticker.style.display = 'block';
     ticker.style.width = '100%';
+    ticker.style.height = '58px';
+    ticker.style.minHeight = '58px';
     ticker.appendChild(Object.assign(document.createElement('span'), {
       textContent: 'Loading live forex market…',
     }));
@@ -36,22 +40,13 @@ export const ForexLiveTicker: React.FC = () => {
     let fallbackTimer = 0;
     const showFallback = () => {
       if (!active || !container.isConnected || customElements.get('tv-ticker-tape')) return;
-      container.innerHTML = '<div class="flex min-h-[54px] items-center justify-center px-3 text-xs text-slate-300">Live Forex Market · Feed temporarily unavailable</div>';
-    };
-    const waitForWidget = () => {
-      if (customElements.get('tv-ticker-tape')) {
-        window.clearTimeout(fallbackTimer);
-        return;
-      }
-      fallbackTimer = window.setTimeout(showFallback, 10000);
+      container.innerHTML = '<div class="flex h-[58px] min-h-[58px] items-center justify-center px-3 text-xs text-slate-300">Live Forex Market · Feed temporarily unavailable</div>';
     };
 
-    if (customElements.get('tv-ticker-tape')) {
-      // The shared TradingView component is already registered.
-    } else {
+    if (!customElements.get('tv-ticker-tape')) {
       const existingScript = document.getElementById(TRADINGVIEW_SCRIPT_ID) as HTMLScriptElement | null;
       if (existingScript) {
-        waitForWidget();
+        fallbackTimer = window.setTimeout(showFallback, 10000);
         customElements.whenDefined('tv-ticker-tape').then(() => window.clearTimeout(fallbackTimer));
       } else {
         const script = document.createElement('script');
@@ -76,8 +71,8 @@ export const ForexLiveTicker: React.FC = () => {
   }, []);
 
   return (
-    <section className="w-full min-w-0 overflow-hidden rounded-xl border border-cyan-500/20 bg-[#091129] shadow-lg" aria-label="Live forex market">
-      <div ref={containerRef} className="w-full min-w-0 overflow-hidden" />
+    <section className="h-[58px] min-h-[58px] w-full min-w-0 overflow-hidden rounded-xl border border-cyan-500/20 bg-[#091129] shadow-lg" aria-label="Live forex market">
+      <div ref={containerRef} className="h-[58px] min-h-[58px] w-full min-w-0 overflow-hidden" />
     </section>
   );
 };
