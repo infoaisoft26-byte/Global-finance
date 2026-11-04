@@ -152,29 +152,34 @@ export const DirectTeam: React.FC = () => {
           </label>
         </div>
 
-        {/* Mobile view uses a simple sequential list with divider lines, not individual cards. */}
-        <div className="md:hidden divide-y divide-slate-200 border-y border-slate-200 bg-white">
-          {loading && <div className="py-4 text-sm text-slate-600">Loading direct team…</div>}
-          {!loading && filteredMembers.length === 0 && <div className="py-4 text-sm text-slate-600">No direct team members found yet.</div>}
-          {filteredMembers.map((item, index) => (
-            <div key={item.userId || item.id || item.referralCode} className="py-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs text-slate-500">#{index + 1}</div>
-                  <div className="font-semibold text-sm text-slate-900 break-words">{item.name || 'Member'}</div>
-                  <div className="text-xs text-blue-700 font-mono">{item.referralCode || '—'}</div>
-                </div>
-                <span className={item.status === 'active' ? 'shrink-0 text-[11px] font-semibold text-emerald-700' : item.status === 'suspended' ? 'shrink-0 text-[11px] font-semibold text-red-700' : 'shrink-0 text-[11px] font-semibold text-slate-600'}>
-                  {item.status === 'active' ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-              <div className="mt-2 flex flex-col gap-1 text-xs text-slate-600">
-                <div><span className="font-semibold text-slate-700">Join Date:</span> {formatDate(item.joinDate)}</div>
-                <div className="break-all"><span className="font-semibold text-slate-700">Email:</span> {item.email || 'Not provided'}</div>
-                <div><span className="font-semibold text-slate-700">Mobile:</span> {item.phone ? <a href={'tel:' + item.phone} className="text-blue-700 underline underline-offset-2">{item.phone}</a> : 'Not provided'}</div>
-              </div>
-            </div>
-          ))}
+        {/* Mobile view is a single horizontal table; swipe sideways to see every column. */}
+        <div className="md:hidden w-full overflow-x-auto overscroll-x-contain rounded-lg border-y border-slate-200 bg-white">
+          {loading && <div className="py-4 px-3 text-sm text-slate-600">Loading direct team…</div>}
+          {!loading && filteredMembers.length === 0 && <div className="py-4 px-3 text-sm text-slate-600">No direct team members found yet.</div>}
+          {!loading && filteredMembers.length > 0 && (
+            <table className="w-full min-w-[760px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Name</th>
+                  <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">GF ID</th>
+                  <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Join Date</th>
+                  <th className="px-3 py-3 text-xs font-bold text-slate-700">Email</th>
+                  <th className="px-3 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">Mobile Number</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filteredMembers.map(item => (
+                  <tr key={item.userId || item.id || item.referralCode}>
+                    <td className="px-3 py-3 text-xs font-semibold text-slate-900 whitespace-nowrap">{item.name || '—'}</td>
+                    <td className="px-3 py-3 text-xs font-mono font-bold text-blue-700 whitespace-nowrap">{item.referralCode || '—'}</td>
+                    <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">{formatDate(item.joinDate)}</td>
+                    <td className="px-3 py-3 text-xs text-slate-600 min-w-[220px] break-all">{item.email || 'Not provided'}</td>
+                    <td className="px-3 py-3 text-xs whitespace-nowrap">{item.phone ? <a href={'tel:' + item.phone} className="text-blue-700 underline underline-offset-2">{item.phone}</a> : <span className="text-slate-500">Not provided</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="hidden md:block">
