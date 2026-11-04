@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Check, Share2, Phone, Mail, CalendarDays, UserRound } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { getDownlineMembers } from '../../services/financeService.ts';
 import { DataTable, type Column, type PdfColumn } from '../common/DataTable.tsx';
@@ -152,26 +152,28 @@ export const DirectTeam: React.FC = () => {
           </label>
         </div>
 
-        {/* Mobile-first cards keep each member's phone number visible without horizontal table scrolling. */}
-        <div className="md:hidden space-y-3">
-          {loading && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">Loading direct team…</div>}
-          {!loading && filteredMembers.length === 0 && <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">No direct team members found yet.</div>}
-          {filteredMembers.map(item => (
-            <article key={item.userId || item.id || item.referralCode} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center shrink-0"><UserRound className="w-5 h-5" /></div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-slate-900 break-words">{item.name || 'Member'}</div>
-                  <div className="text-xs text-blue-700 font-mono mt-0.5">{item.referralCode || '—'}</div>
+        {/* Mobile view uses a simple sequential list with divider lines, not individual cards. */}
+        <div className="md:hidden divide-y divide-slate-200 border-y border-slate-200 bg-white">
+          {loading && <div className="py-4 text-sm text-slate-600">Loading direct team…</div>}
+          {!loading && filteredMembers.length === 0 && <div className="py-4 text-sm text-slate-600">No direct team members found yet.</div>}
+          {filteredMembers.map((item, index) => (
+            <div key={item.userId || item.id || item.referralCode} className="py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs text-slate-500">#{index + 1}</div>
+                  <div className="font-semibold text-sm text-slate-900 break-words">{item.name || 'Member'}</div>
+                  <div className="text-xs text-blue-700 font-mono">{item.referralCode || '—'}</div>
                 </div>
-                <span className={`text-[11px] font-semibold rounded-full px-2 py-1 capitalize ${item.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{item.status || 'inactive'}</span>
+                <span className={item.status === 'active' ? 'shrink-0 text-[11px] font-semibold text-emerald-700' : item.status === 'suspended' ? 'shrink-0 text-[11px] font-semibold text-red-700' : 'shrink-0 text-[11px] font-semibold text-slate-600'}>
+                  {item.status === 'active' ? 'Active' : 'Inactive'}
+                </span>
               </div>
-              <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 text-sm">
-                <div className="flex items-start gap-2 text-slate-700"><Phone className="w-4 h-4 mt-0.5 text-blue-700 shrink-0" /><span className="text-xs text-slate-500 w-16 shrink-0">Mobile</span>{item.phone ? <a href={`tel:${item.phone}`} className="font-semibold text-blue-700 underline underline-offset-2 break-all">{item.phone}</a> : <span className="text-slate-500">Not provided</span>}</div>
-                <div className="flex items-start gap-2 text-slate-700"><Mail className="w-4 h-4 mt-0.5 text-blue-700 shrink-0" /><span className="text-xs text-slate-500 w-16 shrink-0">Email</span><span className="break-all text-xs">{item.email || 'Not provided'}</span></div>
-                <div className="flex items-start gap-2 text-slate-700"><CalendarDays className="w-4 h-4 mt-0.5 text-blue-700 shrink-0" /><span className="text-xs text-slate-500 w-16 shrink-0">Joined</span><span className="text-xs">{formatDate(item.joinDate)}</span></div>
+              <div className="mt-2 flex flex-col gap-1 text-xs text-slate-600">
+                <div><span className="font-semibold text-slate-700">Join Date:</span> {formatDate(item.joinDate)}</div>
+                <div className="break-all"><span className="font-semibold text-slate-700">Email:</span> {item.email || 'Not provided'}</div>
+                <div><span className="font-semibold text-slate-700">Mobile:</span> {item.phone ? <a href={'tel:' + item.phone} className="text-blue-700 underline underline-offset-2">{item.phone}</a> : 'Not provided'}</div>
               </div>
-            </article>
+            </div>
           ))}
         </div>
 
